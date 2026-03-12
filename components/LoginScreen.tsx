@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
 import { StaffMember } from '../types';
@@ -10,7 +11,8 @@ interface LoginScreenProps {
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
-  const { login } = useAuth();
+  const navigate = useNavigate();
+  const { login, companyId: existingCompanyId } = useAuth();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [accessCode, setAccessCode] = useState('');
   const [companyId, setCompanyId] = useState<string | null>(null);
@@ -20,6 +22,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (existingCompanyId) {
+      navigate('/');
+    }
+  }, [existingCompanyId, navigate]);
 
   // Step 1: Handle Company UID Login
   const handleCompanyLogin = async (e: React.FormEvent) => {
@@ -79,7 +88,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           if (email.endsWith('@ecafleet.com')) return email.split('@')[0];
           return email || 'Anonymous';
         };
-        setUserId(getDisplayId(authData.user));
+        const displayId = getDisplayId(authData.user);
+        setUserId(displayId);
         
         // Fetch staff members for this company
         const { data: staffData, error: staffError } = await supabase
@@ -91,6 +101,26 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           console.error('Error fetching staff members:', staffError);
         } else if (staffData) {
           setStaffMembers(staffData);
+        }
+        
+        // If no staff members exist, log them in directly as admin (company owner)
+        if (!staffData || staffData.length === 0) {
+          // Fetch company subscription tier
+          let tier: 'tier_1' | 'tier_2' | 'tier_3' = 'tier_1'; // Default
+          
+          const { data: companyData, error: companyError } = await supabase
+            .from('companies')
+            .select('subscription_tier')
+            .eq('id', authData.user.id)
+            .single();
+            
+          if (!companyError && companyData && companyData.subscription_tier) {
+            tier = companyData.subscription_tier as 'tier_1' | 'tier_2' | 'tier_3';
+          }
+
+          login(authData.user.id, 'admin', tier, displayId);
+          if (onLogin) onLogin(authData.user.id);
+          return;
         }
         
         setStep(2);
