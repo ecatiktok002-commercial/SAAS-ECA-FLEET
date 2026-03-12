@@ -132,22 +132,46 @@ ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE handover_records ENABLE ROW LEVEL SECURITY;
 
--- Create basic RLS Policies (Allow access if company_id matches auth.uid)
--- We use explicit casting to UUID to avoid "operator does not exist: uuid = text" errors
-DO $$ 
-DECLARE 
-  t text;
-BEGIN
-  FOR t IN 
-    SELECT table_name 
-    FROM information_schema.columns 
-    WHERE table_schema = 'public' 
-    AND column_name = 'company_id'
-    AND table_name != 'companies'
-  LOOP
-    EXECUTE format('DROP POLICY IF EXISTS "Company access" ON %I', t);
-    EXECUTE format('CREATE POLICY "Company access" ON %I FOR ALL USING (auth.uid()::uuid = company_id)', t);
-  END LOOP;
-END $$;
+-- 11. RLS Policies (Explicit and Type-Safe)
+-- We use ::text = ::text to avoid "operator does not exist: uuid = text" errors
+-- which can happen depending on the Supabase environment configuration.
 
-CREATE POLICY "Companies can view themselves" ON companies FOR SELECT USING (auth.uid()::uuid = id);
+-- Companies
+DROP POLICY IF EXISTS "Companies can view themselves" ON companies;
+CREATE POLICY "Companies can view themselves" ON companies FOR SELECT USING (auth.uid()::text = id::text);
+
+-- Staff Members
+DROP POLICY IF EXISTS "Company access" ON staff_members;
+CREATE POLICY "Company access" ON staff_members FOR ALL USING (auth.uid()::text = company_id::text);
+
+-- Cars
+DROP POLICY IF EXISTS "Company access" ON cars;
+CREATE POLICY "Company access" ON cars FOR ALL USING (auth.uid()::text = company_id::text);
+
+-- Members
+DROP POLICY IF EXISTS "Company access" ON members;
+CREATE POLICY "Company access" ON members FOR ALL USING (auth.uid()::text = company_id::text);
+
+-- Bookings
+DROP POLICY IF EXISTS "Company access" ON bookings;
+CREATE POLICY "Company access" ON bookings FOR ALL USING (auth.uid()::text = company_id::text);
+
+-- Agreements
+DROP POLICY IF EXISTS "Company access" ON agreements;
+CREATE POLICY "Company access" ON agreements FOR ALL USING (auth.uid()::text = company_id::text);
+
+-- Digital Forms
+DROP POLICY IF EXISTS "Company access" ON digital_forms;
+CREATE POLICY "Company access" ON digital_forms FOR ALL USING (auth.uid()::text = company_id::text);
+
+-- Expenses
+DROP POLICY IF EXISTS "Company access" ON expenses;
+CREATE POLICY "Company access" ON expenses FOR ALL USING (auth.uid()::text = company_id::text);
+
+-- Logs
+DROP POLICY IF EXISTS "Company access" ON logs;
+CREATE POLICY "Company access" ON logs FOR ALL USING (auth.uid()::text = company_id::text);
+
+-- Handover Records
+DROP POLICY IF EXISTS "Company access" ON handover_records;
+CREATE POLICY "Company access" ON handover_records FOR ALL USING (auth.uid()::text = company_id::text);
