@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { useAuth } from '../context/AuthContext';
+import SupabaseConnectionBanner from './SupabaseConnectionBanner';
 
 const Layout: React.FC = () => {
   const { companyId, staffRole, subscriptionTier, isLoading } = useAuth();
@@ -25,6 +26,7 @@ const Layout: React.FC = () => {
       <main className="flex-1 overflow-y-auto">
         <Outlet />
       </main>
+      <SupabaseConnectionBanner />
     </div>
   );
 };

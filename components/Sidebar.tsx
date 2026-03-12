@@ -40,7 +40,7 @@ const Sidebar: React.FC = () => {
       <div className="p-6">
         <h1 className="text-2xl font-bold tracking-tight">EcaFleet</h1>
         <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider">
-          {subscriptionTier?.replace('_', ' ')} Plan
+          {companyId === 'superadmin' ? 'Master Admin' : `${subscriptionTier?.replace('_', ' ')} Plan`}
         </p>
       </div>
       

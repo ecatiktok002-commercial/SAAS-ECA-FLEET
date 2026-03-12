@@ -598,12 +598,36 @@ export const apiService = {
   // Companies (Superadmin)
   async getCompanies(): Promise<any[]> {
     return withRetry(async () => {
-      const { data, error } = await supabase
+      // Try to fetch with name ordering first
+      let { data, error } = await supabase
         .from('companies')
         .select('*')
         .neq('id', 'superadmin')
         .order('name', { ascending: true });
       
+      // If name column is missing (Postgres error 42703)
+      if (error && (error.code === '42703' || error.message?.includes('column "name" does not exist'))) {
+        console.warn('Supabase Warning: "name" column missing in companies table. Falling back to unordered fetch.');
+        const fallback = await supabase
+          .from('companies')
+          .select('*')
+          .neq('id', 'superadmin');
+          
+        if (fallback.error) {
+          logSupabaseError('getCompanies fallback', fallback.error);
+          throw new Error(fallback.error.message || 'Failed to fetch companies');
+        }
+        
+        data = fallback.data;
+        error = null;
+
+        // Ensure every company has a name property for the UI
+        return (data || []).map(c => ({
+          ...c,
+          name: c.name || c.id.substring(0, 8)
+        }));
+      }
+
       if (error) {
         logSupabaseError('getCompanies', error);
         throw new Error(error.message || 'Failed to fetch companies');

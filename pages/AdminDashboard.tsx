@@ -24,9 +24,6 @@ interface AgentStat {
 const AdminDashboard: React.FC = () => {
   const { companyId } = useAuth();
   
-  if (companyId === 'superadmin') {
-    return <Navigate to="/subscribers" replace />;
-  }
   const [stats, setStats] = useState({
     totalSales: 0,
     todayOrders: 0,
