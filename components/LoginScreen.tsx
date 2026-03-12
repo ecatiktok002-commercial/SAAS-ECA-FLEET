@@ -160,8 +160,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       }
 
       if (authData.user) {
-        login(authData.user.id, 'admin', 'tier_3', 'Master Admin');
-        if (onLogin) onLogin(authData.user.id);
+        login('superadmin', 'admin', 'tier_3', 'Master Admin');
+        if (onLogin) onLogin('superadmin');
       }
     } catch (err: any) {
       setError(err.message || 'Authentication failed. Please ensure the password for superadmin@ecafleet.com is set to "superadmin".');

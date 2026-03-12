@@ -85,7 +85,10 @@ export interface Agreement {
   company_id: string;
   agent_id: string;
   agent_name: string;
+  customer_name: string;
   amount: number;
+  status: 'pending' | 'signed';
+  details?: string;
   created_at: string;
 }
 
@@ -95,5 +98,14 @@ export interface DigitalForm {
   customer_name: string;
   status: 'pending' | 'signed';
   amount: number;
+  created_at: string;
+}
+
+export interface Company {
+  id: string;
+  name: string;
+  tier: 'tier_1' | 'tier_2' | 'tier_3';
+  is_active: boolean;
+  expiry_date: string | null;
   created_at: string;
 }

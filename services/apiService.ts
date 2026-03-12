@@ -4,30 +4,36 @@ import { supabase } from './supabase';
 
 // Service for managing fleet data
 const logSupabaseError = (context: string, error: any) => {
+  const isNetworkError = error.message?.includes('Failed to fetch') || 
+                        error.name === 'TypeError' || 
+                        error.message?.includes('NetworkError') ||
+                        !window.navigator.onLine;
+
   if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
-    // Extract table name from error message if possible, otherwise use context
     const tableNameMatch = error.message?.match(/relation "public\.(.*?)" does not exist/);
     const tableName = tableNameMatch ? tableNameMatch[1] : context;
-    console.error(`Supabase Schema Error: The table '${tableName}' does not exist in your database. Please run the SQL schema in your Supabase SQL Editor.`);
-  } else if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-    console.error(`Supabase Network Error [${context}]: Could not connect to the server. This often happens if the Supabase project is paused or there is a network restriction.`);
+    console.error(`Supabase Schema Error: The table '${tableName}' does not exist. Please run the SQL schema in your Supabase SQL Editor.`);
+  } else if (isNetworkError) {
+    const status = !window.navigator.onLine ? 'OFFLINE' : 'CONNECTION_FAILED';
+    console.error(`Supabase Network Error [${context}]: ${status}. Could not connect to Supabase. Please check your internet connection or if the Supabase project is paused.`);
   } else {
     console.error(`Supabase Error [${context}]:`, JSON.stringify(error, null, 2));
   }
 };
 
-const withRetry = async <T>(fn: () => Promise<T>, retries = 5, delay = 1500): Promise<T> => {
+const withRetry = async <T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> => {
   try {
     return await fn();
   } catch (error: any) {
     const isNetworkError = error.message?.includes('Failed to fetch') || 
                           error.name === 'TypeError' || 
-                          error.message?.includes('NetworkError');
+                          error.message?.includes('NetworkError') ||
+                          !window.navigator.onLine;
     
     if (retries > 0 && isNetworkError) {
-      console.warn(`Supabase Network Retry: ${retries} attempts remaining...`);
+      console.warn(`Supabase Network Retry [${retries} left]: Attempting to reconnect...`);
       await new Promise(resolve => setTimeout(resolve, delay));
-      return withRetry(fn, retries - 1, delay * 1.5);
+      return withRetry(fn, retries - 1, delay * 2);
     }
     throw error;
   }
@@ -634,6 +640,66 @@ export const apiService = {
         return [];
       }
       return data || [];
+    });
+  },
+
+  async getAgreementById(id: string): Promise<Agreement | null> {
+    return withRetry(async () => {
+      const { data, error } = await supabase
+        .from('agreements')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (error) {
+        logSupabaseError('getAgreementById', error);
+        return null;
+      }
+      return data;
+    });
+  },
+
+  async createAgreement(agreement: Omit<Agreement, 'id' | 'created_at'>): Promise<Agreement> {
+    return withRetry(async () => {
+      const { data, error } = await supabase
+        .from('agreements')
+        .insert([agreement])
+        .select()
+        .single();
+      
+      if (error) {
+        logSupabaseError('createAgreement', error);
+        throw new Error('Failed to create agreement');
+      }
+      return data;
+    });
+  },
+
+  async updateAgreement(id: string, updates: Partial<Agreement>): Promise<void> {
+    return withRetry(async () => {
+      const { error } = await supabase
+        .from('agreements')
+        .update(updates)
+        .eq('id', id);
+      
+      if (error) {
+        logSupabaseError('updateAgreement', error);
+        throw new Error('Failed to update agreement');
+      }
+    });
+  },
+
+  async deleteAgreement(id: string): Promise<void> {
+    return withRetry(async () => {
+      const { error } = await supabase
+        .from('agreements')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        logSupabaseError('deleteAgreement', error);
+        throw new Error('Failed to delete agreement');
+      }
     });
   },
 

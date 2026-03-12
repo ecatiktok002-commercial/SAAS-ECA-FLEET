@@ -22,7 +22,7 @@ const App: React.FC = () => {
           <Route path="/" element={<Layout />}>
             <Route index element={<AdminDashboard />} />
             <Route path="calendar" element={<CalendarPage />} />
-            <Route path="forms" element={<DigitalFormPage />} />
+            <Route path="forms/*" element={<DigitalFormPage />} />
             <Route path="customers" element={<CustomersPage />} />
             <Route path="fleet" element={<FleetGuardianPage />} />
             <Route path="staff" element={<StaffManagementPage />} />
