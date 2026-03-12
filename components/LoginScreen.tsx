@@ -122,13 +122,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     try {
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: 'superadmin@ecafleet.com',
-        password: '862ea762-038f-48a4-8247-ac01604c57b1',
+        password: 'superadmin',
       });
 
       if (authError) {
-        if (authError.message.includes('Invalid login credentials')) {
-          throw new Error('Access Denied. Please ensure the password for superadmin@ecafleet.com is set to your UID (862ea762-038f-48a4-8247-ac01604c57b1).');
-        }
         throw authError;
       }
 
@@ -137,7 +134,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         if (onLogin) onLogin(authData.user.id);
       }
     } catch (err: any) {
-      setError(err.message || 'Authentication failed.');
+      setError(err.message || 'Authentication failed. Please ensure the password for superadmin@ecafleet.com is set to "superadmin".');
     } finally {
       setLoading(false);
     }
