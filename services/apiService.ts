@@ -1,19 +1,30 @@
 
-import { Booking, Car, Member, LogEntry, Expense, StaffMember } from '../types';
+import { Booking, Car, Member, LogEntry, Expense, StaffMember, Agreement, DigitalForm } from '../types';
 import { supabase } from './supabase';
 
 // Service for managing fleet data
 const logSupabaseError = (context: string, error: any) => {
-  console.error(`Supabase Error [${context}]:`, JSON.stringify(error, null, 2));
+  if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
+    console.error(`Supabase Schema Error [${context}]: The table '${context}' does not exist in your database. Please run the SQL schema in your Supabase SQL Editor.`);
+  } else if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
+    console.error(`Supabase Network Error [${context}]: Could not connect to the server. This often happens if the Supabase project is paused or there is a network restriction.`);
+  } else {
+    console.error(`Supabase Error [${context}]:`, JSON.stringify(error, null, 2));
+  }
 };
 
-const withRetry = async <T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> => {
+const withRetry = async <T>(fn: () => Promise<T>, retries = 5, delay = 1500): Promise<T> => {
   try {
     return await fn();
   } catch (error: any) {
-    if (retries > 0 && (error.message?.includes('Failed to fetch') || error.name === 'TypeError')) {
+    const isNetworkError = error.message?.includes('Failed to fetch') || 
+                          error.name === 'TypeError' || 
+                          error.message?.includes('NetworkError');
+    
+    if (retries > 0 && isNetworkError) {
+      console.warn(`Supabase Network Retry: ${retries} attempts remaining...`);
       await new Promise(resolve => setTimeout(resolve, delay));
-      return withRetry(fn, retries - 1, delay * 2);
+      return withRetry(fn, retries - 1, delay * 1.5);
     }
     throw error;
   }
@@ -572,6 +583,71 @@ export const apiService = {
         logSupabaseError('deleteStaffMember', error);
         throw new Error('Failed to delete staff member');
       }
+    });
+  },
+
+  // Companies (Superadmin)
+  async getCompanies(): Promise<any[]> {
+    return withRetry(async () => {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('*')
+        .neq('id', 'superadmin')
+        .order('name', { ascending: true });
+      
+      if (error) {
+        logSupabaseError('getCompanies', error);
+        throw new Error(error.message || 'Failed to fetch companies');
+      }
+      return data || [];
+    });
+  },
+
+  async updateCompany(id: string, updates: any): Promise<void> {
+    return withRetry(async () => {
+      const { error } = await supabase
+        .from('companies')
+        .update(updates)
+        .eq('id', id);
+      
+      if (error) {
+        logSupabaseError('updateCompany', error);
+        throw new Error(error.message || 'Failed to update company');
+      }
+    });
+  },
+
+  // Agreements
+  async getAgreements(companyId: string): Promise<Agreement[]> {
+    return withRetry(async () => {
+      const { data, error } = await supabase
+        .from('agreements')
+        .select('*')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        logSupabaseError('getAgreements', error);
+        return [];
+      }
+      return data || [];
+    });
+  },
+
+  // Digital Forms
+  async getDigitalForms(companyId: string): Promise<DigitalForm[]> {
+    return withRetry(async () => {
+      const { data, error } = await supabase
+        .from('digital_forms')
+        .select('*')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        logSupabaseError('getDigitalForms', error);
+        return [];
+      }
+      return data || [];
     });
   }
 };

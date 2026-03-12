@@ -10,6 +10,7 @@ import { supabase } from '../services/supabase';
 import { exportBookingsToExcel } from '../services/exportService';
 import { optimizeBookings } from '../services/bookingService';
 import { useAuth } from '../context/AuthContext';
+import { AlertTriangle } from 'lucide-react';
 
 const CalendarPage: React.FC = () => {
   const { companyId: currentCompanyId, userId: currentUserId } = useAuth();
@@ -354,6 +355,53 @@ const CalendarPage: React.FC = () => {
   };
 
   const monthName = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+  if (error && bookings.length === 0 && cars.length === 0) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-slate-50 p-4">
+        <div className="bg-white border border-slate-200 rounded-[2rem] p-8 md:p-12 text-center max-w-2xl w-full shadow-2xl shadow-slate-200/50">
+          <div className="w-20 h-20 bg-rose-50 text-rose-600 rounded-3xl flex items-center justify-center mx-auto mb-8">
+            <AlertTriangle className="w-10 h-10" />
+          </div>
+          <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-4 tracking-tight">Connection Lost</h2>
+          <p className="text-slate-500 mb-8 leading-relaxed font-medium">
+            We're having trouble reaching the Supabase database. This usually happens if the project is paused or your network is restricted.
+          </p>
+          
+          <div className="bg-slate-50 rounded-2xl p-6 mb-8 text-left border border-slate-100">
+            <h3 className="font-bold text-slate-900 mb-3 text-xs uppercase tracking-widest">Quick Fixes:</h3>
+            <ul className="text-sm text-slate-600 space-y-3 font-medium">
+              <li className="flex gap-3">
+                <span className="w-5 h-5 rounded-full bg-slate-900 text-white text-[10px] flex items-center justify-center shrink-0 mt-0.5">1</span>
+                <span>Go to your <strong>Supabase Dashboard</strong> and check if the project is "Paused".</span>
+              </li>
+              <li className="flex gap-3">
+                <span className="w-5 h-5 rounded-full bg-slate-900 text-white text-[10px] flex items-center justify-center shrink-0 mt-0.5">2</span>
+                <span>Ensure you are not behind a firewall that blocks <code>supabase.co</code>.</span>
+              </li>
+            </ul>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button 
+              onClick={fetchData}
+              className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-bold uppercase text-xs tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-900/20 active:scale-[0.98]"
+            >
+              Retry Sync
+            </button>
+            <a 
+              href="https://supabase.com/dashboard" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="px-8 py-4 bg-white text-slate-600 border border-slate-200 rounded-2xl font-bold uppercase text-xs tracking-widest hover:bg-slate-50 transition-all active:scale-[0.98]"
+            >
+              Supabase Dashboard
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full w-full flex flex-col bg-slate-50 overflow-hidden relative font-sans text-slate-900">

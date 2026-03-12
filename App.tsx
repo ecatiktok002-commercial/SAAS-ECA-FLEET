@@ -10,6 +10,7 @@ import StaffManagementPage from './pages/StaffManagementPage';
 import DigitalFormPage from './pages/DigitalFormPage';
 import CustomersPage from './pages/CustomersPage';
 import FleetGuardianPage from './pages/FleetGuardianPage';
+import SubscriberManager from './pages/SubscriberManager';
 
 const App: React.FC = () => {
   return (
@@ -25,6 +26,7 @@ const App: React.FC = () => {
             <Route path="customers" element={<CustomersPage />} />
             <Route path="fleet" element={<FleetGuardianPage />} />
             <Route path="staff" element={<StaffManagementPage />} />
+            <Route path="subscribers" element={<SubscriberManager />} />
           </Route>
           
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -4,12 +4,16 @@ import { useAuth } from '../context/AuthContext';
 import { LayoutDashboard, Calendar, FileText, Users, Car, Settings, LogOut } from 'lucide-react';
 
 const Sidebar: React.FC = () => {
-  const { staffRole, subscriptionTier, logout } = useAuth();
+  const { staffRole, subscriptionTier, companyId, logout } = useAuth();
 
   const getMenuItems = () => {
     const items = [
       { name: 'Dashboard', path: '/', icon: <LayoutDashboard className="w-5 h-5" /> },
     ];
+
+    if (companyId === 'superadmin') {
+      items.push({ name: 'Subscribers', path: '/subscribers', icon: <Users className="w-5 h-5" /> });
+    }
 
     if (subscriptionTier === 'tier_1' || subscriptionTier === 'tier_3') {
       items.push({ name: 'Calendar', path: '/calendar', icon: <Calendar className="w-5 h-5" /> });

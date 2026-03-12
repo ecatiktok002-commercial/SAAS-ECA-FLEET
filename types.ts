@@ -5,6 +5,26 @@ export interface Car {
   type: 'Economy' | 'Luxury' | 'SUV' | 'Electric';
   plate: string;
   status?: 'active' | 'maintenance' | 'inactive';
+  // Fleet Guardian properties
+  plateNumber?: string;
+  make?: string;
+  model?: string;
+  roadtaxExpiry?: string;
+  insuranceExpiry?: string;
+  inspectionExpiry?: string;
+}
+
+export interface ExpiryStatus {
+  type: 'roadtax' | 'insurance' | 'inspection';
+  daysRemaining: number;
+  status: 'good' | 'warning' | 'expired';
+  date: string;
+}
+
+export interface CarStatus {
+  roadtax: ExpiryStatus;
+  insurance: ExpiryStatus;
+  inspection: ExpiryStatus;
 }
 
 // Updated Member interface for Fleet Management
@@ -58,4 +78,22 @@ export interface StaffMember {
   pin_hash?: string; // Hashed PIN
   role?: 'admin' | 'staff';
   created_at?: string;
+}
+
+export interface Agreement {
+  id: string;
+  company_id: string;
+  agent_id: string;
+  agent_name: string;
+  amount: number;
+  created_at: string;
+}
+
+export interface DigitalForm {
+  id: string;
+  company_id: string;
+  customer_name: string;
+  status: 'pending' | 'signed';
+  amount: number;
+  created_at: string;
 }
