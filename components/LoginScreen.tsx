@@ -36,28 +36,40 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
     try {
       let signInEmail = null;
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(code);
+      let signInPassword = code;
+      let isSuperAdmin = false;
 
-      if (isUuid) {
-        const { data: email, error: rpcError } = await supabase
-          .rpc('get_user_email', { user_id: code });
-        
-        if (!rpcError && email) {
-          signInEmail = email;
+      if (code.toLowerCase() === 'superadmin') {
+        signInEmail = 'superadmin@ecafleet.com';
+        signInPassword = '862ea762-038f-48a4-8247-ac01604c57b1'; // Using UID as password based on previous instructions
+        isSuperAdmin = true;
+      } else {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(code);
+
+        if (isUuid) {
+          const { data: email, error: rpcError } = await supabase
+            .rpc('get_user_email', { user_id: code });
+          
+          if (!rpcError && email) {
+            signInEmail = email;
+          }
         }
-      }
 
-      if (!signInEmail) {
-        signInEmail = `${code}@ecafleet.com`;
+        if (!signInEmail) {
+          signInEmail = `${code}@ecafleet.com`;
+        }
       }
 
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: signInEmail,
-        password: code,
+        password: signInPassword,
       });
 
       if (authError) {
         if (authError.message.includes('Invalid login credentials')) {
+          if (isSuperAdmin) {
+            throw new Error('Access Denied. Please ensure the password for superadmin@ecafleet.com is set to your UID (862ea762-038f-48a4-8247-ac01604c57b1).');
+          }
           throw new Error('Access Denied. Please ensure your Password matches your Access Code.');
         }
         throw authError;
@@ -66,6 +78,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       if (authData.user) {
         setCompanyId(authData.user.id);
         
+        if (isSuperAdmin) {
+          // Bypass Step 2 for Super Admin
+          login(authData.user.id, 'admin', 'tier_3', 'Master Admin');
+          if (onLogin) onLogin(authData.user.id);
+          return;
+        }
+
         const getDisplayId = (user: any) => {
           const email = user.email || '';
           if (email.endsWith('@ecafleet.com')) return email.split('@')[0];
