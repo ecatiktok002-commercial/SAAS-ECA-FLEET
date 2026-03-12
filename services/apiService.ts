@@ -197,7 +197,7 @@ export const apiService = {
       .from('bookings')
       .select('start, duration, id')
       .eq('company_id', companyId)
-      .eq('car_id', booking.carId)
+      .eq('carId', booking.carId)
       .gte('start', bufferStart.toISOString());
       
     if (excludeBookingId) {
