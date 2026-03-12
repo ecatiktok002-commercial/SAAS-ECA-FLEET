@@ -22,6 +22,9 @@ const SubscriberManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newCompanyName, setNewCompanyName] = useState('');
+  const [newCompanyTier, setNewCompanyTier] = useState<Company['tier']>('tier_1');
 
   useEffect(() => {
     if (companyId === 'superadmin') {
@@ -42,6 +45,21 @@ const SubscriberManager: React.FC = () => {
     }
   };
 
+  const handleAddCompany = async () => {
+    if (!newCompanyName.trim()) return;
+    try {
+      setLoading(true);
+      await apiService.addCompany(newCompanyName, newCompanyTier);
+      setNewCompanyName('');
+      setShowAddModal(false);
+      await fetchSubscribers();
+    } catch (err) {
+      setError('Failed to create new subscriber');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleUpdateField = (id: string, field: keyof Company, value: any) => {
     setSubscribers(prev => prev.map(sub => 
       sub.id === id ? { ...sub, [field]: value } : sub
@@ -51,12 +69,16 @@ const SubscriberManager: React.FC = () => {
   const handleSaveChanges = async (subscriber: Company) => {
     try {
       setSavingId(subscriber.id);
-      await apiService.updateCompany(subscriber.id, {
+      const updates: any = {
         name: subscriber.name,
-        tier: subscriber.tier,
-        is_active: subscriber.is_active
-      });
-      // Refresh to get latest state
+        tier: subscriber.tier
+      };
+      
+      // Only include if they exist in the object (defensive)
+      if (subscriber.is_active !== undefined) updates.is_active = subscriber.is_active;
+      if (subscriber.expiry_date !== undefined) updates.expiry_date = subscriber.expiry_date;
+
+      await apiService.updateCompany(subscriber.id, updates);
       await fetchSubscribers();
     } catch (err) {
       setError(`Failed to save changes for ${subscriber.name}`);
@@ -78,10 +100,13 @@ const SubscriberManager: React.FC = () => {
       const newExpiry = new Date(baseDate);
       newExpiry.setMonth(newExpiry.getMonth() + months);
 
-      await apiService.updateCompany(id, {
-        expiry_date: newExpiry.toISOString(),
-        is_active: true
-      });
+      const updates: any = {
+        expiry_date: newExpiry.toISOString()
+      };
+      
+      if (subscriber.is_active !== undefined) updates.is_active = true;
+
+      await apiService.updateCompany(id, updates);
       
       await fetchSubscribers();
     } catch (err) {
@@ -135,6 +160,13 @@ const SubscriberManager: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setShowAddModal(true)}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-2xl font-black flex items-center gap-2 transition-all shadow-lg shadow-indigo-900/20 active:scale-95"
+            >
+              <Plus className="w-5 h-5" />
+              Add Subscriber
+            </button>
             <div className="bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl flex items-center gap-3">
               <Users className="w-5 h-5 text-indigo-400" />
               <div>
@@ -144,6 +176,54 @@ const SubscriberManager: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Add Subscriber Modal */}
+        {showAddModal && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-3xl p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-black text-white tracking-tight">New Subscriber</h2>
+                <button onClick={() => setShowAddModal(false)} className="text-slate-500 hover:text-white">
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Company Name</label>
+                  <input 
+                    type="text"
+                    value={newCompanyName}
+                    onChange={(e) => setNewCompanyName(e.target.value)}
+                    placeholder="e.g. EcaFleet Rentals"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Subscription Tier</label>
+                  <select 
+                    value={newCompanyTier}
+                    onChange={(e) => setNewCompanyTier(e.target.value as Company['tier'])}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all cursor-pointer"
+                  >
+                    <option value="tier_1">Tier 1 (Basic)</option>
+                    <option value="tier_2">Tier 2 (Pro)</option>
+                    <option value="tier_3">Tier 3 (Enterprise)</option>
+                  </select>
+                </div>
+
+                <button 
+                  onClick={handleAddCompany}
+                  disabled={!newCompanyName.trim() || loading}
+                  className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white py-4 rounded-2xl font-black transition-all shadow-lg shadow-indigo-900/20 active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Create Subscriber'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="mb-6 bg-red-950/30 border border-red-900/50 p-4 rounded-2xl flex items-center gap-3 text-red-400">

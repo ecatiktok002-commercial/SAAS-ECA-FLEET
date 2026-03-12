@@ -143,8 +143,12 @@ const AdminDashboard: React.FC = () => {
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Executive Command Center</h1>
-          <p className="text-slate-500 mt-1 font-medium">Real-time fleet performance and sales analytics.</p>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">
+            {companyId === 'superadmin' ? 'Global Fleet Overview' : 'Executive Command Center'}
+          </h1>
+          <p className="text-slate-500 mt-1 font-medium">
+            {companyId === 'superadmin' ? 'Monitoring all platform subscribers and fleet performance.' : 'Real-time fleet performance and sales analytics.'}
+          </p>
         </div>
 
         {/* Top Row: The Daily Pulse */}
@@ -204,6 +208,22 @@ const AdminDashboard: React.FC = () => {
             <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest">Forms Today</h3>
             <p className="text-3xl font-black text-slate-900 mt-1">{stats.newFormsToday}</p>
           </div>
+
+          {/* Subscriber Manager (Superadmin only) */}
+          {companyId === 'superadmin' && (
+            <Link to="/subscribers" className="bg-blue-600 p-6 rounded-2xl border border-blue-500 shadow-lg shadow-blue-600/20 group hover:scale-[1.02] transition-all flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                  <Users className="w-6 h-6 text-white" />
+                </div>
+                <ArrowRight className="w-5 h-5 text-white/60 group-hover:translate-x-1 transition-transform" />
+              </div>
+              <div>
+                <h3 className="text-white/80 text-xs font-bold uppercase tracking-widest">Platform Control</h3>
+                <p className="text-2xl font-black text-white mt-1">Subscriber Manager</p>
+              </div>
+            </Link>
+          )}
         </div>
 
         {/* Bottom Row: Split View */}

@@ -89,13 +89,14 @@ const FleetGuardianPage: React.FC = () => {
     setIsLoading(false);
   };
 
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+
   const handleDeleteCar = async (id: string) => {
-    if (window.confirm("Are you sure you want to remove this vehicle?")) {
-      setIsLoading(true);
-      const updated = await Storage.deleteCar(id);
-      setCars(updated);
-      setIsLoading(false);
-    }
+    setIsLoading(true);
+    const updated = await Storage.deleteCar(id);
+    setCars(updated);
+    setIsLoading(false);
+    setShowDeleteConfirm(null);
   };
 
   // Excel Handlers
@@ -343,7 +344,7 @@ const FleetGuardianPage: React.FC = () => {
                         <Edit className="w-4 h-4" />
                       </button>
                       <button 
-                        onClick={() => handleDeleteCar(car.id)}
+                        onClick={() => setShowDeleteConfirm(car.id)}
                         className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         title="Delete"
                       >
@@ -389,6 +390,34 @@ const FleetGuardianPage: React.FC = () => {
           alerts={urgentAlerts} 
           onClose={() => setShowAlertModal(false)} 
         />
+      )}
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl p-6">
+            <div className="bg-red-50 w-12 h-12 rounded-full flex items-center justify-center mb-4">
+              <Trash2 className="w-6 h-6 text-red-600" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Remove Vehicle?</h3>
+            <p className="text-slate-500 mb-6">
+              Are you sure you want to remove this vehicle from the fleet? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(null)}
+                className="flex-1 px-4 py-2 border border-slate-200 text-slate-600 rounded-lg font-medium hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteCar(showDeleteConfirm)}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors shadow-lg shadow-red-900/20"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

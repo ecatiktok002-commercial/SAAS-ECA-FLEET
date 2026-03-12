@@ -1,5 +1,5 @@
 
-import { Booking, Car, Member, LogEntry, Expense, StaffMember, Agreement, DigitalForm } from '../types';
+import { Booking, Car, Member, LogEntry, Expense, StaffMember, Agreement, DigitalForm, Company } from '../types';
 import { supabase } from './supabase';
 
 // Service for managing fleet data
@@ -39,14 +39,127 @@ const withRetry = async <T>(fn: () => Promise<T>, retries = 3, delay = 1000): Pr
   }
 };
 
+// Mapping helpers for DB schema consistency (snake_case in DB, camelCase in Frontend)
+const mapCarFromDB = (dbCar: any): Car => ({
+  id: dbCar.id,
+  name: dbCar.name,
+  type: dbCar.type,
+  plate: dbCar.plate,
+  status: dbCar.status,
+  plateNumber: dbCar.plate_number,
+  make: dbCar.make,
+  model: dbCar.model,
+  roadtaxExpiry: dbCar.roadtax_expiry,
+  insuranceExpiry: dbCar.insurance_expiry,
+  inspectionExpiry: dbCar.inspection_expiry
+});
+
+const mapCarToDB = (car: any) => ({
+  name: car.name,
+  type: car.type,
+  plate: car.plate,
+  status: car.status,
+  plate_number: car.plateNumber || car.plate_number,
+  make: car.make,
+  model: car.model,
+  roadtax_expiry: car.roadtaxExpiry || car.roadtax_expiry,
+  insurance_expiry: car.insuranceExpiry || car.insurance_expiry,
+  inspection_expiry: car.inspectionExpiry || car.inspection_expiry
+});
+
+const mapBookingFromDB = (dbBooking: any): Booking => ({
+  id: dbBooking.id,
+  carId: dbBooking.car_id,
+  memberId: dbBooking.member_id,
+  start: dbBooking.start,
+  duration: dbBooking.duration,
+  status: dbBooking.status,
+  total_price: dbBooking.total_price
+});
+
+const mapBookingToDB = (booking: any) => ({
+  car_id: booking.carId || booking.car_id,
+  member_id: booking.memberId || booking.member_id,
+  start: booking.start,
+  duration: booking.duration,
+  status: booking.status,
+  total_price: booking.total_price
+});
+
+const mapMemberFromDB = (dbMember: any): Member => ({
+  id: dbMember.id,
+  name: dbMember.name,
+  color: dbMember.color,
+  email: dbMember.email,
+  phone: dbMember.phone
+});
+
+const mapMemberToDB = (member: any) => ({
+  name: member.name,
+  color: member.color,
+  email: member.email,
+  phone: member.phone
+});
+
+const mapLogFromDB = (dbLog: any): LogEntry => ({
+  id: dbLog.id,
+  userId: dbLog.user_id,
+  staff_name: dbLog.staff_name,
+  action: dbLog.action,
+  details: dbLog.details,
+  timestamp: dbLog.timestamp
+});
+
+const mapLogToDB = (log: any) => ({
+  user_id: log.userId || log.user_id,
+  staff_name: log.staff_name,
+  action: log.action,
+  details: log.details,
+  timestamp: log.timestamp
+});
+
+const mapExpenseFromDB = (dbExpense: any): Expense => ({
+  id: dbExpense.id,
+  carId: dbExpense.car_id,
+  category: dbExpense.category,
+  amount: dbExpense.amount,
+  date: dbExpense.date,
+  notes: dbExpense.notes
+});
+
+const mapExpenseToDB = (expense: any) => ({
+  car_id: expense.carId || expense.car_id,
+  category: expense.category,
+  amount: expense.amount,
+  date: expense.date,
+  notes: expense.notes
+});
+
+const mapStaffFromDB = (dbStaff: any): StaffMember => ({
+  id: dbStaff.id,
+  name: dbStaff.name,
+  pin_hash: dbStaff.pin_hash,
+  role: dbStaff.role,
+  created_at: dbStaff.created_at
+});
+
+const mapStaffToDB = (staff: any) => ({
+  name: staff.name,
+  pin_hash: staff.pin_hash,
+  role: staff.role
+});
+
 export const apiService = {
   // Cars
   async getCars(companyId: string): Promise<Car[]> {
     return withRetry(async () => {
-      const { data, error } = await supabase
-        .from('cars')
-        .select('*')
-        .eq('company_id', companyId);
+      let query = supabase.from('cars').select('*');
+      
+      if (companyId !== 'superadmin') {
+        query = query.eq('company_id', companyId);
+      }
+
+      const { data, error } = await query;
       
       if (error) {
         logSupabaseError('getCars', error);
@@ -57,26 +170,15 @@ export const apiService = {
         }
         throw new Error(error.message || 'Failed to fetch cars');
       }
-      return data || [];
+      return (data || []).map(mapCarFromDB);
     });
   },
 
   async addCar(car: Omit<Car, 'id'>, companyId: string): Promise<Car> {
     return withRetry(async () => {
-      // Strict RLS Check: Retrieve current user and verify ID match
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        throw new Error('Authentication required: No active session found.');
-      }
-      
-      if (user.id !== companyId) {
-        throw new Error(`RLS Violation: Company ID (${companyId}) does not match Auth ID (${user.id}).`);
-      }
-
       const { data, error } = await supabase
         .from('cars')
-        .insert([{ ...car, company_id: companyId }])
+        .insert([{ ...mapCarToDB(car), company_id: companyId }])
         .select();
 
       if (error) {
@@ -93,7 +195,48 @@ export const apiService = {
         throw new Error('Insert successful but no data returned. Check RLS policies.');
       }
       
-      return data[0];
+      return mapCarFromDB(data[0]);
+    });
+  },
+
+  async updateCar(car: Partial<Car>, companyId: string): Promise<Car> {
+    return withRetry(async () => {
+      const { data, error } = await supabase
+        .from('cars')
+        .update(mapCarToDB(car))
+        .eq('id', car.id)
+        .eq('company_id', companyId)
+        .select();
+
+      if (error) {
+        logSupabaseError('updateCar', error);
+        throw new Error(error.message || 'Failed to update car');
+      }
+      
+      if (!data || data.length === 0) {
+        throw new Error('Update failed');
+      }
+      
+      return mapCarFromDB(data[0]);
+    });
+  },
+
+  async saveCars(cars: Car[], companyId: string): Promise<void> {
+    return withRetry(async () => {
+      // Delete all existing cars for this company
+      await supabase.from('cars').delete().eq('company_id', companyId);
+      
+      // Insert new ones
+      const carsToInsert = cars.map(c => ({
+        ...mapCarToDB(c),
+        company_id: companyId
+      }));
+      
+      const { error } = await supabase.from('cars').insert(carsToInsert);
+      if (error) {
+        logSupabaseError('saveCars', error);
+        throw new Error(error.message || 'Failed to save cars');
+      }
     });
   },
 
@@ -115,16 +258,19 @@ export const apiService = {
   // Members
   async getMembers(companyId: string): Promise<Member[]> {
     return withRetry(async () => {
-      const { data, error } = await supabase
-        .from('members')
-        .select('*')
-        .eq('company_id', companyId);
+      let query = supabase.from('members').select('*');
+      
+      if (companyId !== 'superadmin') {
+        query = query.eq('company_id', companyId);
+      }
+
+      const { data, error } = await query;
       
       if (error) {
         logSupabaseError('getMembers', error);
         return []; 
       }
-      return data || [];
+      return (data || []).map(mapMemberFromDB);
     });
   },
 
@@ -132,14 +278,14 @@ export const apiService = {
     return withRetry(async () => {
       const { data, error } = await supabase
         .from('members')
-        .insert([{ ...member, company_id: companyId }])
+        .insert([{ ...mapMemberToDB(member), company_id: companyId }])
         .select();
 
       if (error) {
         logSupabaseError('addMember', error);
         throw new Error(error.message || 'Failed to add member');
       }
-      return data?.[0];
+      return mapMemberFromDB(data?.[0]);
     });
   },
 
@@ -161,23 +307,17 @@ export const apiService = {
   // Bookings
   async getBookings(companyId: string, startDate?: string, endDate?: string): Promise<Booking[]> {
     return withRetry(async () => {
-      let query = supabase
-        .from('bookings')
-        .select('*')
-        .eq('company_id', companyId);
+      let query = supabase.from('bookings').select('*');
+      
+      if (companyId !== 'superadmin') {
+        query = query.eq('company_id', companyId);
+      }
       
       if (startDate && endDate) {
-        // Fetch bookings that start or end within the range, or overlap it
-        // Overlap logic: (StartA <= EndB) and (EndA >= StartB)
-        // Since we can't easily do complex ORs, we'll fetch bookings that start within a reasonable buffer
-        // or just fetch based on start time for the calendar view.
-        // A safe bet for a calendar view is to fetch bookings starting >= (ViewStart - MaxDuration)
-        // Let's assume max duration is 60 days for safety.
         const bufferDate = new Date(startDate);
         bufferDate.setDate(bufferDate.getDate() - 60);
         
         query = query.gte('start', bufferDate.toISOString());
-        // We don't strictly filter the end date to ensure we get long bookings
       }
 
       const { data, error } = await query;
@@ -191,7 +331,7 @@ export const apiService = {
         }
         throw new Error(error.message || 'Failed to fetch bookings');
       }
-      return data || [];
+      return (data || []).map(mapBookingFromDB);
     });
   },
 
@@ -199,17 +339,6 @@ export const apiService = {
     const startTime = new Date(booking.start);
     const endTime = new Date(startTime.getTime() + booking.duration * 24 * 60 * 60 * 1000);
     
-    // Overlap: (StartA <= EndB) and (EndA >= StartB)
-    // We check if there are any bookings where:
-    // Existing.start <= New.end AND Existing.end >= New.start
-    
-    // Note: 'end_time' column might not exist if it wasn't added to the schema.
-    // If 'end_time' doesn't exist, we can't do server-side check easily without a function.
-    // Assuming 'end_time' exists or we calculate it. 
-    // If not, we fall back to client-side or fetch all for that car.
-    // Let's assume we can query by start time at least.
-    
-    // Optimized: Fetch only bookings for this car that might overlap
     const bufferStart = new Date(startTime);
     bufferStart.setDate(bufferStart.getDate() - 60); // Look back 60 days
     
@@ -217,7 +346,7 @@ export const apiService = {
       .from('bookings')
       .select('start, duration, id')
       .eq('company_id', companyId)
-      .eq('carId', booking.carId)
+      .eq('car_id', booking.carId)
       .gte('start', bufferStart.toISOString());
       
     if (excludeBookingId) {
@@ -226,9 +355,8 @@ export const apiService = {
 
     const { data, error } = await query;
     
-    if (error || !data) return false; // Fail open or handle error
+    if (error || !data) return false; 
     
-    // Client-side check on the reduced dataset
     const newStart = startTime.getTime();
     const newEnd = endTime.getTime();
     
@@ -241,16 +369,10 @@ export const apiService = {
 
   async saveBooking(booking: Omit<Booking, 'id'>, companyId: string, id?: string): Promise<Booking> {
     return withRetry(async () => {
-      // Strict RLS Check
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || user.id !== companyId) {
-         throw new Error('Security Violation: Company ID mismatch.');
-      }
-
       if (id) {
         const { data, error } = await supabase
           .from('bookings')
-          .update({ ...booking, company_id: companyId }) // Ensure company_id is preserved/set
+          .update({ ...mapBookingToDB(booking), company_id: companyId })
           .eq('id', id)
           .eq('company_id', companyId)
           .select();
@@ -260,11 +382,11 @@ export const apiService = {
           throw new Error(error.message || 'Failed to update booking');
         }
         if (!data || data.length === 0) throw new Error('Update failed');
-        return data[0];
+        return mapBookingFromDB(data[0]);
       } else {
         const { data, error } = await supabase
           .from('bookings')
-          .insert([{ ...booking, company_id: companyId }])
+          .insert([{ ...mapBookingToDB(booking), company_id: companyId }])
           .select();
         
         if (error) {
@@ -272,7 +394,7 @@ export const apiService = {
           throw new Error(error.message || 'Failed to create booking');
         }
         if (!data || data.length === 0) throw new Error('Insert failed');
-        return data[0];
+        return mapBookingFromDB(data[0]);
       }
     });
   },
@@ -347,11 +469,13 @@ export const apiService = {
   // Expenses
   async getExpenses(companyId: string): Promise<Expense[]> {
     return withRetry(async () => {
-      const { data, error } = await supabase
-        .from('expenses')
-        .select('*')
-        .eq('company_id', companyId)
-        .order('date', { ascending: false });
+      let query = supabase.from('expenses').select('*');
+      
+      if (companyId !== 'superadmin') {
+        query = query.eq('company_id', companyId);
+      }
+
+      const { data, error } = await query.order('date', { ascending: false });
       
       if (error) {
         if (error.code === '42P01') {
@@ -362,7 +486,7 @@ export const apiService = {
         logSupabaseError('getExpenses', error);
         return [];
       }
-      return data || [];
+      return (data || []).map(mapExpenseFromDB);
     });
   },
 
@@ -370,14 +494,14 @@ export const apiService = {
     return withRetry(async () => {
       const { data, error } = await supabase
         .from('expenses')
-        .insert([{ ...expense, company_id: companyId }])
+        .insert([{ ...mapExpenseToDB(expense), company_id: companyId }])
         .select();
 
       if (error) {
         logSupabaseError('addExpense', error);
         throw new Error(error.message || 'Failed to add expense');
       }
-      return data?.[0];
+      return mapExpenseFromDB(data?.[0]);
     });
   },
 
@@ -402,10 +526,13 @@ export const apiService = {
       const from = page * pageSize;
       const to = from + pageSize - 1;
 
-      const { data, error } = await supabase
-        .from('logs')
-        .select('*')
-        .eq('company_id', companyId)
+      let query = supabase.from('logs').select('*');
+      
+      if (companyId !== 'superadmin') {
+        query = query.eq('company_id', companyId);
+      }
+
+      const { data, error } = await query
         .order('timestamp', { ascending: false })
         .range(from, to);
 
@@ -418,7 +545,7 @@ export const apiService = {
         logSupabaseError('getLogs', error);
         return [];
       }
-      return data || [];
+      return (data || []).map(mapLogFromDB);
     });
   },
 
@@ -427,10 +554,7 @@ export const apiService = {
       const { error } = await supabase
         .from('logs')
         .insert([{
-          userId: entry.userId,
-          staff_name: entry.staff_name, // Map to snake_case column
-          action: entry.action,
-          details: entry.details,
+          ...mapLogToDB(entry),
           company_id: companyId,
           timestamp: new Date().toISOString()
         }]);
@@ -454,11 +578,14 @@ export const apiService = {
   // Handover Records
   async getHandoverRecords(bookingId: string, companyId: string): Promise<any[]> {
     return withRetry(async () => {
-      const { data, error } = await supabase
-        .from('handover_records')
-        .select('*')
+      let query = supabase.from('handover_records').select('*');
+      
+      if (companyId !== 'superadmin') {
+        query = query.eq('company_id', companyId);
+      }
+
+      const { data, error } = await query
         .eq('booking_id', bookingId)
-        .eq('company_id', companyId)
         .order('created_at', { ascending: false });
         
       if (error) {
@@ -499,18 +626,21 @@ export const apiService = {
   },
 
   // Staff Members
-  async getStaffMembers(companyId: string): Promise<any[]> {
+  async getStaffMembers(companyId: string): Promise<StaffMember[]> {
     return withRetry(async () => {
-      const { data, error } = await supabase
-        .from('staff_members')
-        .select('*')
-        .eq('company_id', companyId);
+      let query = supabase.from('staff_members').select('*');
+      
+      if (companyId !== 'superadmin') {
+        query = query.eq('company_id', companyId);
+      }
+
+      const { data, error } = await query;
       
       if (error) {
         logSupabaseError('getStaffMembers', error);
         return [];
       }
-      return data || [];
+      return (data || []).map(mapStaffFromDB);
     });
   },
 
@@ -528,7 +658,7 @@ export const apiService = {
         logSupabaseError('getStaffMemberByName', error);
         return null;
       }
-      return data;
+      return mapStaffFromDB(data);
     });
   },
 
@@ -544,7 +674,7 @@ export const apiService = {
         logSupabaseError('addStaffMember', error);
         throw new Error(error.message || 'Failed to add staff member');
       }
-      return data;
+      return mapStaffFromDB(data);
     });
   },
 
@@ -552,7 +682,7 @@ export const apiService = {
     return withRetry(async () => {
       const { data, error } = await supabase
         .from('staff_members')
-        .update(updates)
+        .update(mapStaffToDB(updates))
         .eq('id', staffId)
         .eq('company_id', companyId)
         .select()
@@ -562,7 +692,7 @@ export const apiService = {
         logSupabaseError('updateStaffMember', error);
         throw new Error('Failed to update staff member');
       }
-      return data;
+      return mapStaffFromDB(data);
     });
   },
 
@@ -596,38 +726,13 @@ export const apiService = {
   },
 
   // Companies (Superadmin)
-  async getCompanies(): Promise<any[]> {
+  async getCompanies(): Promise<Company[]> {
     return withRetry(async () => {
-      // Try to fetch with name ordering first
-      let { data, error } = await supabase
+      const { data, error } = await supabase
         .from('companies')
         .select('*')
-        .neq('id', 'superadmin')
         .order('name', { ascending: true });
       
-      // If name column is missing (Postgres error 42703)
-      if (error && (error.code === '42703' || error.message?.includes('column "name" does not exist'))) {
-        console.warn('Supabase Warning: "name" column missing in companies table. Falling back to unordered fetch.');
-        const fallback = await supabase
-          .from('companies')
-          .select('*')
-          .neq('id', 'superadmin');
-          
-        if (fallback.error) {
-          logSupabaseError('getCompanies fallback', fallback.error);
-          throw new Error(fallback.error.message || 'Failed to fetch companies');
-        }
-        
-        data = fallback.data;
-        error = null;
-
-        // Ensure every company has a name property for the UI
-        return (data || []).map(c => ({
-          ...c,
-          name: c.name || c.id.substring(0, 8)
-        }));
-      }
-
       if (error) {
         logSupabaseError('getCompanies', error);
         throw new Error(error.message || 'Failed to fetch companies');
@@ -650,14 +755,32 @@ export const apiService = {
     });
   },
 
+  async addCompany(name: string, tier: string): Promise<Company> {
+    return withRetry(async () => {
+      const { data, error } = await supabase
+        .from('companies')
+        .insert([{ name, tier, is_active: true }])
+        .select()
+        .single();
+      
+      if (error) {
+        logSupabaseError('addCompany', error);
+        throw new Error(error.message || 'Failed to add company');
+      }
+      return data;
+    });
+  },
+
   // Agreements
   async getAgreements(companyId: string): Promise<Agreement[]> {
     return withRetry(async () => {
-      const { data, error } = await supabase
-        .from('agreements')
-        .select('*')
-        .eq('company_id', companyId)
-        .order('created_at', { ascending: false });
+      let query = supabase.from('agreements').select('*');
+      
+      if (companyId !== 'superadmin') {
+        query = query.eq('company_id', companyId);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) {
         logSupabaseError('getAgreements', error);
@@ -730,11 +853,13 @@ export const apiService = {
   // Digital Forms
   async getDigitalForms(companyId: string): Promise<DigitalForm[]> {
     return withRetry(async () => {
-      const { data, error } = await supabase
-        .from('digital_forms')
-        .select('*')
-        .eq('company_id', companyId)
-        .order('created_at', { ascending: false });
+      let query = supabase.from('digital_forms').select('*');
+      
+      if (companyId !== 'superadmin') {
+        query = query.eq('company_id', companyId);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) {
         logSupabaseError('getDigitalForms', error);

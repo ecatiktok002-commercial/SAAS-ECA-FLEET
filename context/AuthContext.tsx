@@ -33,7 +33,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        setCompanyId(session.user.id);
+        const isSuperAdmin = session.user.email === 'superadmin@ecafleet.com';
+        setCompanyId(isSuperAdmin ? 'superadmin' : session.user.id);
         setUserId(getDisplayId(session.user));
         
         const storedRole = localStorage.getItem('staffRole') as StaffRole;

@@ -20,13 +20,7 @@ export const updateCar = async (car: Car): Promise<Car[]> => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
   
-  const { error } = await supabase
-    .from('cars')
-    .update(car)
-    .eq('id', car.id)
-    .eq('company_id', user.id);
-    
-  if (error) throw error;
+  await apiService.updateCar(car, user.id);
   return apiService.getCars(user.id);
 };
 
@@ -41,15 +35,5 @@ export const saveCars = async (cars: Car[]): Promise<void> => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
   
-  // Delete all existing cars for this company
-  await supabase.from('cars').delete().eq('company_id', user.id);
-  
-  // Insert new ones
-  const carsToInsert = cars.map(c => {
-    const { id, ...data } = c;
-    return { ...data, company_id: user.id };
-  });
-  
-  const { error } = await supabase.from('cars').insert(carsToInsert);
-  if (error) throw error;
+  await apiService.saveCars(cars, user.id);
 };
