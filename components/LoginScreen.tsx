@@ -11,7 +11,7 @@ interface LoginScreenProps {
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const { login } = useAuth();
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [accessCode, setAccessCode] = useState('');
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -34,30 +34,29 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       return;
     }
 
+    if (code.toLowerCase() === 'superadmin') {
+      setStep(3);
+      setLoading(false);
+      return;
+    }
+
     try {
       let signInEmail = null;
       let signInPassword = code;
-      let isSuperAdmin = false;
 
-      if (code.toLowerCase() === 'superadmin') {
-        signInEmail = 'superadmin@ecafleet.com';
-        signInPassword = '862ea762-038f-48a4-8247-ac01604c57b1'; // Using UID as password based on previous instructions
-        isSuperAdmin = true;
-      } else {
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(code);
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(code);
 
-        if (isUuid) {
-          const { data: email, error: rpcError } = await supabase
-            .rpc('get_user_email', { user_id: code });
-          
-          if (!rpcError && email) {
-            signInEmail = email;
-          }
+      if (isUuid) {
+        const { data: email, error: rpcError } = await supabase
+          .rpc('get_user_email', { user_id: code });
+        
+        if (!rpcError && email) {
+          signInEmail = email;
         }
+      }
 
-        if (!signInEmail) {
-          signInEmail = `${code}@ecafleet.com`;
-        }
+      if (!signInEmail) {
+        signInEmail = `${code}@ecafleet.com`;
       }
 
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -67,9 +66,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
       if (authError) {
         if (authError.message.includes('Invalid login credentials')) {
-          if (isSuperAdmin) {
-            throw new Error('Access Denied. Please ensure the password for superadmin@ecafleet.com is set to your UID (862ea762-038f-48a4-8247-ac01604c57b1).');
-          }
           throw new Error('Access Denied. Please ensure your Password matches your Access Code.');
         }
         throw authError;
@@ -78,13 +74,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       if (authData.user) {
         setCompanyId(authData.user.id);
         
-        if (isSuperAdmin) {
-          // Bypass Step 2 for Super Admin
-          login(authData.user.id, 'admin', 'tier_3', 'Master Admin');
-          if (onLogin) onLogin(authData.user.id);
-          return;
-        }
-
         const getDisplayId = (user: any) => {
           const email = user.email || '';
           if (email.endsWith('@ecafleet.com')) return email.split('@')[0];
@@ -100,8 +89,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           
         if (staffError) {
           console.error('Error fetching staff members:', staffError);
-          // If table doesn't exist or error, we might still want to let them in as admin
-          // But for this SaaS flow, we expect staff_members to exist
         } else if (staffData) {
           setStaffMembers(staffData);
         }
@@ -109,6 +96,46 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         setStep(2);
       }
       
+    } catch (err: any) {
+      setError(err.message || 'Authentication failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 3: Handle Super Admin PIN Login
+  const handleSuperAdminLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pin) {
+      setError('Please enter your PIN.');
+      return;
+    }
+
+    if (pin !== '5615') {
+      setError('Incorrect PIN.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: 'superadmin@ecafleet.com',
+        password: '862ea762-038f-48a4-8247-ac01604c57b1',
+      });
+
+      if (authError) {
+        if (authError.message.includes('Invalid login credentials')) {
+          throw new Error('Access Denied. Please ensure the password for superadmin@ecafleet.com is set to your UID (862ea762-038f-48a4-8247-ac01604c57b1).');
+        }
+        throw authError;
+      }
+
+      if (authData.user) {
+        login(authData.user.id, 'admin', 'tier_3', 'Master Admin');
+        if (onLogin) onLogin(authData.user.id);
+      }
     } catch (err: any) {
       setError(err.message || 'Authentication failed.');
     } finally {
@@ -193,7 +220,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           </div>
           <h1 className="text-2xl font-black text-slate-900 mb-2">Welcome to EcaFleet</h1>
           <p className="text-slate-500 font-medium">
-            {step === 1 ? 'Please enter your Access Code to continue.' : 'Select your profile and enter PIN.'}
+            {step === 1 ? 'Please enter your Access Code to continue.' : 
+             step === 2 ? 'Select your profile and enter PIN.' : 
+             'Enter Master Admin PIN.'}
           </p>
         </div>
 
@@ -229,7 +258,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               Verify Company
             </button>
           </form>
-        ) : (
+        ) : step === 2 ? (
           <form onSubmit={handleStaffLogin} className="space-y-4">
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Select Staff Member</label>
@@ -284,6 +313,50 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               className="w-full py-3 text-slate-500 font-medium text-sm hover:text-slate-800 transition-colors"
             >
               Back to Company Login
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleSuperAdminLogin} className="space-y-4">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Master Admin PIN</label>
+              <input 
+                type="password"
+                value={pin}
+                onChange={(e) => {
+                  setPin(e.target.value);
+                  setError('');
+                }}
+                className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all font-bold text-slate-800 placeholder-slate-300 text-center text-lg tracking-wider"
+                placeholder="****"
+                maxLength={4}
+                autoFocus
+              />
+            </div>
+
+            {error && (
+              <div className="text-rose-500 text-xs font-bold text-center animate-pulse bg-rose-50 p-3 rounded-lg border border-rose-100">
+                {error}
+              </div>
+            )}
+
+            <button 
+              type="submit"
+              disabled={loading}
+              className="w-full py-4 bg-purple-600 text-white rounded-xl font-bold uppercase text-xs tracking-widest hover:bg-purple-700 transition-all shadow-lg shadow-purple-600/20 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {loading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+              Access Master Dashboard
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => {
+                setStep(1);
+                setPin('');
+              }}
+              className="w-full py-3 text-slate-500 font-medium text-sm hover:text-slate-800 transition-colors"
+            >
+              Cancel
             </button>
           </form>
         )}
