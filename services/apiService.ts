@@ -9,10 +9,19 @@ const logSupabaseError = (context: string, error: any) => {
                         error.message?.includes('NetworkError') ||
                         !window.navigator.onLine;
 
-  if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
-    const tableNameMatch = error.message?.match(/relation "public\.(.*?)" does not exist/);
-    const tableName = tableNameMatch ? tableNameMatch[1] : context;
-    console.error(`Supabase Schema Error: The table '${tableName}' does not exist. Please run the SQL schema in your Supabase SQL Editor.`);
+  const isSchemaError = error.code === '42P01' || error.code === 'PGRST205' || error.message?.includes('schema cache');
+
+  if (isSchemaError) {
+    // Flexible regex to catch "relation 'cars' does not exist" or "relation 'public.cars' does not exist"
+    // Handles both double quotes and single quotes which can vary by Postgres version/driver
+    const tableNameMatch = error.message?.match(/relation ["'](?:public\.)?(.*?)["'] does not exist/i);
+    const tableName = tableNameMatch ? tableNameMatch[1] : null;
+    
+    if (tableName) {
+      console.error(`Supabase Schema Error: The table '${tableName}' does not exist. Please run the SQL schema in your Supabase SQL Editor.`);
+    } else {
+      console.error(`Supabase Schema Error [${context}]: ${error.message}. This usually means a table is missing or the schema cache is stale.`);
+    }
   } else if (isNetworkError) {
     const status = !window.navigator.onLine ? 'OFFLINE' : 'CONNECTION_FAILED';
     console.error(`Supabase Network Error [${context}]: ${status}. Could not connect to Supabase. Please check your internet connection or if the Supabase project is paused.`);
