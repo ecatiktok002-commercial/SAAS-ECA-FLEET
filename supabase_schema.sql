@@ -1,7 +1,12 @@
+-- ===============================================================
+-- SUPABASE FLEET TRACK SCHEMA
+-- Run this in your Supabase SQL Editor (https://supabase.com/dashboard)
+-- ===============================================================
+
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. Companies Table (Subscription & Access)
+-- 1. Companies Table
 CREATE TABLE IF NOT EXISTS companies (
   id UUID PRIMARY KEY, -- Matches Auth UID
   name TEXT NOT NULL,
@@ -30,7 +35,6 @@ CREATE TABLE IF NOT EXISTS cars (
   plate TEXT NOT NULL,
   type TEXT DEFAULT 'Economy',
   status TEXT DEFAULT 'active',
-  -- Fleet Guardian Fields
   plate_number TEXT,
   make TEXT,
   model TEXT,
@@ -112,7 +116,7 @@ CREATE TABLE IF NOT EXISTS handover_records (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   booking_id UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-  type TEXT NOT NULL, -- 'pickup' or 'return'
+  type TEXT NOT NULL,
   mileage INTEGER,
   fuel_level INTEGER,
   notes TEXT,
@@ -120,7 +124,10 @@ CREATE TABLE IF NOT EXISTS handover_records (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Enable RLS on all tables
+-- ===============================================================
+-- RLS POLICIES
+-- ===============================================================
+
 ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE staff_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cars ENABLE ROW LEVEL SECURITY;
@@ -132,46 +139,15 @@ ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE handover_records ENABLE ROW LEVEL SECURITY;
 
--- 11. RLS Policies (Explicit and Type-Safe)
--- We use ::text = ::text to avoid "operator does not exist: uuid = text" errors
--- which can happen depending on the Supabase environment configuration.
-
--- Companies
-DROP POLICY IF EXISTS "Companies can view themselves" ON companies;
+-- Explicit Policies using text casting for maximum compatibility
 CREATE POLICY "Companies can view themselves" ON companies FOR SELECT USING (auth.uid()::text = id::text);
 
--- Staff Members
-DROP POLICY IF EXISTS "Company access" ON staff_members;
-CREATE POLICY "Company access" ON staff_members FOR ALL USING (auth.uid()::text = company_id::text);
-
--- Cars
-DROP POLICY IF EXISTS "Company access" ON cars;
-CREATE POLICY "Company access" ON cars FOR ALL USING (auth.uid()::text = company_id::text);
-
--- Members
-DROP POLICY IF EXISTS "Company access" ON members;
-CREATE POLICY "Company access" ON members FOR ALL USING (auth.uid()::text = company_id::text);
-
--- Bookings
-DROP POLICY IF EXISTS "Company access" ON bookings;
-CREATE POLICY "Company access" ON bookings FOR ALL USING (auth.uid()::text = company_id::text);
-
--- Agreements
-DROP POLICY IF EXISTS "Company access" ON agreements;
-CREATE POLICY "Company access" ON agreements FOR ALL USING (auth.uid()::text = company_id::text);
-
--- Digital Forms
-DROP POLICY IF EXISTS "Company access" ON digital_forms;
-CREATE POLICY "Company access" ON digital_forms FOR ALL USING (auth.uid()::text = company_id::text);
-
--- Expenses
-DROP POLICY IF EXISTS "Company access" ON expenses;
-CREATE POLICY "Company access" ON expenses FOR ALL USING (auth.uid()::text = company_id::text);
-
--- Logs
-DROP POLICY IF EXISTS "Company access" ON logs;
-CREATE POLICY "Company access" ON logs FOR ALL USING (auth.uid()::text = company_id::text);
-
--- Handover Records
-DROP POLICY IF EXISTS "Company access" ON handover_records;
-CREATE POLICY "Company access" ON handover_records FOR ALL USING (auth.uid()::text = company_id::text);
+CREATE POLICY "Company access staff_members" ON staff_members FOR ALL USING (auth.uid()::text = company_id::text);
+CREATE POLICY "Company access cars" ON cars FOR ALL USING (auth.uid()::text = company_id::text);
+CREATE POLICY "Company access members" ON members FOR ALL USING (auth.uid()::text = company_id::text);
+CREATE POLICY "Company access bookings" ON bookings FOR ALL USING (auth.uid()::text = company_id::text);
+CREATE POLICY "Company access agreements" ON agreements FOR ALL USING (auth.uid()::text = company_id::text);
+CREATE POLICY "Company access digital_forms" ON digital_forms FOR ALL USING (auth.uid()::text = company_id::text);
+CREATE POLICY "Company access expenses" ON expenses FOR ALL USING (auth.uid()::text = company_id::text);
+CREATE POLICY "Company access logs" ON logs FOR ALL USING (auth.uid()::text = company_id::text);
+CREATE POLICY "Company access handover_records" ON handover_records FOR ALL USING (auth.uid()::text = company_id::text);

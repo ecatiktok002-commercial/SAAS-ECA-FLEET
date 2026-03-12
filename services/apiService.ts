@@ -5,7 +5,10 @@ import { supabase } from './supabase';
 // Service for managing fleet data
 const logSupabaseError = (context: string, error: any) => {
   if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
-    console.error(`Supabase Schema Error [${context}]: The table '${context}' does not exist in your database. Please run the SQL schema in your Supabase SQL Editor.`);
+    // Extract table name from error message if possible, otherwise use context
+    const tableNameMatch = error.message?.match(/relation "public\.(.*?)" does not exist/);
+    const tableName = tableNameMatch ? tableNameMatch[1] : context;
+    console.error(`Supabase Schema Error: The table '${tableName}' does not exist in your database. Please run the SQL schema in your Supabase SQL Editor.`);
   } else if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
     console.error(`Supabase Network Error [${context}]: Could not connect to the server. This often happens if the Supabase project is paused or there is a network restriction.`);
   } else {
