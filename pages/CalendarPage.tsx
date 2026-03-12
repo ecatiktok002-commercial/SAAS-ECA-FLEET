@@ -1,0 +1,528 @@
+import React, { useState, useEffect } from 'react';
+import CalendarView from '../components/CalendarView';
+import BookingModal from '../components/BookingModal';
+import FleetModal from '../components/FleetModal';
+import ActivityLogModal from '../components/ActivityLogModal';
+import StaffSelectionModal from '../components/StaffSelectionModal';
+import { Booking, Car, Member, Expense, StaffMember } from '../types';
+import { apiService } from '../services/apiService';
+import { supabase } from '../services/supabase';
+import { exportBookingsToExcel } from '../services/exportService';
+import { optimizeBookings } from '../services/bookingService';
+import { useAuth } from '../context/AuthContext';
+
+const CalendarPage: React.FC = () => {
+  const { companyId: currentCompanyId, userId: currentUserId } = useAuth();
+  
+  const [currentStaff, setCurrentStaff] = useState<StaffMember | null>(null);
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
+
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [cars, setCars] = useState<Car[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isTablesMissing, setIsTablesMissing] = useState(false);
+  
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [isFleetModalOpen, setIsFleetModalOpen] = useState(false);
+  const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
+
+  const fetchData = async () => {
+    if (!currentUserId || !currentCompanyId) return;
+    
+    try {
+      setIsLoading(true);
+      setError(null);
+      setIsTablesMissing(false);
+      
+      const start = new Date(currentMonth);
+      start.setMonth(start.getMonth() - 2);
+      start.setDate(1);
+      
+      const end = new Date(currentMonth);
+      end.setMonth(end.getMonth() + 3);
+      end.setDate(0);
+
+      const [fetchedCars, fetchedMembers, fetchedBookings, fetchedExpenses, fetchedStaff] = await Promise.all([
+        apiService.getCars(currentCompanyId),
+        apiService.getMembers(currentCompanyId),
+        apiService.getBookings(currentCompanyId, start.toISOString(), end.toISOString()),
+        apiService.getExpenses(currentCompanyId),
+        apiService.getStaffMembers(currentCompanyId)
+      ]);
+      setCars(fetchedCars);
+      setMembers(fetchedMembers);
+      setBookings(fetchedBookings);
+      setExpenses(fetchedExpenses);
+      setStaffMembers(fetchedStaff);
+    } catch (err: any) {
+      if (err.message === 'DATABASE_TABLES_MISSING') {
+        setIsTablesMissing(true);
+      } else {
+        setError(`Connection failed: ${err.message}`);
+      }
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentUserId && currentCompanyId) {
+      fetchData();
+    }
+  }, [currentUserId, currentCompanyId, currentMonth]);
+
+  useEffect(() => {
+    if (!currentUserId || !currentCompanyId) return;
+
+    const channel = supabase.channel('fleet-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `company_id=eq.${currentCompanyId}` }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setBookings((prev) => {
+            if (prev.some(b => b.id === payload.new.id)) return prev;
+            return [...prev, payload.new as Booking];
+          });
+        }
+        else if (payload.eventType === 'DELETE') setBookings((prev) => prev.filter((b) => b.id !== payload.old.id));
+        else if (payload.eventType === 'UPDATE') setBookings((prev) => prev.map((b) => (b.id === payload.new.id ? (payload.new as Booking) : b)));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cars', filter: `company_id=eq.${currentCompanyId}` }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setCars((prev) => {
+            if (prev.some(c => c.id === payload.new.id)) return prev;
+            return [...prev, payload.new as Car];
+          });
+        }
+        else if (payload.eventType === 'DELETE') setCars((prev) => prev.filter((c) => c.id !== payload.old.id));
+        else if (payload.eventType === 'UPDATE') setCars((prev) => prev.map((c) => (c.id === payload.new.id ? (payload.new as Car) : c)));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'members', filter: `company_id=eq.${currentCompanyId}` }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setMembers((prev) => {
+            if (prev.some(m => m.id === payload.new.id)) return prev;
+            return [...prev, payload.new as Member];
+          });
+        }
+        else if (payload.eventType === 'DELETE') setMembers((prev) => prev.filter((m) => m.id !== payload.old.id));
+        else if (payload.eventType === 'UPDATE') setMembers((prev) => prev.map((m) => (m.id === payload.new.id ? (payload.new as Member) : m)));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `company_id=eq.${currentCompanyId}` }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setExpenses((prev) => {
+            if (prev.some(e => e.id === payload.new.id)) return prev;
+            return [payload.new as Expense, ...prev];
+          });
+        }
+        else if (payload.eventType === 'DELETE') setExpenses((prev) => prev.filter((e) => e.id !== payload.old.id));
+        else if (payload.eventType === 'UPDATE') setExpenses((prev) => prev.map((e) => (e.id === payload.new.id ? (payload.new as Expense) : e)));
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUserId, currentCompanyId]);
+
+  const handlePrevMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+  };
+
+  const handleDateClick = (date: Date) => {
+    setEditingBooking(null);
+    setSelectedDate(date);
+    setIsBookingModalOpen(true);
+  };
+
+  const handleBookingClick = (booking: Booking) => {
+    setEditingBooking(booking);
+    setSelectedDate(new Date(booking.start));
+    setIsBookingModalOpen(true);
+  };
+
+  const handleSaveBooking = async (bookingData: Omit<Booking, 'id'>, staffName: string) => {
+    if (!currentCompanyId) return;
+    try {
+      setIsLoading(true);
+      const savedBooking = await apiService.saveBooking(bookingData, currentCompanyId, editingBooking?.id);
+      
+      setBookings(prev => {
+        const exists = prev.find(b => b.id === savedBooking.id);
+        if (exists) {
+           return prev.map(b => b.id === savedBooking.id ? savedBooking : b);
+        }
+        return [...prev, savedBooking];
+      });
+      
+      if (currentUserId) {
+        const car = cars.find(c => c.id === bookingData.carId);
+        const action = editingBooking ? 'Updated' : 'Created';
+        const startDate = new Date(bookingData.start).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+        
+        await apiService.addLog({
+          userId: currentUserId,
+          staff_name: staffName,
+          action: action,
+          details: `Booking for ${car?.plate || 'Unknown Car'} (${car?.name}) starting ${startDate} for ${bookingData.duration} days.`
+        }, currentCompanyId);
+      }
+
+      setIsBookingModalOpen(false);
+    } catch (err: any) {
+      if (err.message === 'DATABASE_TABLES_MISSING') setIsTablesMissing(true);
+      else alert(`Error saving booking: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteBooking = async (id: string, staffName?: string) => {
+    if (!currentCompanyId) return;
+    try {
+      const booking = bookings.find(b => b.id === id);
+      setIsLoading(true);
+      await apiService.deleteBooking(id, currentCompanyId);
+      
+      setBookings(prev => prev.filter(b => b.id !== id));
+
+      if (currentUserId && booking) {
+        const car = cars.find(c => c.id === booking.carId);
+        const startDate = new Date(booking.start).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+        
+        await apiService.addLog({
+          userId: currentUserId,
+          staff_name: staffName,
+          action: 'Deleted',
+          details: `Booking for ${car?.plate || 'Unknown Car'} on ${startDate}.`
+        }, currentCompanyId);
+      }
+
+      setIsBookingModalOpen(false);
+    } catch (err: any) {
+      alert(`Error deleting booking: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOptimizeCalendar = async () => {
+    const confirmed = window.confirm("This will automatically rearrange bookings within the same model group to pack them more tightly and clear up larger gaps. Continue?");
+    if (!confirmed) return;
+
+    setIsLoading(true);
+    try {
+      const optimizationUpdates = optimizeBookings(bookings, cars);
+      
+      if (optimizationUpdates.length === 0) {
+        alert("Calendar is already optimized!");
+        setIsLoading(false);
+        return;
+      }
+
+      let successCount = 0;
+      if (currentCompanyId) {
+        for (const update of optimizationUpdates) {
+          await apiService.saveBooking({
+            carId: update.carId,
+            memberId: update.memberId,
+            start: update.start,
+            duration: update.duration
+          }, currentCompanyId, update.id);
+          successCount++;
+        }
+        
+        if (currentUserId) {
+          await apiService.addLog({
+            userId: currentUserId,
+            action: 'Updated',
+            details: `Ran Auto-Shuffle Optimization. Re-assigned ${successCount} bookings.`
+          }, currentCompanyId);
+        }
+      }
+      
+      await fetchData();
+      alert(`Optimization complete! ${successCount} bookings were rearranged.`);
+
+    } catch (err: any) {
+      alert(`Optimization failed: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAddCar = async (newCar: Omit<Car, 'id'>) => {
+    if (!currentCompanyId) return;
+    try {
+      setIsLoading(true);
+      await apiService.addCar(newCar, currentCompanyId);
+      if (currentUserId) {
+        await apiService.addLog({
+          userId: currentUserId,
+          action: 'Created',
+          details: `Added new vehicle to fleet: ${newCar.plate} (${newCar.name})`
+        }, currentCompanyId);
+      }
+    } catch (err: any) {
+      if (err.message === 'DATABASE_TABLES_MISSING') setIsTablesMissing(true);
+      else alert(`Error adding car: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteCar = async (id: string) => {
+    if (!currentCompanyId) return;
+    try {
+      const car = cars.find(c => c.id === id);
+      setIsLoading(true);
+      await apiService.deleteCar(id, currentCompanyId);
+      if (currentUserId && car) {
+        await apiService.addLog({
+          userId: currentUserId,
+          action: 'Deleted',
+          details: `Removed vehicle from fleet: ${car.plate}`
+        }, currentCompanyId);
+      }
+    } catch (err: any) {
+      alert(`Error deleting car: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAddMember = async (newMember: Omit<Member, 'id'>) => {
+    if (!currentCompanyId) return;
+    try {
+      setIsLoading(true);
+      await apiService.addMember(newMember, currentCompanyId);
+    } catch (err: any) {
+      alert(`Error adding member: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteMember = async (id: string) => {
+    if (!currentCompanyId) return;
+    try {
+      setIsLoading(true);
+      await apiService.deleteMember(id, currentCompanyId);
+    } catch (err: any) {
+      alert(`Error deleting member: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAddExpense = async (newExpense: Omit<Expense, 'id'>) => {
+    if (!currentCompanyId) return;
+    try {
+      setIsLoading(true);
+      await apiService.addExpense(newExpense, currentCompanyId);
+    } catch (err: any) {
+      if (err.message === 'DATABASE_TABLES_MISSING') setIsTablesMissing(true);
+      else alert(`Error adding expense: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteExpense = async (id: string) => {
+    if (!currentCompanyId) return;
+    try {
+      setIsLoading(true);
+      await apiService.deleteExpense(id, currentCompanyId);
+    } catch (err: any) {
+      alert(`Error deleting expense: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleExport = () => {
+    exportBookingsToExcel(currentMonth, bookings, cars, members);
+  };
+
+  const monthName = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+  return (
+    <div className="h-full w-full flex flex-col bg-slate-50 overflow-hidden relative font-sans text-slate-900">
+      {isLoading && (
+        <div className="absolute inset-0 z-[1000] bg-white/60 backdrop-blur-[1px] flex items-center justify-center transition-opacity">
+          <div className="bg-slate-900 text-white px-5 py-2.5 rounded-full font-bold text-[10px] tracking-widest uppercase flex items-center gap-2.5 shadow-xl">
+            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            Syncing...
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[1001] bg-rose-500 text-white px-6 py-3 rounded-full shadow-xl font-medium flex items-center gap-3 animate-in slide-in-from-top-4">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span className="text-sm">{error}</span>
+        </div>
+      )}
+
+      <header className="bg-white/80 backdrop-blur-md h-14 md:h-16 flex items-center justify-between px-4 md:px-8 shrink-0 z-50 border-b border-slate-100">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          </div>
+          <div className="flex flex-col md:flex-row md:items-baseline gap-0 md:gap-2">
+            <h1 className="text-lg font-bold text-slate-900 tracking-tight">Calendar</h1>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 md:gap-4">
+          <button 
+             onClick={handleOptimizeCalendar}
+             className="hidden md:flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-purple-600 hover:text-purple-800 transition-colors px-3 py-2 bg-purple-50 hover:bg-purple-100 rounded-lg"
+             title="Pack bookings tightly"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+            Re-Optimize
+          </button>
+
+          <button 
+             onClick={() => setIsLogModalOpen(true)}
+             className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 hover:text-indigo-600 transition-colors px-3 py-2"
+             title="View Activity Logs"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+            <span className="hidden md:inline">Activity</span>
+          </button>
+          
+          <div className="h-6 w-px bg-slate-200 hidden md:block" />
+
+          <button 
+            onClick={() => setIsFleetModalOpen(true)}
+            className="flex items-center gap-2 text-slate-600 hover:text-slate-900 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            <span className="hidden md:inline">Manage Fleet</span>
+          </button>
+        </div>
+      </header>
+
+      <div className="flex flex-col md:flex-row items-center justify-between gap-3 p-3 md:p-6 lg:px-8 max-w-[1600px] mx-auto w-full shrink-0">
+        <div className="flex items-center justify-between w-full md:w-auto gap-4 bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-1">
+            <button onClick={handlePrevMonth} className="p-2 hover:bg-slate-50 rounded-xl text-slate-400 hover:text-slate-900 transition-all">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"/></svg>
+            </button>
+            <button onClick={handleNextMonth} className="p-2 hover:bg-slate-50 rounded-xl text-slate-400 hover:text-slate-900 transition-all">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+          <h2 className="text-base md:text-lg font-bold text-slate-800 tracking-tight flex-1 text-center md:text-left min-w-[120px]">
+            {monthName}
+          </h2>
+          <button onClick={() => setCurrentMonth(new Date())} className="px-3 py-1.5 text-[10px] font-bold text-blue-600 bg-blue-50 rounded-lg uppercase tracking-wide hover:bg-blue-100 transition-colors">
+            Today
+          </button>
+          
+          <div className="w-px h-6 bg-slate-200 mx-1 hidden md:block"></div>
+          
+          <button 
+            onClick={handleExport} 
+            className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all" 
+            title="Export Month to Excel"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex w-full md:w-auto gap-2">
+          <button 
+            onClick={handleOptimizeCalendar}
+            className="md:hidden flex-1 bg-purple-50 border border-purple-200 text-purple-700 px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-wide shadow-sm flex items-center justify-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+            Re-Optimize
+          </button>
+          
+          <button 
+            onClick={() => handleDateClick(new Date())}
+            className="flex-1 md:flex-none bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg shadow-slate-900/10 active:scale-[0.98] transition-all"
+          >
+            + Booking
+          </button>
+        </div>
+      </div>
+
+      <main className="flex-1 px-2 md:px-6 lg:px-8 max-w-[1600px] mx-auto w-full mb-2 md:mb-6 overflow-hidden">
+        <div className="bg-white h-full rounded-2xl md:rounded-[2rem] shadow-sm border border-slate-200/60 flex flex-col overflow-hidden">
+          <CalendarView 
+            currentMonth={currentMonth} 
+            bookings={bookings}
+            cars={cars}
+            members={members}
+            onDateClick={handleDateClick}
+            onBookingClick={handleBookingClick}
+            onDeleteBooking={handleDeleteBooking}
+          />
+        </div>
+      </main>
+
+      <BookingModal 
+        isOpen={isBookingModalOpen} 
+        onClose={() => setIsBookingModalOpen(false)}
+        initialDate={selectedDate}
+        editingBooking={editingBooking}
+        onSave={handleSaveBooking}
+        onDelete={handleDeleteBooking}
+        existingBookings={bookings}
+        cars={cars}
+        members={members}
+        companyId={currentCompanyId}
+        staffMembers={staffMembers}
+        currentStaff={currentStaff}
+      />
+
+      <FleetModal
+        isOpen={isFleetModalOpen}
+        onClose={() => setIsFleetModalOpen(false)}
+        cars={cars}
+        members={members}
+        expenses={expenses}
+        onAddCar={handleAddCar}
+        onDeleteCar={handleDeleteCar}
+        onAddMember={handleAddMember}
+        onDeleteMember={handleDeleteMember}
+        onAddExpense={handleAddExpense}
+        onDeleteExpense={handleDeleteExpense}
+      />
+
+      <ActivityLogModal
+        isOpen={isLogModalOpen}
+        onClose={() => setIsLogModalOpen(false)}
+        companyId={currentCompanyId}
+      />
+
+      {currentCompanyId && (
+        <StaffSelectionModal
+          isOpen={!currentStaff}
+          companyId={currentCompanyId}
+          onStaffSelected={(staff) => {
+            setCurrentStaff(staff);
+            apiService.getStaffMembers(currentCompanyId).then(setStaffMembers);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+export default CalendarPage;
