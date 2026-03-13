@@ -11,6 +11,7 @@ import CustomersPage from './pages/CustomersPage';
 import FleetGuardianPage from './pages/FleetGuardianPage';
 import SubscriberManager from './pages/SubscriberManager';
 import ConfigError from './components/ConfigError';
+import SupabaseErrorBanner from './components/SupabaseErrorBanner';
 import { isConfigured } from './services/supabase';
 
 // A simple gate to handle Tier/Role redirects
@@ -41,6 +42,7 @@ const App: React.FC = () => {
     <AuthProvider>
       <Router>
         <AppRoutes />
+        <SupabaseErrorBanner />
       </Router>
     </AuthProvider>
   );
