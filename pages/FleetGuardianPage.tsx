@@ -7,7 +7,7 @@ import CarForm from '../components/CarForm';
 import AlertModal from '../components/AlertModal';
 
 const FleetGuardianPage: React.FC = () => {
-  const { companyId } = useAuth();
+  const { subscriberId } = useAuth();
   const [cars, setCars] = useState<Car[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingCar, setEditingCar] = useState<Car | null>(null);
@@ -47,11 +47,11 @@ const FleetGuardianPage: React.FC = () => {
   // Load Data
   useEffect(() => {
     const load = async () => {
-      if (!companyId) return;
+      if (!subscriberId) return;
       setIsLoading(true);
       setDbError(null);
       try {
-        const loadedCars = await Storage.getCars(companyId);
+        const loadedCars = await Storage.getCars(subscriberId);
         setCars(loadedCars);
       } catch (err: any) {
         console.error('Failed to load fleet data:', err);
@@ -63,14 +63,14 @@ const FleetGuardianPage: React.FC = () => {
     load();
 
     // Real-time sync
-    if (!companyId) return;
+    if (!subscriberId) return;
     
     const channel = Storage.supabase.channel('fleet-guardian-realtime')
       .on('postgres_changes', { 
         event: '*', 
         schema: 'public', 
         table: 'cars', 
-        filter: `company_id=eq.${companyId}` 
+        filter: `subscriber_id=eq.${subscriberId}` 
       }, (payload) => {
         if (payload.eventType === 'INSERT') {
           setCars(prev => {
@@ -88,7 +88,7 @@ const FleetGuardianPage: React.FC = () => {
     return () => {
       Storage.supabase.removeChannel(channel);
     };
-  }, [companyId]);
+  }, [subscriberId]);
 
   // Check for alerts whenever cars change
   useEffect(() => {
@@ -109,29 +109,41 @@ const FleetGuardianPage: React.FC = () => {
   }, [cars, getCarStatus]);
 
   const handleSaveCar = async (car: Car) => {
-    if (!companyId) return;
+    if (!subscriberId) return;
     setIsLoading(true);
-    if (editingCar) {
-      const updated = await Storage.updateCar(car, companyId);
-      setCars(updated);
-    } else {
-      const updated = await Storage.addCar(car, companyId);
-      setCars(updated);
+    try {
+      if (editingCar) {
+        const updated = await Storage.updateCar(car, subscriberId);
+        setCars(updated);
+      } else {
+        const updated = await Storage.addCar(car, subscriberId);
+        setCars(updated);
+      }
+      setShowForm(false);
+      setEditingCar(null);
+    } catch (err: any) {
+      console.error('Error saving car:', err);
+      alert(`Error saving car: ${err.message}`);
+    } finally {
+      setIsLoading(false);
     }
-    setShowForm(false);
-    setEditingCar(null);
-    setIsLoading(false);
   };
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
 
   const handleDeleteCar = async (id: string) => {
-    if (!companyId) return;
+    if (!subscriberId) return;
     setIsLoading(true);
-    const updated = await Storage.deleteCar(id, companyId);
-    setCars(updated);
-    setIsLoading(false);
-    setShowDeleteConfirm(null);
+    try {
+      const updated = await Storage.deleteCar(id, subscriberId);
+      setCars(updated);
+      setShowDeleteConfirm(null);
+    } catch (err: any) {
+      console.error('Error deleting car:', err);
+      alert(`Error deleting car: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const renderStatusBadge = (status: ExpiryStatus) => {

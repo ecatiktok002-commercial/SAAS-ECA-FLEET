@@ -6,17 +6,17 @@ import SupabaseConnectionBanner from './SupabaseConnectionBanner';
 import SchemaErrorBanner from './SchemaErrorBanner';
 
 const Layout: React.FC = () => {
-  const { companyId, staffRole, subscriptionTier, isLoading } = useAuth();
+  const { subscriberId, staffRole, subscriptionTier, isLoading } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (isLoading || !companyId || !staffRole || !subscriptionTier) return;
+    if (isLoading || !subscriberId || !staffRole || !subscriptionTier) return;
 
     const path = location.pathname;
     const isAdmin = staffRole === 'admin';
     const isStaff = staffRole === 'staff';
-    const isSuperAdmin = companyId === 'superadmin';
+    const isSuperAdmin = subscriberId === 'superadmin';
 
     if (isSuperAdmin) return;
 
@@ -58,7 +58,7 @@ const Layout: React.FC = () => {
 
     // Tier 3: All (Forms, Calendar, Fleet)
     // No extra restrictions for Tier 3 other than Role Gate
-  }, [location.pathname, companyId, staffRole, subscriptionTier, isLoading, navigate]);
+  }, [location.pathname, subscriberId, staffRole, subscriptionTier, isLoading, navigate]);
 
   if (isLoading) {
     return (
@@ -68,8 +68,8 @@ const Layout: React.FC = () => {
     );
   }
 
-  // If not fully logged in (missing companyId or staffRole/tier), redirect to login
-  if (!companyId || !staffRole || !subscriptionTier) {
+  // If not fully logged in (missing subscriberId or staffRole/tier), redirect to login
+  if (!subscriberId || !staffRole || !subscriptionTier) {
     return <Navigate to="/login" replace />;
   }
 

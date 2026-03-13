@@ -7,10 +7,10 @@ import { supabase } from '../services/supabase';
 interface ActivityLogModalProps {
   isOpen: boolean;
   onClose: () => void;
-  companyId: string | null;
+  subscriberId: string | null;
 }
 
-const ActivityLogModal: React.FC<ActivityLogModalProps> = ({ isOpen, onClose, companyId }) => {
+const ActivityLogModal: React.FC<ActivityLogModalProps> = ({ isOpen, onClose, subscriberId }) => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
@@ -18,7 +18,7 @@ const ActivityLogModal: React.FC<ActivityLogModalProps> = ({ isOpen, onClose, co
   const pageSize = 20;
 
   useEffect(() => {
-    if (isOpen && companyId) {
+    if (isOpen && subscriberId) {
       // Reset state on open
       setLogs([]);
       setPage(0);
@@ -27,7 +27,7 @@ const ActivityLogModal: React.FC<ActivityLogModalProps> = ({ isOpen, onClose, co
       
       // Subscribe to real-time log updates
       const channel = supabase.channel('logs-realtime')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'logs', filter: `company_id=eq.${companyId}` }, (payload) => {
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'logs', filter: `subscriber_id=eq.${subscriberId}` }, (payload) => {
           setLogs(prev => [payload.new as LogEntry, ...prev]);
         })
         .subscribe();
@@ -36,13 +36,13 @@ const ActivityLogModal: React.FC<ActivityLogModalProps> = ({ isOpen, onClose, co
         supabase.removeChannel(channel);
       };
     }
-  }, [isOpen, companyId]);
+  }, [isOpen, subscriberId]);
 
   const fetchLogs = async (pageNum: number) => {
-    if (!companyId) return;
+    if (!subscriberId) return;
     setLoading(true);
     try {
-      const fetchedLogs = await apiService.getLogs(companyId, pageNum, pageSize);
+      const fetchedLogs = await apiService.getLogs(subscriberId, pageNum, pageSize);
       if (fetchedLogs.length < pageSize) {
         setHasMore(false);
       }
@@ -92,7 +92,7 @@ const ActivityLogModal: React.FC<ActivityLogModalProps> = ({ isOpen, onClose, co
                 <div key={log.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-2">
                   <div className="flex justify-between items-start">
                     <span className={`
-                      text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wide
+                      text-[10px] font-bold px-2 py-1 rounded-lg uppercase tracking-wide
                       ${log.action === 'Created' ? 'bg-emerald-100 text-emerald-700' : ''}
                       ${log.action === 'Updated' ? 'bg-blue-100 text-blue-700' : ''}
                       ${log.action === 'Deleted' ? 'bg-rose-100 text-rose-700' : ''}

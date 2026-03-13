@@ -4,7 +4,7 @@ import { apiService } from '../services/apiService';
 import { useAuth } from '../context/AuthContext';
 
 export default function BrandingSettings() {
-  const { companyId } = useAuth();
+  const { subscriberId } = useAuth();
   const [settings, setSettings] = useState({
     company_logo_url: '',
     ssm_logo_url: '',
@@ -17,14 +17,14 @@ export default function BrandingSettings() {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    if (companyId) {
+    if (subscriberId) {
       fetchSettings();
     }
-  }, [companyId]);
+  }, [subscriberId]);
 
   const fetchSettings = async () => {
     try {
-      const data = await apiService.getCompanySettings(companyId!);
+      const data = await apiService.getCompanySettings(subscriberId!);
       if (data) {
         setSettings({
           company_logo_url: data.logo_url || '',
@@ -58,11 +58,11 @@ export default function BrandingSettings() {
   };
 
   const handleSave = async () => {
-    if (!companyId) return;
+    if (!subscriberId) return;
     setSaving(true);
     setMessage('');
     try {
-      await apiService.updateCompanySettings(companyId, settings);
+      await apiService.updateCompanySettings(subscriberId, settings);
       setMessage('Branding settings saved successfully!');
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
@@ -149,7 +149,7 @@ export default function BrandingSettings() {
                   </div>
                 )}
                 <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <label className="cursor-pointer bg-white text-slate-900 px-3 py-1.5 rounded-md text-xs font-bold flex items-center">
+                  <label className="cursor-pointer bg-white text-slate-900 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center">
                     <Upload className="w-3 h-3 mr-1" /> Upload New
                     <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'company_logo_url')} />
                   </label>
@@ -172,7 +172,7 @@ export default function BrandingSettings() {
                   </div>
                 )}
                 <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <label className="cursor-pointer bg-white text-slate-900 px-3 py-1.5 rounded-md text-xs font-bold flex items-center">
+                  <label className="cursor-pointer bg-white text-slate-900 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center">
                     <Upload className="w-3 h-3 mr-1" /> Upload New
                     <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'ssm_logo_url')} />
                   </label>
@@ -195,7 +195,7 @@ export default function BrandingSettings() {
                   </div>
                 )}
                 <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <label className="cursor-pointer bg-white text-slate-900 px-3 py-1.5 rounded-md text-xs font-bold flex items-center">
+                  <label className="cursor-pointer bg-white text-slate-900 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center">
                     <Upload className="w-3 h-3 mr-1" /> Upload New
                     <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'spdp_logo_url')} />
                   </label>

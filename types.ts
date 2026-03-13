@@ -80,7 +80,7 @@ export interface LogEntry {
 
 export interface StaffMember {
   id: string;
-  company_id: string;
+  subscriber_id: string;
   name: string;
   designated_uid: string;
   pin_hash?: string; // Hashed PIN
@@ -90,7 +90,7 @@ export interface StaffMember {
 
 export interface Agreement {
   id: string;
-  company_id: string;
+  subscriber_id: string;
   agent_id: string;
   agent_name: string;
   customer_name: string;
@@ -117,7 +117,7 @@ export interface Agreement {
 
 export interface DigitalForm {
   id: string;
-  company_id: string;
+  subscriber_id: string;
   agent_id?: string;
   agent_name?: string;
   customer_name: string;

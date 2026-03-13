@@ -12,7 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import { AlertTriangle } from 'lucide-react';
 
 const CalendarPage: React.FC = () => {
-  const { companyId: currentCompanyId, userId: currentUserId, staffRole } = useAuth();
+  const { subscriberId: currentSubscriberId, userId: currentUserId, staffRole } = useAuth();
   
   const [currentStaff, setCurrentStaff] = useState<StaffMember | null>(null);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
@@ -34,7 +34,7 @@ const CalendarPage: React.FC = () => {
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
 
   const fetchData = async () => {
-    if (!currentUserId || !currentCompanyId) return;
+    if (!currentUserId || !currentSubscriberId) return;
     
     try {
       setIsLoading(true);
@@ -50,11 +50,11 @@ const CalendarPage: React.FC = () => {
       end.setDate(0);
 
       const [fetchedCars, fetchedMembers, fetchedBookings, fetchedExpenses, fetchedStaff] = await Promise.all([
-        apiService.getCars(currentCompanyId),
-        apiService.getMembers(currentCompanyId),
-        apiService.getBookings(currentCompanyId, start.toISOString(), end.toISOString()),
-        apiService.getExpenses(currentCompanyId),
-        apiService.getStaffMembers(currentCompanyId)
+        apiService.getCars(currentSubscriberId),
+        apiService.getMembers(currentSubscriberId),
+        apiService.getBookings(currentSubscriberId, start.toISOString(), end.toISOString()),
+        apiService.getExpenses(currentSubscriberId),
+        apiService.getStaffMembers(currentSubscriberId)
       ]);
       setCars(fetchedCars);
       setMembers(fetchedMembers);
@@ -80,16 +80,16 @@ const CalendarPage: React.FC = () => {
   };
 
   useEffect(() => {
-    if (currentUserId && currentCompanyId) {
+    if (currentUserId && currentSubscriberId) {
       fetchData();
     }
-  }, [currentUserId, currentCompanyId, currentMonth]);
+  }, [currentUserId, currentSubscriberId, currentMonth]);
 
   useEffect(() => {
-    if (!currentUserId || !currentCompanyId) return;
+    if (!currentUserId || !currentSubscriberId) return;
 
     const channel = supabase.channel('fleet-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `company_id=eq.${currentCompanyId}` }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `subscriber_id=eq.${currentSubscriberId}` }, (payload) => {
         if (payload.eventType === 'INSERT') {
           setBookings((prev) => {
             if (prev.some(b => b.id === payload.new.id)) return prev;
@@ -99,7 +99,7 @@ const CalendarPage: React.FC = () => {
         else if (payload.eventType === 'DELETE') setBookings((prev) => prev.filter((b) => b.id !== payload.old.id));
         else if (payload.eventType === 'UPDATE') setBookings((prev) => prev.map((b) => (b.id === payload.new.id ? (payload.new as Booking) : b)));
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'cars', filter: `company_id=eq.${currentCompanyId}` }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cars', filter: `subscriber_id=eq.${currentSubscriberId}` }, (payload) => {
         if (payload.eventType === 'INSERT') {
           setCars((prev) => {
             if (prev.some(c => c.id === payload.new.id)) return prev;
@@ -109,7 +109,7 @@ const CalendarPage: React.FC = () => {
         else if (payload.eventType === 'DELETE') setCars((prev) => prev.filter((c) => c.id !== payload.old.id));
         else if (payload.eventType === 'UPDATE') setCars((prev) => prev.map((c) => (c.id === payload.new.id ? (payload.new as Car) : c)));
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'members', filter: `company_id=eq.${currentCompanyId}` }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'members', filter: `subscriber_id=eq.${currentSubscriberId}` }, (payload) => {
         if (payload.eventType === 'INSERT') {
           setMembers((prev) => {
             if (prev.some(m => m.id === payload.new.id)) return prev;
@@ -119,7 +119,7 @@ const CalendarPage: React.FC = () => {
         else if (payload.eventType === 'DELETE') setMembers((prev) => prev.filter((m) => m.id !== payload.old.id));
         else if (payload.eventType === 'UPDATE') setMembers((prev) => prev.map((m) => (m.id === payload.new.id ? (payload.new as Member) : m)));
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `company_id=eq.${currentCompanyId}` }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `subscriber_id=eq.${currentSubscriberId}` }, (payload) => {
         if (payload.eventType === 'INSERT') {
           setExpenses((prev) => {
             if (prev.some(e => e.id === payload.new.id)) return prev;
@@ -134,7 +134,7 @@ const CalendarPage: React.FC = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentUserId, currentCompanyId]);
+  }, [currentUserId, currentSubscriberId]);
 
   const handlePrevMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
@@ -157,10 +157,10 @@ const CalendarPage: React.FC = () => {
   };
 
   const handleSaveBooking = async (bookingData: Omit<Booking, 'id'>, staffName: string) => {
-    if (!currentCompanyId) return;
+    if (!currentSubscriberId) return;
     try {
       setIsLoading(true);
-      const savedBooking = await apiService.saveBooking(bookingData, currentCompanyId, editingBooking?.id);
+      const savedBooking = await apiService.saveBooking(bookingData, currentSubscriberId, editingBooking?.id);
       
       setBookings(prev => {
         const exists = prev.find(b => b.id === savedBooking.id);
@@ -180,7 +180,7 @@ const CalendarPage: React.FC = () => {
           staff_name: staffName,
           action: action,
           details: `Booking for ${car?.plate || 'Unknown Car'} (${car?.name}) starting ${startDate} for ${bookingData.duration} days.`
-        }, currentCompanyId);
+        }, currentSubscriberId);
       }
 
       setIsBookingModalOpen(false);
@@ -193,11 +193,11 @@ const CalendarPage: React.FC = () => {
   };
 
   const handleDeleteBooking = async (id: string, staffName?: string) => {
-    if (!currentCompanyId) return;
+    if (!currentSubscriberId) return;
     try {
       const booking = bookings.find(b => b.id === id);
       setIsLoading(true);
-      await apiService.deleteBooking(id, currentCompanyId);
+      await apiService.deleteBooking(id, currentSubscriberId);
       
       setBookings(prev => prev.filter(b => b.id !== id));
 
@@ -210,7 +210,7 @@ const CalendarPage: React.FC = () => {
           staff_name: staffName,
           action: 'Deleted',
           details: `Booking for ${car?.plate || 'Unknown Car'} on ${startDate}.`
-        }, currentCompanyId);
+        }, currentSubscriberId);
       }
 
       setIsBookingModalOpen(false);
@@ -222,9 +222,9 @@ const CalendarPage: React.FC = () => {
   };
 
   const handleUpdateMember = async (id: string, updates: Partial<Member>) => {
-    if (!currentCompanyId) return;
+    if (!currentSubscriberId) return;
     try {
-      await apiService.updateMember(id, currentCompanyId, updates);
+      await apiService.updateMember(id, currentSubscriberId, updates);
       setMembers(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
     } catch (err: any) {
       alert(`Error updating member: ${err.message}`);
@@ -246,14 +246,14 @@ const CalendarPage: React.FC = () => {
       }
 
       let successCount = 0;
-      if (currentCompanyId) {
+      if (currentSubscriberId) {
         for (const update of optimizationUpdates) {
           await apiService.saveBooking({
             carId: update.carId,
             memberId: update.memberId,
             start: update.start,
             duration: update.duration
-          }, currentCompanyId, update.id);
+          }, currentSubscriberId, update.id);
           successCount++;
         }
         
@@ -262,7 +262,7 @@ const CalendarPage: React.FC = () => {
             userId: currentUserId,
             action: 'Updated',
             details: `Ran Auto-Shuffle Optimization. Re-assigned ${successCount} bookings.`
-          }, currentCompanyId);
+          }, currentSubscriberId);
         }
       }
       
@@ -277,10 +277,10 @@ const CalendarPage: React.FC = () => {
   };
 
   const handleAddCar = async (newCar: Omit<Car, 'id'>) => {
-    if (!currentCompanyId) return;
+    if (!currentSubscriberId) return;
     try {
       setIsLoading(true);
-      const addedCar = await apiService.addCar(newCar, currentCompanyId);
+      const addedCar = await apiService.addCar(newCar, currentSubscriberId);
       
       // Update local state immediately for better UX
       setCars(prev => [...prev, addedCar]);
@@ -290,7 +290,7 @@ const CalendarPage: React.FC = () => {
           userId: currentUserId,
           action: 'Created',
           details: `Added new vehicle to fleet: ${newCar.plate} (${newCar.name})`
-        }, currentCompanyId);
+        }, currentSubscriberId);
       }
       
       // Also refresh all data to be sure
@@ -304,11 +304,11 @@ const CalendarPage: React.FC = () => {
   };
 
   const handleDeleteCar = async (id: string) => {
-    if (!currentCompanyId) return;
+    if (!currentSubscriberId) return;
     try {
       const car = cars.find(c => c.id === id);
       setIsLoading(true);
-      await apiService.deleteCar(id, currentCompanyId);
+      await apiService.deleteCar(id, currentSubscriberId);
       
       setCars(prev => prev.filter(c => c.id !== id));
       
@@ -317,7 +317,7 @@ const CalendarPage: React.FC = () => {
           userId: currentUserId,
           action: 'Deleted',
           details: `Removed vehicle from fleet: ${car.plate}`
-        }, currentCompanyId);
+        }, currentSubscriberId);
       }
       
       await fetchData();
@@ -329,10 +329,10 @@ const CalendarPage: React.FC = () => {
   };
 
   const handleAddMember = async (newMember: Omit<Member, 'id'>) => {
-    if (!currentCompanyId) return;
+    if (!currentSubscriberId) return;
     try {
       setIsLoading(true);
-      await apiService.addMember(newMember, currentCompanyId);
+      await apiService.addMember(newMember, currentSubscriberId);
     } catch (err: any) {
       alert(`Error adding member: ${err.message}`);
     } finally {
@@ -341,10 +341,10 @@ const CalendarPage: React.FC = () => {
   };
 
   const handleDeleteMember = async (id: string) => {
-    if (!currentCompanyId) return;
+    if (!currentSubscriberId) return;
     try {
       setIsLoading(true);
-      await apiService.deleteMember(id, currentCompanyId);
+      await apiService.deleteMember(id, currentSubscriberId);
     } catch (err: any) {
       alert(`Error deleting member: ${err.message}`);
     } finally {
@@ -353,10 +353,10 @@ const CalendarPage: React.FC = () => {
   };
 
   const handleAddExpense = async (newExpense: Omit<Expense, 'id'>) => {
-    if (!currentCompanyId) return;
+    if (!currentSubscriberId) return;
     try {
       setIsLoading(true);
-      await apiService.addExpense(newExpense, currentCompanyId);
+      await apiService.addExpense(newExpense, currentSubscriberId);
     } catch (err: any) {
       if (err.message === 'DATABASE_TABLES_MISSING') setIsTablesMissing(true);
       else alert(`Error adding expense: ${err.message}`);
@@ -366,10 +366,10 @@ const CalendarPage: React.FC = () => {
   };
 
   const handleDeleteExpense = async (id: string) => {
-    if (!currentCompanyId) return;
+    if (!currentSubscriberId) return;
     try {
       setIsLoading(true);
-      await apiService.deleteExpense(id, currentCompanyId);
+      await apiService.deleteExpense(id, currentSubscriberId);
     } catch (err: any) {
       alert(`Error deleting expense: ${err.message}`);
     } finally {
@@ -561,7 +561,7 @@ const CalendarPage: React.FC = () => {
         existingBookings={bookings}
         cars={cars}
         members={members}
-        companyId={currentCompanyId}
+        subscriberId={currentSubscriberId}
         staffMembers={staffMembers}
         currentStaff={currentStaff}
         currentUserId={currentUserId}
@@ -585,7 +585,7 @@ const CalendarPage: React.FC = () => {
       <ActivityLogModal
         isOpen={isLogModalOpen}
         onClose={() => setIsLogModalOpen(false)}
-        companyId={currentCompanyId}
+        subscriberId={currentSubscriberId}
       />
     </div>
   );

@@ -20,7 +20,7 @@ interface BookingModalProps {
   cars: Car[];
   members: Member[];
   preselectedCarId?: string;
-  companyId: string | null;
+  subscriberId: string | null;
   staffMembers?: StaffMember[];
   currentStaff?: StaffMember | null;
   currentUserId?: string | null;
@@ -28,7 +28,7 @@ interface BookingModalProps {
 }
 
 const BookingModal: React.FC<BookingModalProps> = ({ 
-  isOpen, onClose, initialDate, editingBooking, onSave, onDelete, existingBookings, cars, members, preselectedCarId, companyId, staffMembers = [], currentStaff, currentUserId, staffRole
+  isOpen, onClose, initialDate, editingBooking, onSave, onDelete, existingBookings, cars, members, preselectedCarId, subscriberId, staffMembers = [], currentStaff, currentUserId, staffRole
 }) => {
   // Modes: 'category' (Auto-assign based on model) or 'specific' (Manual plate selection)
   const [bookingMode, setBookingMode] = useState<'category' | 'specific'>('category');
@@ -114,12 +114,12 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
   // Fetch handover records when editing a booking
   useEffect(() => {
-    if (editingBooking && companyId) {
-      apiService.getHandoverRecords(editingBooking.id, companyId).then(setHandoverRecords);
+    if (editingBooking && subscriberId) {
+      apiService.getHandoverRecords(editingBooking.id, subscriberId).then(setHandoverRecords);
     } else {
       setHandoverRecords([]);
     }
-  }, [editingBooking, companyId, isHandoverOpen]);
+  }, [editingBooking, subscriberId, isHandoverOpen]);
 
   // Derive unique models from cars
   const uniqueModels = useMemo(() => {
@@ -335,11 +335,11 @@ const BookingModal: React.FC<BookingModalProps> = ({
     localStorage.setItem('last_staff_name', staffName);
 
     // PIN CHECK LOGIC
-    if (editingBooking && companyId) {
+    if (editingBooking && subscriberId) {
       // For updates, we require PIN
       // Fetch fresh staff data from DB to ensure PIN is current
       try {
-        const staff = await apiService.getStaffMemberByName(staffName, companyId);
+        const staff = await apiService.getStaffMemberByName(staffName, subscriberId);
         if (staff && staff.pin_hash) {
           setSelectedStaffMember(staff);
           setPendingAction({ type: 'save', data: bookingData });
@@ -363,10 +363,10 @@ const BookingModal: React.FC<BookingModalProps> = ({
     }
     localStorage.setItem('last_staff_name', staffName);
 
-    if (editingBooking && onDelete && companyId) {
+    if (editingBooking && onDelete && subscriberId) {
       try {
         // Fetch fresh staff data from DB to ensure PIN is current
-        const staff = await apiService.getStaffMemberByName(staffName, companyId);
+        const staff = await apiService.getStaffMemberByName(staffName, subscriberId);
         if (staff && staff.pin_hash) {
           setSelectedStaffMember(staff);
           setPendingAction({ type: 'delete', data: editingBooking.id });
@@ -674,7 +674,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
         </form>
       </div>
 
-      {isHandoverOpen && editingBooking && companyId && (
+      {isHandoverOpen && editingBooking && subscriberId && (
         <HandoverForm 
           bookingId={editingBooking.id} 
           carId={editingBooking.carId}
@@ -684,7 +684,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
             setIsHandoverOpen(false);
             alert('Handover record saved successfully!');
           }}
-          companyId={companyId}
+          subscriberId={subscriberId}
         />
       )}
 

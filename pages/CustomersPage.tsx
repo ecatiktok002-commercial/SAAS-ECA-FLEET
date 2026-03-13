@@ -15,20 +15,20 @@ interface CustomerData {
 }
 
 const CustomersPage: React.FC = () => {
-  const { companyId, staffRole, userId } = useAuth();
+  const { subscriberId, staffRole, userId } = useAuth();
   const [forms, setForms] = useState<DigitalForm[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!companyId) return;
+      if (!subscriberId) return;
       setIsLoading(true);
       try {
         const agentId = staffRole === 'staff' ? userId || undefined : undefined;
         const [formsData, agreementsData] = await Promise.all([
-          Storage.getDigitalForms(companyId, agentId),
-          Storage.getAgreements(companyId, agentId)
+          Storage.getDigitalForms(subscriberId, agentId),
+          Storage.getAgreements(subscriberId, agentId)
         ]);
         
         // Combine both sources as they both represent customer interactions
@@ -46,7 +46,7 @@ const CustomersPage: React.FC = () => {
     };
 
     fetchData();
-  }, [companyId]);
+  }, [subscriberId]);
 
   const customers = useMemo(() => {
     const customerMap = new Map<string, CustomerData>();

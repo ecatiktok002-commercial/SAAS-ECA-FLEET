@@ -6,7 +6,7 @@ import { Shield, ShieldAlert, UserPlus, Trash2, Edit2, KeyRound } from 'lucide-r
 import { hashPin } from '../utils/crypto';
 
 const StaffManagementPage: React.FC = () => {
-  const { companyId, staffRole } = useAuth();
+  const { subscriberId, staffRole } = useAuth();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -16,15 +16,15 @@ const StaffManagementPage: React.FC = () => {
   const [formData, setFormData] = useState({ name: '', designated_uid: '', pin: '' });
 
   useEffect(() => {
-    if (companyId) {
+    if (subscriberId) {
       loadStaff();
     }
-  }, [companyId]);
+  }, [subscriberId]);
 
   const loadStaff = async () => {
     try {
       setIsLoading(true);
-      const data = await apiService.getStaffMembers(companyId!);
+      const data = await apiService.getStaffMembers(subscriberId!);
       setStaff(data);
     } catch (err: any) {
       setError(err.message);
@@ -35,7 +35,7 @@ const StaffManagementPage: React.FC = () => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!companyId) return;
+    if (!subscriberId) return;
 
     try {
       setIsLoading(true);
@@ -47,10 +47,10 @@ const StaffManagementPage: React.FC = () => {
         if (hashedPin) {
           updates.pin_hash = hashedPin; 
         }
-        await apiService.updateStaffMember(editingStaff.id, companyId, updates);
+        await apiService.updateStaffMember(editingStaff.id, subscriberId, updates);
       } else {
         // Create new
-        await apiService.addStaffMember(formData.name, companyId, 'staff', hashedPin, formData.designated_uid);
+        await apiService.addStaffMember(formData.name, subscriberId, 'staff', hashedPin, formData.designated_uid);
       }
       await loadStaff();
       setIsModalOpen(false);
@@ -64,10 +64,10 @@ const StaffManagementPage: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!companyId || !window.confirm('Are you sure you want to delete this staff member?')) return;
+    if (!subscriberId || !window.confirm('Are you sure you want to delete this staff member?')) return;
     try {
       setIsLoading(true);
-      await apiService.deleteStaffMember(id, companyId);
+      await apiService.deleteStaffMember(id, subscriberId);
       await loadStaff();
     } catch (err: any) {
       alert(`Error deleting staff: ${err.message}`);

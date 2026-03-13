@@ -24,12 +24,24 @@ const CarForm: React.FC<CarFormProps> = ({ initialData, onSave, onCancel }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({
-      ...formData,
+    
+    const carData: any = {
       id: initialData?.id || `car-${Date.now()}`,
-      name: `${formData.make} ${formData.model}`,
-      plate: formData.plateNumber || ''
-    } as Car);
+      name: `${formData.make} ${formData.model}`.trim(),
+      plate: formData.plateNumber || '',
+      type: formData.type || 'Economy',
+      status: formData.status || 'active'
+    };
+
+    // Only add optional fields if they have values
+    if (formData.plateNumber) carData.plateNumber = formData.plateNumber;
+    if (formData.make) carData.make = formData.make;
+    if (formData.model) carData.model = formData.model;
+    if (formData.roadtaxExpiry) carData.roadtaxExpiry = formData.roadtaxExpiry;
+    if (formData.insuranceExpiry) carData.insuranceExpiry = formData.insuranceExpiry;
+    if (formData.inspectionExpiry) carData.inspectionExpiry = formData.inspectionExpiry;
+
+    onSave(carData as Car);
   };
 
   return (

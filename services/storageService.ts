@@ -4,34 +4,34 @@ import { supabase } from './supabase';
 
 export { supabase };
 
-export const getCars = async (companyId: string): Promise<Car[]> => {
-  return apiService.getCars(companyId);
+export const getCars = async (subscriberId: string): Promise<Car[]> => {
+  return apiService.getCars(subscriberId);
 };
 
-export const addCar = async (car: Car, companyId: string): Promise<Car[]> => {
+export const addCar = async (car: Car, subscriberId: string): Promise<Car[]> => {
   const { id, ...carData } = car;
-  await apiService.addCar(carData as any, companyId);
-  return apiService.getCars(companyId);
+  await apiService.addCar(carData as any, subscriberId);
+  return apiService.getCars(subscriberId);
 };
 
-export const updateCar = async (car: Car, companyId: string): Promise<Car[]> => {
-  await apiService.updateCar(car, companyId);
-  return apiService.getCars(companyId);
+export const updateCar = async (car: Car, subscriberId: string): Promise<Car[]> => {
+  await apiService.updateCar(car, subscriberId);
+  return apiService.getCars(subscriberId);
 };
 
-export const deleteCar = async (id: string, companyId: string): Promise<Car[]> => {
-  await apiService.deleteCar(id, companyId);
-  return apiService.getCars(companyId);
+export const deleteCar = async (id: string, subscriberId: string): Promise<Car[]> => {
+  await apiService.deleteCar(id, subscriberId);
+  return apiService.getCars(subscriberId);
 };
 
-export const saveCars = async (cars: Car[], companyId: string): Promise<void> => {
-  await apiService.saveCars(cars, companyId);
+export const saveCars = async (cars: Car[], subscriberId: string): Promise<void> => {
+  await apiService.saveCars(cars, subscriberId);
 };
 
-export const getDigitalForms = async (companyId: string, agentId?: string) => {
-  return apiService.getDigitalForms(companyId, agentId);
+export const getDigitalForms = async (subscriberId: string, agentId?: string) => {
+  return apiService.getDigitalForms(subscriberId, agentId);
 };
 
-export const getAgreements = async (companyId: string, agentId?: string) => {
-  return apiService.getAgreements(companyId, agentId);
+export const getAgreements = async (subscriberId: string, agentId?: string) => {
+  return apiService.getAgreements(subscriberId, agentId);
 };

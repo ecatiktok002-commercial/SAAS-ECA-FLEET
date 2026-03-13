@@ -8,14 +8,14 @@ interface HandoverFormProps {
   vehiclePlate: string;
   onClose: () => void;
   onSuccess?: () => void;
-  companyId: string;
+  subscriberId: string;
 }
 
 type HandoverType = 'Pickup' | 'Return';
 
 const PHOTO_LABELS = ['Front', 'Back', 'Left', 'Right', 'Interior', 'Dashboard'];
 
-const HandoverForm: React.FC<HandoverFormProps> = ({ bookingId, carId, vehiclePlate, onClose, onSuccess, companyId }) => {
+const HandoverForm: React.FC<HandoverFormProps> = ({ bookingId, carId, vehiclePlate, onClose, onSuccess, subscriberId }) => {
   const [step, setStep] = useState(1);
   const [handoverType, setHandoverType] = useState<HandoverType>('Pickup');
   const [mileage, setMileage] = useState('');
@@ -114,7 +114,7 @@ const HandoverForm: React.FC<HandoverFormProps> = ({ bookingId, carId, vehiclePl
         .insert([{
           booking_id: bookingId,
           car_id: carId,
-          company_id: companyId,
+          subscriber_id: subscriberId,
           handover_type: handoverType,
           mileage: mileage ? parseInt(mileage, 10) : null,
           fuel_level: fuelLevel,

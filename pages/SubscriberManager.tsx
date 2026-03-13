@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 const SubscriberManager: React.FC = () => {
-  const { companyId } = useAuth();
+  const { subscriberId } = useAuth();
   const [subscribers, setSubscribers] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -27,10 +27,10 @@ const SubscriberManager: React.FC = () => {
   const [newCompanyTier, setNewCompanyTier] = useState<Company['tier']>('tier_1');
 
   useEffect(() => {
-    if (companyId === 'superadmin') {
+    if (subscriberId === 'superadmin') {
       fetchSubscribers();
     }
-  }, [companyId]);
+  }, [subscriberId]);
 
   const fetchSubscribers = async () => {
     try {
@@ -128,7 +128,7 @@ const SubscriberManager: React.FC = () => {
     }
   };
 
-  if (companyId !== 'superadmin') {
+  if (subscriberId !== 'superadmin') {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
         <div className="bg-slate-900 border border-red-900/50 p-8 rounded-3xl max-w-md w-full text-center shadow-2xl shadow-red-900/10">

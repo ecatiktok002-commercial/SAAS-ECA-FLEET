@@ -49,8 +49,8 @@ const App: React.FC = () => {
 };
 
 const AppRoutes: React.FC = () => {
-  const { companyId } = useAuth();
-  const isSuperAdmin = companyId === 'superadmin';
+  const { subscriberId } = useAuth();
+  const isSuperAdmin = subscriberId === 'superadmin';
 
   return (
     <Routes>

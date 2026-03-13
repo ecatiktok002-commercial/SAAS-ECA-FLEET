@@ -19,10 +19,10 @@ const BookingPill: React.FC<BookingPillProps> = ({ booking, car, member, segment
   const colorClass = member?.color || 'bg-slate-400';
   
   const visualClasses = {
-    single: 'rounded-md z-[30] mx-0.5',
-    start: 'rounded-l-md z-[30] ml-0.5', 
+    single: 'rounded-lg z-[30] mx-0.5',
+    start: 'rounded-l-lg z-[30] ml-0.5', 
     middle: 'rounded-none z-[20]',
-    end: 'rounded-r-md z-[20] mr-0.5'
+    end: 'rounded-r-lg z-[20] mr-0.5'
   }[segment];
 
   const startTime = new Date(booking.start).toLocaleTimeString([], { 

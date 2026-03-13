@@ -28,8 +28,8 @@ export default function SignAgreement() {
         
         setAgreement(agreementData);
         
-        if (agreementData.company_id) {
-          const companyData = await apiService.getCompanyById(agreementData.company_id);
+        if (agreementData.subscriber_id) {
+          const companyData = await apiService.getCompanyById(agreementData.subscriber_id);
           setCompany(companyData);
         }
 
@@ -66,7 +66,7 @@ export default function SignAgreement() {
       const signatureData = sigCanvas.current?.getCanvas().toDataURL('image/png');
       const now = new Date();
       
-      await apiService.updateAgreement(id!, {
+      await apiService.updateAgreement(id!, undefined, {
         status: 'signed',
         // We might need a column for signature_data, but for now we'll just update status
         // and maybe store it in details or a new column if it exists.
@@ -239,7 +239,7 @@ export default function SignAgreement() {
           </div>
 
           {/* Ringkasan Bayaran (Full Width underneath) */}
-          <div className="bg-slate-900 print:bg-slate-100 text-white print:text-slate-900 rounded-xl print:rounded-none p-6 print:p-2 shadow-md print:shadow-none print:border print:border-slate-300 print:page-break-inside-avoid">
+          <div className="bg-slate-900 print:bg-slate-100 text-white print:text-slate-900 rounded-xl print:rounded-none p-6 print:p-2 shadow-sm print:shadow-none print:border print:border-slate-300 print:page-break-inside-avoid">
             <div className="flex flex-col sm:flex-row justify-between items-center print:flex-row print:items-center space-y-4 sm:space-y-0 print:space-y-0">
               <h2 className="text-sm print:text-[8pt] font-bold text-slate-400 print:text-slate-700 uppercase tracking-widest mb-4 print:mb-0 print:mr-4">Ringkasan Bayaran</h2>
               <div className="flex space-x-8 print:space-x-4 w-full sm:w-auto print:w-auto">
@@ -436,7 +436,7 @@ export default function SignAgreement() {
         <button
           onClick={handleSubmit}
           disabled={submitting || !agreed}
-          className="w-full inline-flex justify-center items-center py-3 px-4 border border-transparent shadow-sm text-base font-bold rounded-md text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 transition-colors"
+          className="w-full inline-flex justify-center items-center py-3 px-4 border border-transparent shadow-sm text-base font-bold rounded-lg text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 transition-colors"
         >
           {submitting ? 'Submitting...' : 'Confirm & Sign Agreement'}
         </button>

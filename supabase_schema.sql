@@ -48,19 +48,19 @@ CREATE TABLE IF NOT EXISTS companies (
 -- 2. Staff Members
 CREATE TABLE IF NOT EXISTS staff_members (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  subscriber_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   designated_uid TEXT NOT NULL,
   role TEXT DEFAULT 'staff',
   pin_hash TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(company_id, designated_uid)
+  UNIQUE(subscriber_id, designated_uid)
 );
 
 -- 3. Cars Table
 CREATE TABLE IF NOT EXISTS cars (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  subscriber_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   plate TEXT NOT NULL,
   type TEXT DEFAULT 'Economy',
@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS cars (
 -- 4. Members (Customers)
 CREATE TABLE IF NOT EXISTS members (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  subscriber_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   email TEXT,
   phone TEXT,
@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS members (
 -- 5. Bookings
 CREATE TABLE IF NOT EXISTS bookings (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  subscriber_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   car_id UUID NOT NULL REFERENCES cars(id) ON DELETE CASCADE,
   member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   agent_id UUID, -- The staff member who created it
@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS bookings (
 -- 6. Agreements (Sales)
 CREATE TABLE IF NOT EXISTS agreements (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  subscriber_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   agent_id UUID NOT NULL,
   agent_name TEXT NOT NULL,
   customer_name TEXT NOT NULL,
@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS agreements (
 -- 7. Digital Forms
 CREATE TABLE IF NOT EXISTS digital_forms (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  subscriber_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   agent_id UUID, -- The staff member who created it
   agent_name TEXT,
   customer_name TEXT NOT NULL,
@@ -161,7 +161,7 @@ CREATE TABLE IF NOT EXISTS digital_forms (
 -- 8. Expenses
 CREATE TABLE IF NOT EXISTS expenses (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  subscriber_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   car_id UUID REFERENCES cars(id) ON DELETE SET NULL,
   category TEXT NOT NULL,
   amount NUMERIC NOT NULL DEFAULT 0,
@@ -173,7 +173,7 @@ CREATE TABLE IF NOT EXISTS expenses (
 -- 9. Logs
 CREATE TABLE IF NOT EXISTS logs (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  subscriber_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   user_id UUID,
   staff_name TEXT,
   action TEXT NOT NULL,
@@ -184,7 +184,7 @@ CREATE TABLE IF NOT EXISTS logs (
 -- 10. Handover Records
 CREATE TABLE IF NOT EXISTS handover_records (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  subscriber_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   booking_id UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
   type TEXT NOT NULL,
   mileage INTEGER,
@@ -221,8 +221,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Helper to get company_id for the current authenticated user
-CREATE OR REPLACE FUNCTION current_company_id()
+-- Helper to get subscriber_id for the current authenticated user
+CREATE OR REPLACE FUNCTION current_subscriber_id()
 RETURNS UUID AS $$
 DECLARE
   comp_id UUID;
@@ -235,7 +235,7 @@ BEGIN
   
   -- 2. Check if user is an agent (linked via designated_uid)
   -- We use designated_uid to match the auth.uid()
-  SELECT company_id INTO comp_id FROM staff_members WHERE designated_uid = auth.uid()::text LIMIT 1;
+  SELECT subscriber_id INTO comp_id FROM staff_members WHERE designated_uid = auth.uid()::text LIMIT 1;
   RETURN comp_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -245,7 +245,7 @@ CREATE POLICY "Companies access" ON companies
   FOR ALL USING (
     auth.uid() = id -- Subscriber
     OR 
-    id = current_company_id() -- Agent
+    id = current_subscriber_id() -- Agent
     OR
     (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
   );
@@ -254,7 +254,7 @@ CREATE POLICY "Companies access" ON companies
 -- Subscriber can see all. Agent can only see themselves.
 CREATE POLICY "Staff members access" ON staff_members 
   FOR ALL USING (
-    auth.uid() = company_id -- Subscriber
+    auth.uid() = subscriber_id -- Subscriber
     OR 
     designated_uid = auth.uid()::text -- Agent (can see/update self)
   );
@@ -263,52 +263,52 @@ CREATE POLICY "Staff members access" ON staff_members
 -- Subscriber can see all. Agent can see all cars of their company (needed for fleet/calendar).
 CREATE POLICY "Cars access" ON cars 
   FOR ALL USING (
-    auth.uid() = company_id -- Subscriber
+    auth.uid() = subscriber_id -- Subscriber
     OR
-    company_id = current_company_id() -- Agent
+    subscriber_id = current_subscriber_id() -- Agent
   );
 
 -- 4. Members (Customers)
 -- Subscriber can see all. Agent can only see members where they are the assigned staff.
 CREATE POLICY "Members access" ON members 
   FOR ALL USING (
-    auth.uid() = company_id -- Subscriber
+    auth.uid() = subscriber_id -- Subscriber
     OR 
-    (EXISTS (SELECT 1 FROM staff_members WHERE id = members.staff_id AND designated_uid = auth.uid()::text) AND company_id = current_company_id()) -- Agent
+    (EXISTS (SELECT 1 FROM staff_members WHERE id = members.staff_id AND designated_uid = auth.uid()::text) AND subscriber_id = current_subscriber_id()) -- Agent
   );
 
 -- 5. Bookings
 -- Subscriber can see all. Agent can see all for company, but only modify their own.
 CREATE POLICY "Bookings view access" ON bookings 
   FOR SELECT USING (
-    auth.uid() = company_id -- Subscriber
+    auth.uid() = subscriber_id -- Subscriber
     OR 
-    company_id = current_company_id() -- Agent
+    subscriber_id = current_subscriber_id() -- Agent
   );
 
 CREATE POLICY "Bookings modify access" ON bookings 
   FOR ALL USING (
-    auth.uid() = company_id -- Subscriber
+    auth.uid() = subscriber_id -- Subscriber
     OR 
-    (agent_id = auth.uid() AND company_id = current_company_id()) -- Agent
+    (agent_id = auth.uid() AND subscriber_id = current_subscriber_id()) -- Agent
   );
 
 -- 6. Agreements
 -- Subscriber can see all. Agent can only see their own agreements.
 CREATE POLICY "Agreements access" ON agreements 
   FOR ALL USING (
-    auth.uid() = company_id -- Subscriber
+    auth.uid() = subscriber_id -- Subscriber
     OR 
-    (agent_id = auth.uid() AND company_id = current_company_id()) -- Agent
+    (agent_id = auth.uid() AND subscriber_id = current_subscriber_id()) -- Agent
   );
 
 -- 7. Digital Forms
 -- Subscriber can see all. Agent can only see their own forms.
 CREATE POLICY "Digital forms access" ON digital_forms 
   FOR ALL USING (
-    auth.uid() = company_id -- Subscriber
+    auth.uid() = subscriber_id -- Subscriber
     OR 
-    (agent_id = auth.uid() AND company_id = current_company_id()) -- Agent
+    (agent_id = auth.uid() AND subscriber_id = current_subscriber_id()) -- Agent
   );
 
 -- 8. Expenses
@@ -316,22 +316,22 @@ CREATE POLICY "Digital forms access" ON digital_forms
 -- The user said "In every other module (Forms, Calendar, Fleet), they can ONLY query records where agent_id == auth.uid()."
 -- Expenses don't have agent_id. I'll restrict to Subscriber only for now as it's "Business Dashboard" related.
 CREATE POLICY "Expenses access" ON expenses 
-  FOR ALL USING (auth.uid() = company_id);
+  FOR ALL USING (auth.uid() = subscriber_id);
 
 -- 9. Logs
 -- Subscriber can see all. Agent can only see their own logs.
 CREATE POLICY "Logs access" ON logs 
   FOR ALL USING (
-    auth.uid() = company_id -- Subscriber
+    auth.uid() = subscriber_id -- Subscriber
     OR 
-    (auth.uid() = user_id AND current_company_id() = company_id) -- Agent
+    (auth.uid() = user_id AND current_subscriber_id() = subscriber_id) -- Agent
   );
 
 -- 10. Handover Records
 -- Subscriber can see all. Agent can only see records for their own bookings.
 CREATE POLICY "Handover records access" ON handover_records 
   FOR ALL USING (
-    auth.uid() = company_id -- Subscriber
+    auth.uid() = subscriber_id -- Subscriber
     OR 
     EXISTS (
       SELECT 1 FROM bookings 
@@ -346,8 +346,8 @@ RETURNS TRIGGER AS $$
 BEGIN
     -- Check if member already exists for this staff
     IF NOT EXISTS (SELECT 1 FROM members WHERE staff_id = NEW.id) THEN
-        INSERT INTO members (name, color, company_id, staff_id)
-        VALUES (NEW.name, 'bg-blue-600', NEW.company_id, NEW.id);
+        INSERT INTO members (name, color, subscriber_id, staff_id)
+        VALUES (NEW.name, 'bg-blue-600', NEW.subscriber_id, NEW.id);
     END IF;
     RETURN NEW;
 END;

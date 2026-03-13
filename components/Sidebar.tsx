@@ -4,11 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import { LayoutDashboard, Calendar, FileText, Users, Car, Settings, LogOut } from 'lucide-react';
 
 const Sidebar: React.FC = () => {
-  const { staffRole, subscriptionTier, companyId, logout } = useAuth();
+  const { staffRole, subscriptionTier, subscriberId, logout } = useAuth();
 
   const getMenuItems = () => {
     const items = [];
-    const isSuperAdmin = companyId === 'superadmin';
+    const isSuperAdmin = subscriberId === 'superadmin';
     const isAdmin = staffRole === 'admin';
     const isStaff = staffRole === 'staff';
 
@@ -68,7 +68,7 @@ const Sidebar: React.FC = () => {
       <div className="p-6">
         <h1 className="text-2xl font-bold tracking-tight">EcaFleet</h1>
         <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider">
-          {companyId === 'superadmin' ? 'Master Admin' : `${subscriptionTier?.replace('_', ' ')} Plan`}
+          {subscriberId === 'superadmin' ? 'Master Admin' : `${subscriptionTier?.replace('_', ' ')} Plan`}
         </p>
       </div>
       

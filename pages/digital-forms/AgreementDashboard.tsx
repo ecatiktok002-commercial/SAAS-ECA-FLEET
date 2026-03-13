@@ -18,23 +18,23 @@ import {
 } from 'lucide-react';
 
 const AgreementDashboard: React.FC = () => {
-  const { companyId, staffRole, userId } = useAuth();
+  const { subscriberId, staffRole, userId } = useAuth();
   const navigate = useNavigate();
   const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    if (companyId) {
+    if (subscriberId) {
       fetchAgreements();
     }
-  }, [companyId, staffRole, userId]);
+  }, [subscriberId, staffRole, userId]);
 
   const fetchAgreements = async () => {
     try {
       setLoading(true);
       const agentId = staffRole === 'staff' ? userId || undefined : undefined;
-      const data = await apiService.getAgreements(companyId!, agentId);
+      const data = await apiService.getAgreements(subscriberId!, agentId);
       setAgreements(data);
     } catch (err) {
       console.error(err);
@@ -46,7 +46,7 @@ const AgreementDashboard: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this agreement?')) {
       try {
-        await apiService.deleteAgreement(id);
+        await apiService.deleteAgreement(id, subscriberId!);
         setAgreements(prev => prev.filter(a => a.id !== id));
       } catch (err) {
         alert('Failed to delete agreement');

@@ -6,7 +6,7 @@ import { apiService } from '../../services/apiService';
 import { useAuth } from '../../context/AuthContext';
 
 export default function CreateAgreement() {
-  const { companyId, userId, userName, staffRole } = useAuth();
+  const { subscriberId, userId, userName, staffRole } = useAuth();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     customer_name: '',
@@ -32,6 +32,7 @@ export default function CreateAgreement() {
   const [highlightReturnDate, setHighlightReturnDate] = useState(false);
   const [highlightReturnTime, setHighlightReturnTime] = useState(false);
   const [customerFound, setCustomerFound] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
 
   // Handle auto-calculation of end_date and return_time
   const updateReturnDate = (startDateStr: string, durationStr: string) => {
@@ -73,10 +74,10 @@ export default function CreateAgreement() {
   };
 
   const handleICBlur = async () => {
-    if (!formData.identity_number || formData.identity_number.length < 5 || !companyId) return;
+    if (!formData.identity_number || formData.identity_number.length < 5 || !subscriberId) return;
     
     try {
-      const member = await apiService.searchMemberByIdentity(formData.identity_number, companyId);
+      const member = await apiService.searchMemberByIdentity(formData.identity_number, subscriberId);
 
       if (member) {
         setFormData(prev => ({
@@ -164,7 +165,7 @@ export default function CreateAgreement() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!companyId) return;
+    if (!subscriberId) return;
     setLoading(true);
     setError('');
 
@@ -182,7 +183,7 @@ export default function CreateAgreement() {
       const staffName = userName || 'Agent';
 
       const agreementData: any = {
-        company_id: companyId,
+        subscriber_id: subscriberId,
         agent_id: userId || '', // Or staff ID if we have it
         agent_name: staffName,
         customer_name: formData.customer_name,
@@ -205,7 +206,7 @@ export default function CreateAgreement() {
         status: 'pending'
       };
 
-      const newAgreement = await apiService.createAgreement(agreementData);
+      const newAgreement = await apiService.createAgreement(agreementData, subscriberId);
       
       // Also save/update member for future lookup
       await apiService.addMember({
@@ -216,7 +217,7 @@ export default function CreateAgreement() {
         emergency_contact_name: formData.emergency_contact_name,
         emergency_contact_relation: formData.emergency_contact_relation,
         color: 'bg-blue-500'
-      }, companyId);
+      }, subscriberId);
 
       alert(`Agreement created! ID: ${newAgreement.id}`);
       navigate('/dashboard');
@@ -230,10 +231,16 @@ export default function CreateAgreement() {
   return (
     <div className="min-h-screen bg-slate-50 font-sans py-4 sm:py-10 px-4 sm:px-6 lg:px-8 text-base">
       <div className="max-w-3xl mx-auto">
-        <div className="mb-6 flex justify-between text-xs font-medium text-slate-500 bg-white p-3 rounded-lg shadow-sm border border-slate-200">
-          <span className="text-slate-900">1. Customer</span>
-          <span>2. Vehicle</span>
-          <span>3. Sign</span>
+        <div className="mb-6 flex justify-between text-sm font-medium text-slate-500 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+          <button type="button" onClick={() => setCurrentStep(1)} className={`flex items-center gap-2 ${currentStep === 1 ? 'text-slate-900' : ''}`}>
+            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${currentStep === 1 ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>1</span> Customer
+          </button>
+          <button type="button" onClick={() => setCurrentStep(2)} className={`flex items-center gap-2 ${currentStep === 2 ? 'text-slate-900' : ''}`}>
+            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${currentStep === 2 ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>2</span> Vehicle
+          </button>
+          <button type="button" onClick={() => setCurrentStep(3)} className={`flex items-center gap-2 ${currentStep === 3 ? 'text-slate-900' : ''}`}>
+            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${currentStep === 3 ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>3</span> Payment
+          </button>
         </div>
         <div className="mb-8 flex items-center">
           <Link to="/dashboard" className="text-slate-400 hover:text-slate-900 mr-4 transition-colors">
@@ -245,13 +252,15 @@ export default function CreateAgreement() {
         <div className="bg-white shadow-sm rounded-xl border border-slate-200 overflow-hidden mb-24">
           <form id="agreement-form" onSubmit={handleSubmit} className="p-4 sm:p-8 space-y-6">
             {error && (
-              <div className="bg-red-50 text-red-700 p-4 rounded-md text-sm border border-red-200">
+              <div className="bg-red-50 text-red-700 p-4 rounded-lg text-sm border border-red-200">
                 {error}
               </div>
             )}
 
-            <div className="bg-slate-50 p-3 rounded-lg font-medium text-slate-900 mb-4">Customer Details</div>
-            <div className="grid grid-cols-1 gap-y-4 gap-x-6 sm:grid-cols-2">
+            {currentStep === 1 && (
+              <>
+                <div className="bg-slate-50 p-3 rounded-lg font-medium text-slate-900 mb-4">Customer Details</div>
+                <div className="grid grid-cols-1 gap-y-4 gap-x-6 sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Identity Number (IC/Passport)</label>
                 <input
@@ -261,7 +270,7 @@ export default function CreateAgreement() {
                   value={formData.identity_number}
                   onChange={handleChange}
                   onBlur={handleICBlur}
-                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                   placeholder="Enter IC to auto-fill details"
                 />
               </div>
@@ -274,7 +283,7 @@ export default function CreateAgreement() {
                   required
                   value={formData.customer_name}
                   onChange={handleChange}
-                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -286,7 +295,7 @@ export default function CreateAgreement() {
                   required
                   value={formData.customer_phone}
                   onChange={handleChange}
-                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -298,7 +307,7 @@ export default function CreateAgreement() {
                   required
                   value={formData.billing_address}
                   onChange={handleChange}
-                  className="block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -310,7 +319,7 @@ export default function CreateAgreement() {
                   required
                   value={formData.emergency_contact_name}
                   onChange={handleChange}
-                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -322,7 +331,7 @@ export default function CreateAgreement() {
                   required
                   value={formData.emergency_contact_relation}
                   onChange={handleChange}
-                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -340,7 +349,21 @@ export default function CreateAgreement() {
                 </label>
               </div>
             </div>
+            
+            <div className="pt-6 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setCurrentStep(2)}
+                className="inline-flex justify-center items-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-slate-900 hover:bg-slate-800 transition-colors"
+              >
+                Next: Vehicle Details
+              </button>
+            </div>
+            </>
+            )}
 
+            {currentStep === 2 && (
+              <>
             <div className="bg-slate-50 p-3 rounded-lg font-medium text-slate-900 mb-4">Rental Details</div>
             <div className="grid grid-cols-1 gap-y-4 gap-x-6 sm:grid-cols-2">
               <div>
@@ -351,7 +374,7 @@ export default function CreateAgreement() {
                   required
                   value={formData.car_plate_number}
                   onChange={handleChange}
-                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm uppercase"
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm uppercase"
                 />
               </div>
 
@@ -363,7 +386,7 @@ export default function CreateAgreement() {
                   required
                   value={formData.car_model}
                   onChange={handleChange}
-                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -376,7 +399,7 @@ export default function CreateAgreement() {
                   required
                   value={formData.total_price}
                   onChange={handleChange}
-                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -389,7 +412,7 @@ export default function CreateAgreement() {
                   required
                   value={formData.deposit}
                   onChange={handleChange}
-                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -401,7 +424,7 @@ export default function CreateAgreement() {
                   required
                   value={formData.start_date}
                   onChange={handleChange}
-                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -413,7 +436,7 @@ export default function CreateAgreement() {
                   required
                   value={formData.end_date}
                   onChange={handleChange}
-                  className={`h-11 block w-full rounded-md shadow-sm sm:text-sm transition-colors duration-300 ${
+                  className={`h-11 block w-full rounded-lg shadow-sm sm:text-sm transition-colors duration-300 ${
                     highlightReturnDate 
                       ? 'border-emerald-500 ring-2 ring-emerald-500 bg-emerald-50' 
                       : 'border-slate-300 focus:border-slate-900 focus:ring-slate-900'
@@ -430,7 +453,7 @@ export default function CreateAgreement() {
                   min="1"
                   value={formData.duration_days}
                   onChange={handleChange}
-                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -442,7 +465,7 @@ export default function CreateAgreement() {
                   required
                   value={formData.pickup_time}
                   onChange={handleChange}
-                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -454,23 +477,46 @@ export default function CreateAgreement() {
                   required
                   value={formData.return_time}
                   onChange={handleChange}
-                  className={`h-11 block w-full rounded-md shadow-sm sm:text-sm transition-colors duration-300 ${
+                  className={`h-11 block w-full rounded-lg shadow-sm sm:text-sm transition-colors duration-300 ${
                     highlightReturnTime 
                       ? 'border-emerald-500 ring-2 ring-emerald-500 bg-emerald-50' 
                       : 'border-slate-300 focus:border-slate-900 focus:ring-slate-900'
                   }`}
                 />
               </div>
+              </div>
+              <div className="pt-6 border-t border-slate-100 flex justify-between">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(1)}
+                  className="inline-flex justify-center items-center py-2 px-6 border border-slate-300 shadow-sm text-sm font-medium rounded-lg text-slate-700 bg-white hover:bg-slate-50 transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(3)}
+                  className="inline-flex justify-center items-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-slate-900 hover:bg-slate-800 transition-colors"
+                >
+                  Next: Payment
+                </button>
+              </div>
+              </>
+            )}
 
+            {currentStep === 3 && (
+              <>
+              <div className="bg-slate-50 p-3 rounded-lg font-medium text-slate-900 mb-4">Payment & Receipt</div>
+              <div className="grid grid-cols-1 gap-y-4 gap-x-6 sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Payment Receipt</label>
-                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-md hover:bg-slate-50 transition-colors">
+                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-lg hover:bg-slate-50 transition-colors">
                   <div className="space-y-1 text-center">
                     <Upload className="mx-auto h-12 w-12 text-slate-400" />
                     <div className="flex text-sm text-slate-600 justify-center">
                       <label
                         htmlFor="file-upload"
-                        className="relative cursor-pointer bg-white rounded-md font-medium text-slate-900 hover:text-slate-700 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-slate-900"
+                        className="relative cursor-pointer bg-white rounded-lg font-medium text-slate-900 hover:text-slate-700 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-slate-900"
                       >
                         <span>Upload a file</span>
                         <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept="image/*,.pdf" />
@@ -486,11 +532,18 @@ export default function CreateAgreement() {
               </div>
             </div>
 
-            <div className="pt-6 border-t border-slate-100 hidden sm:flex justify-end">
+            <div className="pt-6 border-t border-slate-100 flex justify-between">
+              <button
+                type="button"
+                onClick={() => setCurrentStep(2)}
+                className="inline-flex justify-center items-center py-2 px-6 border border-slate-300 shadow-sm text-sm font-medium rounded-lg text-slate-700 bg-white hover:bg-slate-50 transition-colors"
+              >
+                Back
+              </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="inline-flex justify-center items-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 disabled:opacity-50 transition-colors"
+                className="inline-flex justify-center items-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 disabled:opacity-50 transition-colors"
               >
                 {loading ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
@@ -500,20 +553,41 @@ export default function CreateAgreement() {
                 Create Agreement
               </button>
             </div>
+            </>
+            )}
           </form>
         </div>
       </div>
       
       {/* Sticky Footer */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-200 sm:hidden z-50">
-        <button
-          type="submit"
-          form="agreement-form"
-          disabled={loading}
-          className="w-full inline-flex justify-center items-center py-3 px-4 border border-transparent shadow-sm text-base font-medium rounded-md text-white bg-slate-900 hover:bg-slate-800 transition-colors"
-        >
-          {loading ? 'Submitting...' : 'Create Agreement'}
-        </button>
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-200 sm:hidden z-50 flex gap-2">
+        {currentStep > 1 && (
+          <button
+            type="button"
+            onClick={() => setCurrentStep(currentStep - 1)}
+            className="w-1/3 inline-flex justify-center items-center py-3 px-4 border border-slate-300 shadow-sm text-base font-medium rounded-lg text-slate-700 bg-white hover:bg-slate-50 transition-colors"
+          >
+            Back
+          </button>
+        )}
+        {currentStep < 3 ? (
+          <button
+            type="button"
+            onClick={() => setCurrentStep(currentStep + 1)}
+            className="flex-1 inline-flex justify-center items-center py-3 px-4 border border-transparent shadow-sm text-base font-medium rounded-lg text-white bg-slate-900 hover:bg-slate-800 transition-colors"
+          >
+            Next
+          </button>
+        ) : (
+          <button
+            type="submit"
+            form="agreement-form"
+            disabled={loading}
+            className="flex-1 inline-flex justify-center items-center py-3 px-4 border border-transparent shadow-sm text-base font-medium rounded-lg text-white bg-slate-900 hover:bg-slate-800 transition-colors"
+          >
+            {loading ? 'Submitting...' : 'Create Agreement'}
+          </button>
+        )}
       </div>
     </div>
   );

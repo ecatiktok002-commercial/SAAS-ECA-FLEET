@@ -12,10 +12,10 @@ interface LoginScreenProps {
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const navigate = useNavigate();
-  const { login, companyId: existingCompanyId } = useAuth();
+  const { login, subscriberId: existingSubscriberId } = useAuth();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [accessCode, setAccessCode] = useState('');
-  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [subscriberId, setSubscriberId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
   const [staffUid, setStaffUid] = useState('');
@@ -25,10 +25,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
   // Redirect if already logged in
   useEffect(() => {
-    if (existingCompanyId) {
+    if (existingSubscriberId) {
       navigate('/');
     }
-  }, [existingCompanyId, navigate]);
+  }, [existingSubscriberId, navigate]);
 
   // Step 1: Handle Company UID Login
   const handleCompanyLogin = async (e: React.FormEvent) => {
@@ -81,7 +81,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       }
 
       if (authData.user) {
-        setCompanyId(authData.user.id);
+        setSubscriberId(authData.user.id);
         
         const getDisplayId = (user: any) => {
           const email = user.email || '';
@@ -119,7 +119,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         const { data: staffData, error: staffError } = await supabase
           .from('staff_members')
           .select('*')
-          .eq('company_id', authData.user.id);
+          .eq('subscriber_id', authData.user.id);
           
         if (staffError) {
           console.error('Error fetching staff members:', staffError);
@@ -218,12 +218,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     setError('');
 
     try {
-      if (!companyId) throw new Error('Company context lost. Please restart login.');
+      if (!subscriberId) throw new Error('Company context lost. Please restart login.');
 
       const { data: staffMember, error: staffError } = await supabase
         .from('staff_members')
         .select('*')
-        .eq('company_id', companyId)
+        .eq('subscriber_id', subscriberId)
         .eq('designated_uid', staffUid.toLowerCase().trim())
         .single();
       
@@ -244,7 +244,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       const { data: companyData, error: companyError } = await supabase
         .from('companies')
         .select('tier')
-        .eq('id', companyId)
+        .eq('id', subscriberId)
         .single();
         
       if (!companyError && companyData && companyData.tier) {
@@ -253,10 +253,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
       // Log in via Context
       // Staff members always have 'staff' role as per requirements
-      login(companyId, 'staff', tier, staffMember.id, staffMember.name);
+      login(subscriberId, 'staff', tier, staffMember.id, staffMember.name);
       
       if (onLogin) {
-        onLogin(companyId);
+        onLogin(subscriberId);
       }
       
     } catch (err: any) {

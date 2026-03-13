@@ -5,7 +5,7 @@ export type SubscriptionTier = 'tier_1' | 'tier_2' | 'tier_3';
 export type StaffRole = 'admin' | 'staff';
 
 interface AuthContextType {
-  companyId: string | null;
+  subscriberId: string | null;
   userId: string | null;
   user: string | null; // Alias for userId to match refined App.tsx
   userName: string | null;
@@ -14,14 +14,14 @@ interface AuthContextType {
   subscriptionTier: SubscriptionTier | null;
   subscriberTier: number; // Numeric representation for refined App.tsx
   isLoading: boolean;
-  login: (companyId: string, staffRole: StaffRole, subscriptionTier: SubscriptionTier, userId?: string, userName?: string) => void;
+  login: (subscriberId: string, staffRole: StaffRole, subscriptionTier: SubscriptionTier, userId?: string, userName?: string) => void;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [subscriberId, setSubscriberId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
   const [staffRole, setStaffRole] = useState<StaffRole | null>(null);
@@ -39,8 +39,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         const isSuperAdmin = session.user.email === 'superadmin@ecafleet.com';
-        const companyId = isSuperAdmin ? 'superadmin' : session.user.id;
-        setCompanyId(companyId);
+        
+        // Retrieve subscriber_id from metadata or profiles table
+        let sId = session.user.user_metadata?.subscriber_id;
+        
+        if (!sId && !isSuperAdmin) {
+          // Try fetching from a profiles table if metadata is missing
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('subscriber_id')
+            .eq('id', session.user.id)
+            .single();
+          
+          if (profile?.subscriber_id) {
+            sId = profile.subscriber_id;
+          }
+        }
+
+        // Fallback to user.id if still missing
+        const finalSubscriberId = isSuperAdmin ? 'superadmin' : (sId || session.user.id);
+        
+        setSubscriberId(finalSubscriberId);
         setUserId(getDisplayId(session.user));
         setUserName(isSuperAdmin ? 'Super Admin' : (session.user.user_metadata?.full_name || getDisplayId(session.user)));
         
@@ -57,7 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const { data: companyData } = await supabase
             .from('companies')
             .select('tier')
-            .eq('id', companyId)
+            .eq('id', finalSubscriberId)
             .single();
           
           if (companyData?.tier) {
@@ -75,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = (id: string, role: StaffRole, tier: SubscriptionTier, uId?: string, uName?: string) => {
-    setCompanyId(id);
+    setSubscriberId(id);
     setStaffRole(role);
     setSubscriptionTier(tier);
     if (uId) setUserId(uId);
@@ -89,7 +108,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     await supabase.auth.signOut();
-    setCompanyId(null);
+    setSubscriberId(null);
     setUserId(null);
     setUserName(null);
     setStaffRole(null);
@@ -107,7 +126,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={{ 
-      companyId, 
+      subscriberId,
       userId, 
       user: userId,
       userName, 

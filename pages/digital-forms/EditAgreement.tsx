@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 
 export default function EditAgreement() {
   const { id } = useParams();
-  const { companyId, userId, staffRole } = useAuth();
+  const { subscriberId, userId, staffRole } = useAuth();
   const navigate = useNavigate();
   const isAdmin = staffRole === 'admin';
   const [formData, setFormData] = useState({
@@ -49,10 +49,10 @@ export default function EditAgreement() {
   };
 
   const handleICBlur = async () => {
-    if (!formData.identity_number || formData.identity_number.length < 5 || !companyId) return;
+    if (!formData.identity_number || formData.identity_number.length < 5 || !subscriberId) return;
     
     try {
-      const member = await apiService.searchMemberByIdentity(formData.identity_number, companyId);
+      const member = await apiService.searchMemberByIdentity(formData.identity_number, subscriberId);
 
       if (member) {
         setFormData(prev => ({
@@ -75,7 +75,7 @@ export default function EditAgreement() {
     const fetchAgreement = async () => {
       if (!id) return;
       try {
-        const data = await apiService.getAgreementById(id);
+        const data = await apiService.getAgreementById(id, subscriberId);
         if (!data) {
           throw new Error('Agreement not found');
         }
@@ -177,7 +177,7 @@ export default function EditAgreement() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!companyId || !id) return;
+    if (!subscriberId || !id) return;
     setLoading(true);
     setError('');
 
@@ -201,7 +201,7 @@ export default function EditAgreement() {
         ...(receiptData !== undefined && { payment_receipt: receiptData }),
       };
 
-      await apiService.updateAgreement(id, updates);
+      await apiService.updateAgreement(id, subscriberId, updates);
 
       alert('Agreement updated successfully!');
       navigate('/dashboard');
@@ -233,7 +233,7 @@ export default function EditAgreement() {
         <div className="bg-white shadow-sm rounded-xl border border-slate-200 overflow-hidden mb-24">
           <form id="edit-agreement-form" onSubmit={handleSubmit} className="p-4 sm:p-8 space-y-8">
             {error && (
-              <div className="bg-red-50 text-red-700 p-4 rounded-md text-sm border border-red-200">
+              <div className="bg-red-50 text-red-700 p-4 rounded-lg text-sm border border-red-200">
                 {error}
               </div>
             )}
@@ -258,7 +258,7 @@ export default function EditAgreement() {
                   value={formData.identity_number}
                   onChange={handleChange}
                   onBlur={handleICBlur}
-                  className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                   placeholder="Enter IC to auto-fill details"
                 />
               </div>
@@ -271,7 +271,7 @@ export default function EditAgreement() {
                   required
                   value={formData.customer_name}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -283,7 +283,7 @@ export default function EditAgreement() {
                   required
                   value={formData.customer_phone}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -295,7 +295,7 @@ export default function EditAgreement() {
                   required
                   value={formData.billing_address}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -307,7 +307,7 @@ export default function EditAgreement() {
                   required
                   value={formData.emergency_contact_name}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -319,7 +319,7 @@ export default function EditAgreement() {
                   required
                   value={formData.emergency_contact_relation}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -349,7 +349,7 @@ export default function EditAgreement() {
                   required
                   value={formData.car_plate_number}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm uppercase"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm uppercase"
                 />
               </div>
 
@@ -361,7 +361,7 @@ export default function EditAgreement() {
                   required
                   value={formData.car_model}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -374,7 +374,7 @@ export default function EditAgreement() {
                   required
                   value={formData.total_price}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -387,7 +387,7 @@ export default function EditAgreement() {
                   required
                   value={formData.deposit}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -399,7 +399,7 @@ export default function EditAgreement() {
                   required
                   value={formData.start_date}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -411,7 +411,7 @@ export default function EditAgreement() {
                   required
                   value={formData.end_date}
                   onChange={handleChange}
-                  className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm transition-colors duration-300 ${
+                  className={`mt-1 block w-full rounded-lg shadow-sm sm:text-sm transition-colors duration-300 ${
                     highlightReturnDate 
                       ? 'border-emerald-500 ring-2 ring-emerald-500 bg-emerald-50' 
                       : 'border-slate-300 focus:border-slate-900 focus:ring-slate-900'
@@ -428,7 +428,7 @@ export default function EditAgreement() {
                   min="1"
                   value={formData.duration_days}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -440,7 +440,7 @@ export default function EditAgreement() {
                   required
                   value={formData.pickup_time}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
               </div>
 
@@ -452,7 +452,7 @@ export default function EditAgreement() {
                   required
                   value={formData.return_time}
                   onChange={handleChange}
-                  className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm transition-colors duration-300 ${
+                  className={`mt-1 block w-full rounded-lg shadow-sm sm:text-sm transition-colors duration-300 ${
                     highlightReturnTime 
                       ? 'border-emerald-500 ring-2 ring-emerald-500 bg-emerald-50' 
                       : 'border-slate-300 focus:border-slate-900 focus:ring-slate-900'
@@ -479,7 +479,7 @@ export default function EditAgreement() {
                         <button
                           type="button"
                           onClick={() => window.open(existingReceipt, '_blank')}
-                          className="inline-flex items-center px-3 py-1.5 border border-slate-200 shadow-sm text-xs font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50 transition-colors"
+                          className="inline-flex items-center px-3 py-1.5 border border-slate-200 shadow-sm text-xs font-medium rounded-lg text-slate-700 bg-white hover:bg-slate-50 transition-colors"
                         >
                           <Eye className="w-3.5 h-3.5 mr-1.5" />
                           View
@@ -493,7 +493,7 @@ export default function EditAgreement() {
                                 setPaymentReceipt(null);
                               }
                             }}
-                            className="inline-flex items-center px-3 py-1.5 border border-transparent shadow-sm text-xs font-medium rounded-md text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
+                            className="inline-flex items-center px-3 py-1.5 border border-transparent shadow-sm text-xs font-medium rounded-lg text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
                           >
                             <Trash2 className="w-3.5 h-3.5 mr-1.5" />
                             Remove
@@ -515,13 +515,13 @@ export default function EditAgreement() {
                     )}
                   </div>
                 ) : (
-                  <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-md hover:bg-slate-50 transition-colors">
+                  <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-lg hover:bg-slate-50 transition-colors">
                     <div className="space-y-1 text-center">
                       <Upload className="mx-auto h-12 w-12 text-slate-400" />
                       <div className="flex text-sm text-slate-600 justify-center">
                         <label
                           htmlFor="file-upload"
-                          className="relative cursor-pointer bg-white rounded-md font-medium text-slate-900 hover:text-slate-700 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-slate-900"
+                          className="relative cursor-pointer bg-white rounded-lg font-medium text-slate-900 hover:text-slate-700 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-slate-900"
                         >
                           <span>{receiptRemoved ? 'Upload a new file' : 'Upload a file'}</span>
                           <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept="image/*,.pdf" />
@@ -541,14 +541,14 @@ export default function EditAgreement() {
             <div className="pt-6 border-t border-slate-100 hidden sm:flex justify-end space-x-3">
               <Link
                 to="/dashboard"
-                className="bg-white py-2 px-4 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 transition-colors"
+                className="bg-white py-2 px-4 border border-slate-300 rounded-lg shadow-sm text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 transition-colors"
               >
                 Cancel
               </Link>
               <button
                 type="submit"
                 disabled={loading}
-                className="inline-flex justify-center items-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 disabled:opacity-50 transition-colors"
+                className="inline-flex justify-center items-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 disabled:opacity-50 transition-colors"
               >
                 {loading ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
@@ -568,7 +568,7 @@ export default function EditAgreement() {
           type="submit"
           form="edit-agreement-form"
           disabled={loading}
-          className="w-full inline-flex justify-center items-center py-3 px-4 border border-transparent shadow-sm text-base font-medium rounded-md text-white bg-slate-900 hover:bg-slate-800 transition-colors"
+          className="w-full inline-flex justify-center items-center py-3 px-4 border border-transparent shadow-sm text-base font-medium rounded-lg text-white bg-slate-900 hover:bg-slate-800 transition-colors"
         >
           {loading ? 'Saving...' : 'Save Changes'}
         </button>
