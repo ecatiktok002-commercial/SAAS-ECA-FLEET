@@ -40,7 +40,7 @@ if (!isConfigured) {
 }
 
 // Diagnostic check to help users identify network issues
-if (typeof window !== 'undefined' && SUPABASE_URL && SUPABASE_KEY) {
+if (typeof window !== 'undefined' && isConfigured) {
   fetch(`${SUPABASE_URL}/rest/v1/`, { 
     method: 'GET', 
     headers: { 'apikey': SUPABASE_KEY } 
@@ -52,8 +52,9 @@ if (typeof window !== 'undefined' && SUPABASE_URL && SUPABASE_KEY) {
         console.log('Supabase Connection: Success');
       }
     })
-    .catch(() => {
-      console.error('Supabase Connectivity Error: Could not reach your Supabase URL. Please check if the project is paused or if your network is blocking the connection.');
+    .catch((err) => {
+      console.error(`Supabase Connectivity Error: Could not reach ${SUPABASE_URL}. Error: ${err.message}`);
+      console.error('This usually means the project is paused in Supabase or your network is blocking the connection.');
     });
 }
 
