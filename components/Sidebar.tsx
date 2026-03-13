@@ -15,12 +15,6 @@ const Sidebar: React.FC = () => {
     // Master Admin (Superadmin) specific items
     if (isSuperAdmin) {
       items.push({ name: 'Subscribers', path: '/subscribers', icon: <Users className="w-5 h-5" /> });
-      items.push({ name: 'Dashboard', path: '/', icon: <LayoutDashboard className="w-5 h-5" /> });
-      items.push({ name: 'Calendar', path: '/calendar', icon: <Calendar className="w-5 h-5" /> });
-      items.push({ name: 'Digital Form', path: '/forms', icon: <FileText className="w-5 h-5" /> });
-      items.push({ name: 'Customers', path: '/customers', icon: <Users className="w-5 h-5" /> });
-      items.push({ name: 'Global Fleet', path: '/fleet', icon: <Car className="w-5 h-5" /> });
-      items.push({ name: 'Staff Management', path: '/staff', icon: <Settings className="w-5 h-5" /> });
       return items;
     }
 

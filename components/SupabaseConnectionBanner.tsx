@@ -93,6 +93,16 @@ const SupabaseConnectionBanner: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            <button 
+              onClick={() => {
+                setIsUnreachable(false);
+                window.location.reload();
+              }}
+              className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-[0.98]"
+            >
+              Retry Connection
+            </button>
           </div>
         </div>
       </div>

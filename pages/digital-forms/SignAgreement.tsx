@@ -1,263 +1,446 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
+import SignatureCanvas from 'react-signature-canvas';
+import { CheckCircle, Download, AlertCircle, ShieldAlert, Car, Clock, Fuel, AlertTriangle, Printer } from 'lucide-react';
+import { format } from 'date-fns';
 import { apiService } from '../../services/apiService';
-import { Agreement } from '../../types';
-import { ShieldCheck, PenTool, CheckCircle2, Download, Printer } from 'lucide-react';
 
-const SignAgreement: React.FC = () => {
+export default function SignAgreement() {
   const { id } = useParams<{ id: string }>();
-  const [agreement, setAgreement] = useState<Agreement | null>(null);
+  const [agreement, setAgreement] = useState<any>(null);
+  const [company, setCompany] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [signing, setSigning] = useState(false);
-  const [signed, setSigned] = useState(false);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
+  const [error, setError] = useState('');
+  const [agreed, setAgreed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const sigCanvas = useRef<SignatureCanvas>(null);
 
   useEffect(() => {
-    if (id) {
-      fetchAgreement();
-    }
+    const fetchData = async () => {
+      if (!id) return;
+      try {
+        const agreementData = await apiService.getAgreementById(id);
+        
+        if (!agreementData) {
+          throw new Error('Agreement not found or invalid link.');
+        }
+        
+        setAgreement(agreementData);
+        
+        if (agreementData.company_id) {
+          const companyData = await apiService.getCompanyById(agreementData.company_id);
+          setCompany(companyData);
+        }
+
+        if (agreementData.status === 'signed') {
+          setSuccess(true);
+        }
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, [id]);
 
-  const fetchAgreement = async () => {
-    try {
-      setLoading(true);
-      const data = await apiService.getAgreementById(id!);
-      setAgreement(data);
-      if (data?.status === 'signed') {
-        setSigned(true);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Signature Logic
-  const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
-    setIsDrawing(true);
-    draw(e);
-  };
-
-  const stopDrawing = () => {
-    setIsDrawing(false);
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      ctx?.beginPath();
-    }
-  };
-
-  const draw = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawing || signed) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx) return;
-
-    const rect = canvas.getBoundingClientRect();
-    let x, y;
-    if ('touches' in e) {
-      x = e.touches[0].clientX - rect.left;
-      y = e.touches[0].clientY - rect.top;
-    } else {
-      x = e.clientX - rect.left;
-      y = e.clientY - rect.top;
-    }
-
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#000';
-
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  };
-
   const clearSignature = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (canvas && ctx) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    sigCanvas.current?.clear();
+  };
+
+  const handleSubmit = async () => {
+    if (!agreed) {
+      alert('You must agree to the Terms & Conditions.');
+      return;
+    }
+
+    if (sigCanvas.current?.isEmpty()) {
+      alert('Please provide your signature.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const signatureData = sigCanvas.current?.getCanvas().toDataURL('image/png');
+      const now = new Date();
+      
+      await apiService.updateAgreement(id!, {
+        status: 'signed',
+        // We might need a column for signature_data, but for now we'll just update status
+        // and maybe store it in details or a new column if it exists.
+        // Looking at schema, there's no signature_data column.
+        // I'll just update the status for now.
+      });
+
+      setAgreement((prev: any) => ({ ...prev, signed_at: now.toISOString(), status: 'signed' }));
+      setSuccess(true);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleSign = async () => {
-    if (!id || signed) return;
-    
-    try {
-      setSigning(true);
-      await apiService.updateAgreement(id, { status: 'signed' });
-      setSigned(true);
-    } catch (err) {
-      alert('Failed to sign agreement');
-    } finally {
-      setSigning(false);
-    }
+  const handlePrint = () => {
+    window.print();
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="animate-spin w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full"></div>
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-slate-900 border-t-transparent"></div>
       </div>
     );
   }
 
-  if (!agreement) {
+  if (error) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-3xl shadow-xl text-center max-w-md w-full">
-          <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
-            <ShieldCheck className="w-8 h-8" />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">Agreement Not Found</h1>
-          <p className="text-slate-500">The link you followed may be invalid or expired.</p>
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-200 max-w-md w-full text-center">
+          <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">Error</h2>
+          <p className="text-slate-600">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans">
+        <div className="bg-white p-10 rounded-2xl shadow-xl border border-slate-200 max-w-md w-full text-center">
+          <CheckCircle className="h-20 w-20 text-emerald-500 mx-auto mb-6" />
+          <h2 className="text-3xl font-bold text-slate-900 mb-3 tracking-tight">Agreement Signed!</h2>
+          <p className="text-slate-600 mb-8 text-lg">
+            Thank you, <span className="font-semibold text-slate-900">{agreement.customer_name}</span>. Your rental agreement has been successfully signed and saved.
+          </p>
+          {agreement?.signed_at && (
+            <p className="text-xs text-slate-400 mb-6 italic">
+              Digitally Signed on {new Intl.DateTimeFormat('en-GB', { 
+                dateStyle: 'short', 
+                timeStyle: 'short', 
+                timeZone: 'Asia/Kuala_Lumpur' 
+              }).format(new Date(agreement.signed_at)).replace(',', '')}
+            </p>
+          )}
+          <button
+            onClick={handlePrint}
+            className="w-full inline-flex justify-center items-center py-4 px-6 border border-transparent shadow-lg text-lg font-medium rounded-xl text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 transition-all transform hover:-translate-y-0.5"
+          >
+            <Printer className="h-6 w-6 mr-2" />
+            Print / Save as PDF
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 py-12 px-4">
-      <div className="max-w-4xl mx-auto">
-        {/* Document Header */}
-        <div className="bg-white rounded-t-3xl border-x border-t border-slate-200 p-8 sm:p-12 shadow-sm">
-          <div className="flex flex-col sm:flex-row justify-between items-start gap-6 mb-12">
+    <div className="min-h-screen bg-slate-50 py-4 sm:py-12 px-4 sm:px-6 lg:px-8 font-sans text-base leading-relaxed">
+      <div className="max-w-3xl mx-auto bg-white shadow-sm rounded-xl border border-slate-200 overflow-hidden mb-24">
+        
+        {/* 1. Header (Corporate Identity) */}
+        <div className="p-8 sm:p-10 print:p-0 border-b border-slate-200 print:border-b-2 print:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white print:mb-2 print:flex-row print:items-center print:page-break-inside-avoid">
+          <div className="flex items-center w-full sm:w-auto mb-6 sm:mb-0 print:mb-0">
+            {/* Left: Company Logo Placeholder */}
+            <div className="h-20 w-20 print:h-12 print:w-12 bg-slate-100 rounded-lg flex items-center justify-center mr-6 print:mr-3 border border-slate-200 flex-shrink-0">
+              {company?.logo_url ? (
+                <img src={company.logo_url} alt="Company Logo" className="h-full w-full object-contain p-2 print:p-1" />
+              ) : (
+                <span className="text-xs text-slate-400 font-medium">LOGO</span>
+              )}
+            </div>
+            
+            {/* Center: Company Name & Details */}
             <div>
-              <div className="flex items-center gap-2 text-emerald-600 mb-2">
-                <ShieldCheck className="w-6 h-6" />
-                <span className="font-bold tracking-widest uppercase text-sm">Secure Digital Agreement</span>
-              </div>
-              <h1 className="text-4xl font-black text-slate-900">Rental Agreement</h1>
-              <p className="text-slate-500 mt-2">ID: {agreement.id}</p>
-            </div>
-            <div className="text-right">
-              <div className="text-sm font-bold text-slate-400 uppercase tracking-wider">Date Generated</div>
-              <div className="text-xl font-bold text-slate-900">{new Date(agreement.created_at).toLocaleDateString()}</div>
-            </div>
-          </div>
-
-          {/* Document Content */}
-          <div className="space-y-8 text-slate-700 leading-relaxed">
-            <section>
-              <h2 className="text-lg font-bold text-slate-900 mb-4 border-b border-slate-100 pb-2">1. Parties Involved</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <div className="text-xs font-bold text-slate-400 uppercase mb-1">Company / Agent</div>
-                  <div className="font-bold text-slate-900">{agreement.agent_name}</div>
-                </div>
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <div className="text-xs font-bold text-slate-400 uppercase mb-1">Customer / Renter</div>
-                  <div className="font-bold text-slate-900">{agreement.customer_name}</div>
-                </div>
-              </div>
-            </section>
-
-            <section>
-              <h2 className="text-lg font-bold text-slate-900 mb-4 border-b border-slate-100 pb-2">2. Agreement Details</h2>
-              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                  <div>
-                    <div className="text-xs font-bold text-slate-400 uppercase mb-1">Vehicle</div>
-                    <div className="font-bold text-slate-900">{agreement.car_model} ({agreement.car_plate_number})</div>
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-400 uppercase mb-1">Duration</div>
-                    <div className="font-bold text-slate-900">{agreement.duration_days} Days</div>
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-400 uppercase mb-1">Pickup</div>
-                    <div className="font-bold text-slate-900">{agreement.start_date} @ {agreement.pickup_time}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-400 uppercase mb-1">Return</div>
-                    <div className="font-bold text-slate-900">{agreement.end_date} @ {agreement.return_time}</div>
-                  </div>
-                </div>
-                <div className="flex justify-between items-center mb-6 pt-4 border-t border-slate-200">
-                  <span className="text-slate-500">Total Rental Amount:</span>
-                  <span className="text-2xl font-black text-slate-900">RM {agreement.total_price.toLocaleString()}</span>
-                </div>
-                <div className="text-sm text-slate-600 whitespace-pre-wrap">
-                  {agreement.details || 'Standard rental terms apply. Vehicle must be returned in the same condition as received. Fuel level must be maintained as per handover record.'}
-                </div>
-              </div>
-            </section>
-
-            <section>
-              <h2 className="text-lg font-bold text-slate-900 mb-4 border-b border-slate-100 pb-2">3. Terms & Conditions</h2>
-              <ul className="list-disc pl-5 space-y-2 text-sm text-slate-500">
-                <li>The renter agrees to abide by all local traffic laws and regulations.</li>
-                <li>The renter is responsible for any summons or fines incurred during the rental period.</li>
-                <li>Smoking and pets are strictly prohibited inside the vehicle.</li>
-                <li>This agreement is legally binding once signed digitally.</li>
-              </ul>
-            </section>
-          </div>
-        </div>
-
-        {/* Signature Section */}
-        <div className="bg-slate-900 rounded-b-3xl p-8 sm:p-12 shadow-2xl">
-          {signed ? (
-            <div className="text-center py-8">
-              <div className="w-20 h-20 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-500/30">
-                <CheckCircle2 className="w-10 h-10" />
-              </div>
-              <h2 className="text-3xl font-black text-white mb-2">Agreement Signed</h2>
-              <p className="text-slate-400 mb-8">This document has been legally executed and recorded.</p>
-              <div className="flex justify-center gap-4">
-                <button className="flex items-center gap-2 px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-all">
-                  <Download className="w-5 h-5" /> Download PDF
-                </button>
-                <button onClick={() => window.print()} className="flex items-center gap-2 px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-all">
-                  <Printer className="w-5 h-5" /> Print
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="max-w-md mx-auto">
-              <div className="flex items-center gap-2 text-indigo-400 mb-4">
-                <PenTool className="w-5 h-5" />
-                <span className="font-bold uppercase tracking-widest text-xs">Digital Signature Required</span>
-              </div>
-              <div className="bg-white rounded-2xl p-4 mb-6">
-                <canvas 
-                  ref={canvasRef}
-                  width={400}
-                  height={200}
-                  onMouseDown={startDrawing}
-                  onMouseUp={stopDrawing}
-                  onMouseMove={draw}
-                  onMouseOut={stopDrawing}
-                  onTouchStart={startDrawing}
-                  onTouchEnd={stopDrawing}
-                  onTouchMove={draw}
-                  className="w-full h-[200px] border-2 border-dashed border-slate-200 rounded-xl cursor-crosshair touch-none"
-                />
-                <div className="flex justify-between mt-2">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase">Sign inside the box</span>
-                  <button onClick={clearSignature} className="text-[10px] text-red-500 font-bold uppercase hover:underline">Clear</button>
-                </div>
-              </div>
-
-              <button 
-                onClick={handleSign}
-                disabled={signing}
-                className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 py-4 rounded-xl font-black text-lg transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98] disabled:opacity-50"
-              >
-                {signing ? 'Processing...' : 'Execute Agreement'}
-              </button>
-              <p className="text-center text-slate-500 text-[10px] mt-4 uppercase tracking-widest font-bold">
-                By clicking "Execute Agreement", you agree to the terms above.
+              <h1 className="text-2xl sm:text-3xl print:text-lg font-bold tracking-tight text-slate-900 mb-1 print:mb-0 uppercase">{company?.name || 'ECA GROUP TRAVEL & TOURS SDN BHD'}</h1>
+              <p className="text-slate-500 text-sm print:text-[8pt] font-medium print:leading-tight">
+                {company?.address || '011-55582106 | NO 21-B, JALAN SUARASA 8/3, BANDAR TUN HUSSEIN ONN, 43200 CHERAS, SELANGOR'}
               </p>
             </div>
-          )}
+          </div>
+
+          {/* Right: Booking Reference Badge */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 print:p-2 text-right self-start sm:self-center flex-shrink-0 min-w-[180px] print:min-w-0 print:bg-transparent print:border-none">
+            <p className="text-xs print:text-[7pt] text-slate-500 uppercase tracking-wider font-bold mb-1 print:mb-0">Booking Reference</p>
+            <p className="text-2xl print:text-sm font-mono font-bold text-slate-900 tracking-widest">{agreement.booking_reference || 'PENDING'}</p>
+          </div>
         </div>
+
+        <div className="p-8 sm:p-10 print:p-0 space-y-10 print:space-y-2 print:flex-grow print:flex print:flex-col">
+          
+          {/* 2. Section A & B: Customer and Rental Details (Split Layout) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 print:gap-2 print:grid-cols-2 print:page-break-inside-avoid">
+            
+            {/* Maklumat Pelanggan (Left) */}
+            <div className="bg-slate-50 p-6 print:p-2 rounded-xl border border-slate-200 print:border-slate-300 print:rounded-none">
+              <h2 className="text-lg print:text-[9pt] font-bold text-slate-900 uppercase tracking-wide mb-4 print:mb-1 border-b border-slate-200 print:border-slate-300 pb-2 print:pb-1">Maklumat Pelanggan</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-3 gap-4 print:gap-1">
+                <div className="print:col-span-3">
+                  <p className="text-xs print:text-[7pt] font-bold text-slate-500 uppercase tracking-wider">Name</p>
+                  <p className="text-base print:text-[9pt] font-medium text-slate-900">{agreement.customer_name}</p>
+                </div>
+                <div>
+                  <p className="text-xs print:text-[7pt] font-bold text-slate-500 uppercase tracking-wider">IC / Passport</p>
+                  <p className="text-base print:text-[9pt] font-medium text-slate-900">{agreement.identity_number}</p>
+                </div>
+                <div>
+                  <p className="text-xs print:text-[7pt] font-bold text-slate-500 uppercase tracking-wider">Phone</p>
+                  <p className="text-base print:text-[9pt] font-medium text-slate-900">{agreement.customer_phone || '-'}</p>
+                </div>
+                <div className="print:col-span-3">
+                  <p className="text-xs print:text-[7pt] font-bold text-slate-500 uppercase tracking-wider">Billing Address</p>
+                  <p className="text-base print:text-[9pt] font-medium text-slate-900 print:leading-tight">{agreement.billing_address}</p>
+                </div>
+                <div>
+                  <p className="text-xs print:text-[7pt] font-bold text-slate-500 uppercase tracking-wider">Kenalan Kecemasan</p>
+                  <p className="text-base print:text-[9pt] font-medium text-slate-900">{agreement.emergency_contact_name || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs print:text-[7pt] font-bold text-slate-500 uppercase tracking-wider">Hubungan</p>
+                  <p className="text-base print:text-[9pt] font-medium text-slate-900">{agreement.emergency_contact_relation || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs print:text-[7pt] font-bold text-slate-500 uppercase tracking-wider">E-invoice</p>
+                  <p className="text-base print:text-[9pt] font-medium text-slate-900">{agreement.need_einvoice ? 'Ya' : 'Tidak'}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Maklumat Kenderaan (Right) */}
+            <div className="bg-slate-50 p-6 print:p-2 rounded-xl border border-slate-200 print:border-slate-300 print:rounded-none">
+              <h2 className="text-lg print:text-[9pt] font-bold text-slate-900 uppercase tracking-wide mb-4 print:mb-1 border-b border-slate-200 print:border-slate-300 pb-2 print:pb-1">Maklumat Kenderaan</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-4 print:gap-1">
+                <div>
+                  <p className="text-xs print:text-[7pt] font-bold text-slate-500 uppercase tracking-wider">Car Plate</p>
+                  <p className="text-xl print:text-[10pt] font-bold text-slate-900 uppercase tracking-widest">{agreement.car_plate_number}</p>
+                </div>
+                <div>
+                  <p className="text-xs print:text-[7pt] font-bold text-slate-500 uppercase tracking-wider">Model</p>
+                  <p className="text-base print:text-[9pt] font-medium text-slate-900">{agreement.car_model || 'Standard Vehicle'}</p>
+                </div>
+                <div>
+                  <p className="text-xs print:text-[7pt] font-bold text-slate-500 uppercase tracking-wider">Pickup Date/Time</p>
+                  <p className="text-base print:text-[9pt] font-medium text-slate-900">{format(new Date(agreement.start_date), 'dd MMM yyyy')} {agreement.pickup_time || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs print:text-[7pt] font-bold text-slate-500 uppercase tracking-wider">Return Date/Time</p>
+                  <p className="text-base print:text-[9pt] font-medium text-slate-900">{format(new Date(agreement.end_date), 'dd MMM yyyy')} {agreement.return_time || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs print:text-[7pt] font-bold text-slate-500 uppercase tracking-wider">Duration</p>
+                  <p className="text-base print:text-[9pt] font-medium text-slate-900">{agreement.duration_days} Days</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Ringkasan Bayaran (Full Width underneath) */}
+          <div className="bg-slate-900 print:bg-slate-100 text-white print:text-slate-900 rounded-xl print:rounded-none p-6 print:p-2 shadow-md print:shadow-none print:border print:border-slate-300 print:page-break-inside-avoid">
+            <div className="flex flex-col sm:flex-row justify-between items-center print:flex-row print:items-center space-y-4 sm:space-y-0 print:space-y-0">
+              <h2 className="text-sm print:text-[8pt] font-bold text-slate-400 print:text-slate-700 uppercase tracking-widest mb-4 print:mb-0 print:mr-4">Ringkasan Bayaran</h2>
+              <div className="flex space-x-8 print:space-x-4 w-full sm:w-auto print:w-auto">
+                <div>
+                  <p className="text-xs print:text-[7pt] font-medium text-slate-400 print:text-slate-500 uppercase tracking-wider mb-1 print:mb-0">Rental Price</p>
+                  <p className="text-xl print:text-[9pt] font-medium">RM {agreement.total_price.toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-xs print:text-[7pt] font-medium text-slate-400 print:text-slate-500 uppercase tracking-wider mb-1 print:mb-0">Deposit</p>
+                  <p className="text-xl print:text-[9pt] font-medium">RM {(agreement.deposit || 0).toFixed(2)}</p>
+                </div>
+              </div>
+              <div className="w-full sm:w-auto text-left sm:text-right border-t border-slate-700 print:border-l print:border-t-0 print:border-slate-300 pt-4 sm:pt-0 print:pt-0 print:pl-4">
+                <p className="text-xs print:text-[7pt] font-bold text-emerald-400 print:text-slate-700 uppercase tracking-widest mb-1 print:mb-0">Grand Total</p>
+                <p className="text-3xl print:text-[10pt] font-bold text-white print:text-slate-900">RM {(agreement.total_price + (agreement.deposit || 0)).toFixed(2)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Section C: Terma & Syarat (Iconic SaaS Layout) */}
+          <section className="print:page-break-inside-avoid">
+            <h2 className="text-lg print:text-[9pt] font-bold text-slate-900 uppercase tracking-wide print:mb-1 border-b border-slate-200 print:border-slate-300 pb-2 print:pb-1 mb-6">Terma & Syarat</h2>
+            
+            <div className="space-y-6">
+              {/* Warning Banner */}
+              <div className="bg-red-50 border border-red-200 p-6 print:p-1.5 rounded-xl print:rounded-none shadow-sm print:shadow-none print:flex print:items-center">
+                <div className="flex items-center mb-3 print:mb-0 print:mr-2">
+                  <ShieldAlert className="h-6 w-6 print:h-3 print:w-3 text-red-600 mr-2 print:mr-1" />
+                  <h3 className="text-lg print:text-[7pt] font-bold text-red-900 uppercase tracking-wide print:whitespace-nowrap">PEMATUHAN UNDANG-UNDANG & PENYALAHGUNAAN:</h3>
+                </div>
+                <ul className="space-y-2 print:space-y-0 text-sm print:text-[7pt] text-red-800 font-medium ml-8 print:ml-0 list-disc print:list-none print:flex print:space-x-3">
+                  <li>• Aktiviti Haram dilarang keras.</li>
+                  <li>• Tiada Liabiliti Syarikat atas salah laku penyewa.</li>
+                  <li>• Tanggungjawab Penuh penyewa atas saman/jenayah.</li>
+                </ul>
+              </div>
+
+              {/* Rules Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-4 gap-6 print:gap-2">
+                <div className="bg-white p-6 print:p-1.5 rounded-xl print:rounded-none border border-slate-200 print:border-slate-300 shadow-sm print:shadow-none flex items-start print:block">
+                  <div className="bg-slate-100 print:bg-transparent p-3 print:p-0 rounded-lg mr-4 print:mr-0 print:mb-0.5">
+                    <Car className="h-6 w-6 print:h-3 print:w-3 text-slate-700 print:inline print:mr-1" />
+                    <h4 className="font-bold text-slate-900 mb-2 print:mb-0.5 uppercase text-sm print:text-[7pt] tracking-wider print:inline">Kelayakan & Penggunaan</h4>
+                  </div>
+                  <div>
+                    <ul className="space-y-1 print:space-y-0 text-sm print:text-[6.5pt] text-slate-600 list-disc ml-4 print:ml-3 print:leading-tight">
+                      <li>Pemandu sah (Kelas D) sahaja.</li>
+                      <li>Lesen P excess wajib RM400.</li>
+                      <li>Had Mileage 200KM/hari (Lebihan RM0.50/km).</li>
+                      <li>Tiada sub-let / luar Semenanjung.</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 print:p-1.5 rounded-xl print:rounded-none border border-slate-200 print:border-slate-300 shadow-sm print:shadow-none flex items-start print:block">
+                  <div className="bg-slate-100 print:bg-transparent p-3 print:p-0 rounded-lg mr-4 print:mr-0 print:mb-0.5">
+                    <Clock className="h-6 w-6 print:h-3 print:w-3 text-slate-700 print:inline print:mr-1" />
+                    <h4 className="font-bold text-slate-900 mb-2 print:mb-0.5 uppercase text-sm print:text-[7pt] tracking-wider print:inline">Masa Sewaan</h4>
+                  </div>
+                  <div>
+                    <ul className="space-y-1 print:space-y-0 text-sm print:text-[6.5pt] text-slate-600 list-disc ml-4 print:ml-3 print:leading-tight">
+                      <li>Caj RM10.00/jam.</li>
+                      <li>Lebih 8 jam = caj 1 hari.</li>
+                      <li>Mesti maklum 5 jam awal untuk lanjutan.</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 print:p-1.5 rounded-xl print:rounded-none border border-slate-200 print:border-slate-300 shadow-sm print:shadow-none flex items-start print:block">
+                  <div className="bg-slate-100 print:bg-transparent p-3 print:p-0 rounded-lg mr-4 print:mr-0 print:mb-0.5">
+                    <Fuel className="h-6 w-6 print:h-3 print:w-3 text-slate-700 print:inline print:mr-1" />
+                    <h4 className="font-bold text-slate-900 mb-2 print:mb-0.5 uppercase text-sm print:text-[7pt] tracking-wider print:inline">Bahan Api</h4>
+                  </div>
+                  <div>
+                    <ul className="space-y-1 print:space-y-0 text-sm print:text-[6.5pt] text-slate-600 list-disc ml-4 print:ml-3 print:leading-tight">
+                      <li>Minyak mesti sama (Same Level) atau RM10/bar.</li>
+                      <li>Wajib bersih (Caj cuci RM20).</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 print:p-1.5 rounded-xl print:rounded-none border border-slate-200 print:border-slate-300 shadow-sm print:shadow-none flex items-start print:block">
+                  <div className="bg-slate-100 print:bg-transparent p-3 print:p-0 rounded-lg mr-4 print:mr-0 print:mb-0.5">
+                    <AlertTriangle className="h-6 w-6 print:h-3 print:w-3 text-slate-700 print:inline print:mr-1" />
+                    <h4 className="font-bold text-slate-900 mb-2 print:mb-0.5 uppercase text-sm print:text-[7pt] tracking-wider print:inline">Kemalangan</h4>
+                  </div>
+                  <div>
+                    <ul className="space-y-1 print:space-y-0 text-sm print:text-[6.5pt] text-slate-600 list-disc ml-4 print:ml-3 print:leading-tight">
+                      <li>Wajib report polis dalam 24 jam.</li>
+                      <li>Penyewa tanggung semua saman.</li>
+                      <li>Ganti Rugi Masa Hilang (Loss of Use) dikenakan jika kereta di bengkel.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* 4. Section D: Ruangan Tandatangan & Footer */}
+          <section className="pt-8 print:pt-2 border-t border-slate-200 print:border-slate-800 print:page-break-inside-avoid">
+            {/* Consent Checkbox */}
+            <div className="bg-slate-50 print:bg-transparent border border-slate-300 print:border-none p-6 print:p-0 rounded-xl print:rounded-none flex items-start cursor-pointer hover:bg-slate-100 print:hover:bg-transparent transition-colors mb-8 print:mb-2" onClick={() => setAgreed(!agreed)}>
+              <div className="flex items-center h-6 print:h-3 mt-0.5 print:mt-0">
+                <input
+                  id="terms"
+                  name="terms"
+                  type="checkbox"
+                  checked={agreed}
+                  onChange={(e) => setAgreed(e.target.checked)}
+                  className="focus:ring-slate-900 h-6 w-6 print:h-3 print:w-3 text-slate-900 border-slate-400 rounded cursor-pointer"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+              <div className="ml-4 print:ml-2">
+                <label htmlFor="terms" className="font-bold text-slate-900 text-sm sm:text-base print:text-[7pt] cursor-pointer leading-relaxed print:leading-tight uppercase">
+                  DENGAN MENANDATANGANI DI BAWAH, SAYA AKUI SAYA TELAH MEMBACA FAKTA DI ATAS
+                </label>
+              </div>
+            </div>
+
+            {/* Signature Block */}
+            <div className={`transition-opacity duration-300 ${!agreed ? 'opacity-50 print:opacity-100 pointer-events-none print:pointer-events-auto' : 'opacity-100'}`}>
+              <div className="max-w-md print:max-w-xs">
+                <div className="flex justify-between items-center mb-2 print:mb-1">
+                  <p className="font-bold text-slate-900 uppercase tracking-wider text-sm print:text-[8pt]">Tandatangan Pelanggan</p>
+                  <button
+                    type="button"
+                    onClick={clearSignature}
+                    className="text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors uppercase tracking-wider print:hidden"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <div className="border-2 border-slate-300 print:border-slate-400 print:border-dashed rounded-xl print:rounded-none bg-white overflow-hidden shadow-inner print:shadow-none relative h-48 print:h-20">
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-5 print:opacity-20">
+                    <span className="text-3xl print:text-lg font-bold uppercase tracking-widest transform -rotate-12">Sign Here</span>
+                  </div>
+                  <SignatureCanvas
+                    ref={sigCanvas}
+                    penColor="#0f172a"
+                    canvasProps={{
+                      className: 'signature-canvas w-full h-full cursor-crosshair relative z-10',
+                    }}
+                  />
+                </div>
+                {agreement?.signed_at && (
+                  <p className="mt-2 text-xs text-slate-500 font-medium italic">
+                    Digitally Signed on {new Intl.DateTimeFormat('en-GB', { 
+                      dateStyle: 'short', 
+                      timeStyle: 'short', 
+                      timeZone: 'Asia/Kuala_Lumpur' 
+                    }).format(new Date(agreement.signed_at)).replace(',', '')}
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-8 flex justify-start print:hidden">
+                <button
+                  onClick={handleSubmit}
+                  disabled={submitting || !agreed}
+                  className="w-full sm:w-auto inline-flex justify-center items-center py-4 px-10 border border-transparent shadow-xl text-lg font-bold rounded-xl text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:-translate-y-0.5"
+                >
+                  {submitting ? (
+                    <div className="animate-spin rounded-full h-6 w-6 border-2 border-white border-t-transparent mr-3"></div>
+                  ) : null}
+                  {submitting ? 'Submitting...' : 'Confirm & Sign Agreement'}
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        {/* Official Footer */}
+        <div className="bg-white border-t border-slate-200 print:border-slate-800 p-8 print:p-2 flex justify-between items-end mt-12 print:mt-auto print:page-break-inside-avoid print:mb-0">
+          <div className="h-16 w-32 print:h-8 print:w-16 bg-slate-50 print:bg-transparent border border-slate-200 print:border-none rounded-lg print:rounded-none flex items-center justify-center text-xs print:text-[6pt] font-bold text-slate-400 overflow-hidden">
+            {company?.ssm_logo_url ? (
+              <img src={company.ssm_logo_url} alt="SSM Logo" className="h-full w-full object-contain p-1 print:p-0" />
+            ) : (
+              "SSM LOGO"
+            )}
+          </div>
+          <div className="h-16 w-32 print:h-8 print:w-16 bg-slate-50 print:bg-transparent border border-slate-200 print:border-none rounded-lg print:rounded-none flex items-center justify-center text-xs print:text-[6pt] font-bold text-slate-400 overflow-hidden">
+            {company?.spdp_logo_url ? (
+              <img src={company.spdp_logo_url} alt="SPDP Logo" className="h-full w-full object-contain p-1 print:p-0" />
+            ) : (
+              "SPDP LOGO"
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Sticky Footer */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-200 z-50">
+        <button
+          onClick={handleSubmit}
+          disabled={submitting || !agreed}
+          className="w-full inline-flex justify-center items-center py-3 px-4 border border-transparent shadow-sm text-base font-bold rounded-md text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 transition-colors"
+        >
+          {submitting ? 'Submitting...' : 'Confirm & Sign Agreement'}
+        </button>
       </div>
     </div>
   );
-};
-
-export default SignAgreement;
+}

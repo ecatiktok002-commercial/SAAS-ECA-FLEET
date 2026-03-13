@@ -39,18 +39,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         const isSuperAdmin = session.user.email === 'superadmin@ecafleet.com';
-        setCompanyId(isSuperAdmin ? 'superadmin' : session.user.id);
+        const companyId = isSuperAdmin ? 'superadmin' : session.user.id;
+        setCompanyId(companyId);
         setUserId(getDisplayId(session.user));
         setUserName(isSuperAdmin ? 'Super Admin' : (session.user.user_metadata?.full_name || getDisplayId(session.user)));
         
         const storedRole = localStorage.getItem('staffRole') as StaffRole;
-        const storedTier = localStorage.getItem('subscriptionTier') as SubscriptionTier;
         const storedName = localStorage.getItem('userName');
         
-        if (storedRole && storedTier) {
+        if (storedRole) {
           setStaffRole(storedRole);
-          setSubscriptionTier(storedTier);
           if (storedName) setUserName(storedName);
+        }
+
+        // Always fetch latest tier from DB for non-superadmins
+        if (!isSuperAdmin) {
+          const { data: companyData } = await supabase
+            .from('companies')
+            .select('tier')
+            .eq('id', companyId)
+            .single();
+          
+          if (companyData?.tier) {
+            setSubscriptionTier(companyData.tier as SubscriptionTier);
+            localStorage.setItem('subscriptionTier', companyData.tier);
+          }
+        } else {
+          setSubscriptionTier('tier_3');
         }
       }
       setIsLoading(false);

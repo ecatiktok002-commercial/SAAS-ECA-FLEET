@@ -13,7 +13,8 @@ import {
   Edit,
   CheckCircle2,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Image as ImageIcon
 } from 'lucide-react';
 
 const AgreementDashboard: React.FC = () => {
@@ -65,13 +66,22 @@ const AgreementDashboard: React.FC = () => {
           <h1 className="text-3xl font-bold text-slate-900">Digital Agreements</h1>
           <p className="text-slate-500 mt-1">Create and manage legally binding rental agreements.</p>
         </div>
-        <button 
-          onClick={() => navigate('create')}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-emerald-900/20 active:scale-95"
-        >
-          <Plus className="w-5 h-5" />
-          Create Agreement
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => navigate('branding')}
+            className="bg-white hover:bg-slate-50 text-slate-700 px-6 py-3 rounded-xl font-bold border border-slate-200 flex items-center gap-2 transition-all shadow-sm active:scale-95"
+          >
+            <ImageIcon className="w-5 h-5" />
+            Branding
+          </button>
+          <button 
+            onClick={() => navigate('create')}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-emerald-900/20 active:scale-95"
+          >
+            <Plus className="w-5 h-5" />
+            Create Agreement
+          </button>
+        </div>
       </div>
 
       {/* Stats */}

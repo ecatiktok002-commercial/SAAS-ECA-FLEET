@@ -1,7 +1,10 @@
 import React from 'react';
-import { Settings, Shield, Bell, FileText } from 'lucide-react';
+import { Settings, Shield, Bell, FileText, Image as ImageIcon, ChevronRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const AgreementSettings: React.FC = () => {
+  const navigate = useNavigate();
+
   return (
     <div className="p-8 max-w-4xl mx-auto">
       <div className="mb-8">
@@ -10,6 +13,25 @@ const AgreementSettings: React.FC = () => {
       </div>
 
       <div className="space-y-6">
+        {/* Branding Settings Card */}
+        <div 
+          onClick={() => navigate('/forms/branding')}
+          className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-emerald-500 transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="bg-emerald-50 p-3 rounded-xl text-emerald-600 group-hover:bg-emerald-100 transition-colors">
+                <ImageIcon className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Branding & Identity</h2>
+                <p className="text-sm text-slate-500">Customize logos and company details on agreements.</p>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-emerald-500 transition-colors" />
+          </div>
+        </div>
+
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-4 mb-6">
             <div className="bg-indigo-50 p-3 rounded-xl text-indigo-600">

@@ -93,17 +93,26 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
         // Ensure company record exists in DB
         try {
-          const { error: upsertError } = await supabase
+          // First check if it exists to avoid overwriting tier
+          const { data: existingCompany } = await supabase
             .from('companies')
-            .upsert({ 
-              id: authData.user.id, 
-              name: displayId,
-              tier: 'tier_1'
-            }, { onConflict: 'id' });
-          
-          if (upsertError) console.error('Error ensuring company record:', upsertError);
+            .select('tier')
+            .eq('id', authData.user.id)
+            .single();
+
+          if (!existingCompany) {
+            const { error: insertError } = await supabase
+              .from('companies')
+              .insert({ 
+                id: authData.user.id, 
+                name: displayId,
+                tier: 'tier_1'
+              });
+            
+            if (insertError) console.error('Error creating company record:', insertError);
+          }
         } catch (e) {
-          console.error('Failed to upsert company:', e);
+          console.error('Failed to ensure company:', e);
         }
         
         // Fetch staff members for this company
@@ -125,12 +134,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           
           const { data: companyData, error: companyError } = await supabase
             .from('companies')
-            .select('subscription_tier')
+            .select('tier')
             .eq('id', authData.user.id)
             .single();
             
-          if (!companyError && companyData && companyData.subscription_tier) {
-            tier = companyData.subscription_tier as 'tier_1' | 'tier_2' | 'tier_3';
+          if (!companyError && companyData && companyData.tier) {
+            tier = companyData.tier as 'tier_1' | 'tier_2' | 'tier_3';
           }
 
           login(authData.user.id, 'admin', tier, displayId, displayId);

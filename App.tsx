@@ -40,38 +40,47 @@ const App: React.FC = () => {
   return (
     <AuthProvider>
       <Router>
-        <Routes>
-          <Route path="/login" element={<LoginScreen />} />
-          
-          <Route path="/" element={<Layout />}>
-            {/* Tier 1: Digital Forms is available to everyone */}
-            <Route index element={<AdminDashboard />} />
-            <Route path="forms/*" element={<DigitalFormPage />} />
-            <Route path="customers" element={<CustomersPage />} />
-
-            {/* Tier 2: Calendar Access */}
-            <Route path="calendar" element={
-              <TierGate minTier={2}><CalendarPage /></TierGate>
-            } />
-
-            {/* Tier 3: Fleet Guardian Access */}
-            <Route path="fleet" element={
-              <TierGate minTier={3}><FleetGuardianPage /></TierGate>
-            } />
-
-            {/* Role Gate: Only Subscribers (Owners) can see these */}
-            <Route path="staff" element={
-              <TierGate minTier={1} allowStaff={false}><StaffManagementPage /></TierGate>
-            } />
-            <Route path="subscribers" element={
-              <TierGate minTier={1} allowStaff={false}><SubscriberManager /></TierGate>
-            } />
-          </Route>
-          
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <AppRoutes />
       </Router>
     </AuthProvider>
+  );
+};
+
+const AppRoutes: React.FC = () => {
+  const { companyId } = useAuth();
+  const isSuperAdmin = companyId === 'superadmin';
+
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginScreen />} />
+      
+      <Route path="/" element={<Layout />}>
+        {/* Tier 1: Digital Forms is available to everyone */}
+        <Route index element={isSuperAdmin ? <Navigate to="/subscribers" replace /> : <AdminDashboard />} />
+        <Route path="forms/*" element={<DigitalFormPage />} />
+        <Route path="customers" element={<CustomersPage />} />
+
+        {/* Tier 2: Calendar Access */}
+        <Route path="calendar" element={
+          <TierGate minTier={2}><CalendarPage /></TierGate>
+        } />
+
+        {/* Tier 3: Fleet Guardian Access */}
+        <Route path="fleet" element={
+          <TierGate minTier={3}><FleetGuardianPage /></TierGate>
+        } />
+
+        {/* Role Gate: Only Subscribers (Owners) can see these */}
+        <Route path="staff" element={
+          <TierGate minTier={1} allowStaff={false}><StaffManagementPage /></TierGate>
+        } />
+        <Route path="subscribers" element={
+          <TierGate minTier={1} allowStaff={false}><SubscriberManager /></TierGate>
+        } />
+      </Route>
+      
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 };
 

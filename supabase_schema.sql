@@ -17,10 +17,17 @@
 --
 -- ALTER TABLE companies ADD COLUMN IF NOT EXISTS tier TEXT DEFAULT 'tier_1';
 -- ALTER TABLE companies ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+-- ALTER TABLE companies ADD COLUMN IF NOT EXISTS logo_url TEXT;
+-- ALTER TABLE companies ADD COLUMN IF NOT EXISTS ssm_logo_url TEXT;
+-- ALTER TABLE companies ADD COLUMN IF NOT EXISTS spdp_logo_url TEXT;
+-- ALTER TABLE companies ADD COLUMN IF NOT EXISTS address TEXT;
 --
 -- ALTER TABLE cars ADD COLUMN IF NOT EXISTS plate_number TEXT;
 -- ALTER TABLE cars ADD COLUMN IF NOT EXISTS make TEXT;
 -- ALTER TABLE cars ADD COLUMN IF NOT EXISTS model TEXT;
+-- ALTER TABLE cars ADD COLUMN IF NOT EXISTS roadtax_expiry DATE;
+-- ALTER TABLE cars ADD COLUMN IF NOT EXISTS insurance_expiry DATE;
+-- ALTER TABLE cars ADD COLUMN IF NOT EXISTS inspection_expiry DATE;
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -231,8 +238,14 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 1. Companies
-CREATE POLICY "Companies can view themselves" ON companies 
-  FOR SELECT USING (auth.uid() = id OR id = current_company_id());
+CREATE POLICY "Companies access" ON companies 
+  FOR ALL USING (
+    auth.uid() = id -- Subscriber
+    OR 
+    id = current_company_id() -- Agent
+    OR
+    (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
+  );
 
 -- 2. Staff Members
 -- Subscriber can see all. Agent can only see themselves.

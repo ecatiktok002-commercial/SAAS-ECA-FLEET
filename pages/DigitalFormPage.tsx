@@ -5,6 +5,7 @@ import CreateAgreement from './digital-forms/CreateAgreement';
 import EditAgreement from './digital-forms/EditAgreement';
 import SignAgreement from './digital-forms/SignAgreement';
 import AgreementSettings from './digital-forms/AgreementSettings';
+import BrandingSettingsPage from './digital-forms/BrandingSettingsPage';
 
 const DigitalFormPage: React.FC = () => {
   return (
@@ -13,6 +14,7 @@ const DigitalFormPage: React.FC = () => {
       <Route path="create" element={<CreateAgreement />} />
       <Route path="edit/:id" element={<EditAgreement />} />
       <Route path="settings" element={<AgreementSettings />} />
+      <Route path="branding" element={<BrandingSettingsPage />} />
       <Route path="sign/:id" element={<SignAgreement />} />
       <Route path="*" element={<Navigate to="" replace />} />
     </Routes>
