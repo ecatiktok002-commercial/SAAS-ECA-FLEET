@@ -22,12 +22,15 @@
 -- ALTER TABLE companies ADD COLUMN IF NOT EXISTS spdp_logo_url TEXT;
 -- ALTER TABLE companies ADD COLUMN IF NOT EXISTS address TEXT;
 --
+-- FIX ALL MISSING COLUMNS (Run this if you see "column missing" errors):
 -- ALTER TABLE cars ADD COLUMN IF NOT EXISTS plate_number TEXT;
 -- ALTER TABLE cars ADD COLUMN IF NOT EXISTS make TEXT;
 -- ALTER TABLE cars ADD COLUMN IF NOT EXISTS model TEXT;
 -- ALTER TABLE cars ADD COLUMN IF NOT EXISTS roadtax_expiry DATE;
 -- ALTER TABLE cars ADD COLUMN IF NOT EXISTS insurance_expiry DATE;
 -- ALTER TABLE cars ADD COLUMN IF NOT EXISTS inspection_expiry DATE;
+-- ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'staff';
+-- ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS pin_hash TEXT;
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

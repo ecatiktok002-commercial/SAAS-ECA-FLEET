@@ -41,13 +41,18 @@ const SupabaseConnectionBanner: React.FC = () => {
   return (
     <div className="fixed bottom-6 right-6 z-[9999] max-w-md animate-in slide-in-from-bottom-10 duration-500">
       <div className="bg-white border border-rose-200 rounded-2xl shadow-2xl overflow-hidden">
-        <div className="bg-rose-600 p-4 flex items-center gap-3 text-white">
-          <WifiOff className="w-6 h-6" />
-          <h3 className="font-bold">Database Connection Failed</h3>
+        <div className="bg-rose-600 p-4 flex items-center justify-between text-white">
+          <div className="flex items-center gap-3">
+            <WifiOff className="w-6 h-6" />
+            <h3 className="font-bold">Database Offline</h3>
+          </div>
+          <div className="px-2 py-0.5 bg-rose-500/50 rounded text-[10px] font-bold uppercase tracking-widest border border-white/20">
+            Project Paused?
+          </div>
         </div>
         <div className="p-6">
           <p className="text-slate-600 text-sm leading-relaxed mb-4">
-            The application cannot reach your Supabase project. This usually means the project is <strong>paused</strong> or your network is blocking the connection.
+            The application cannot reach your Supabase project. This <strong>Failed to fetch</strong> error usually means your project is <strong>paused</strong> in the Supabase dashboard.
           </p>
 
           <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 mb-6">

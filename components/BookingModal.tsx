@@ -255,14 +255,14 @@ const BookingModal: React.FC<BookingModalProps> = ({
   // Check if currently selected model is fully booked
   const isSelectedModelFull = selectedModel && modelAvailability[selectedModel] === 0;
 
-  if (!isOpen) return null;
-
   // Privacy Shield Logic
   const isEditable = useMemo(() => {
     if (!editingBooking) return true; // New bookings are always editable
     if (staffRole === 'admin') return true; // Subscriber has full access
     return editingBooking.agent_id === currentUserId; // Agents can only edit their own
   }, [editingBooking, staffRole, currentUserId]);
+
+  if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
