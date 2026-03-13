@@ -10,37 +10,51 @@ const isValidSupabaseUrl = (url: string) => {
   }
 };
 
+// Helper to clean environment variables (removes quotes and whitespace)
+const cleanEnvVar = (value: string | undefined): string => {
+  if (!value) return '';
+  return value.trim().replace(/^["']|["']$/g, '').trim();
+};
+
 // Support both VITE_ and NEXT_PUBLIC_ prefixes for environment variables, plus process.env from vite define
-const rawUrl = (
+const rawUrl = cleanEnvVar(
   import.meta.env.VITE_SUPABASE_URL || 
   import.meta.env.NEXT_PUBLIC_SUPABASE_URL || 
-  (typeof process !== 'undefined' ? process.env.SUPABASE_URL : '') ||
-  ''
-).trim();
-
-const rawKey = (
-  import.meta.env.VITE_SUPABASE_ANON_KEY || 
-  import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
-  (typeof process !== 'undefined' ? process.env.SUPABASE_ANON_KEY : '') ||
-  ''
-).trim();
-
-// This check needs to be broad to catch all possible variable names
-export const isConfigured = Boolean(
-  (import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL || (typeof process !== 'undefined' && process.env.SUPABASE_URL)) &&
-  (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || (typeof process !== 'undefined' && process.env.SUPABASE_ANON_KEY))
+  (typeof process !== 'undefined' ? process.env.SUPABASE_URL : '')
 );
 
-const SUPABASE_URL = isConfigured && isValidSupabaseUrl(rawUrl) ? rawUrl.replace(/\/$/, '') : 'https://placeholder-project.supabase.co';
-const SUPABASE_KEY = rawKey || 'placeholder-key';
+const rawKey = cleanEnvVar(
+  import.meta.env.VITE_SUPABASE_ANON_KEY || 
+  import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  import.meta.env.SUPABASE_PUBLISHABLE_KEY ||
+  import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  (typeof process !== 'undefined' ? process.env.SUPABASE_ANON_KEY : '')
+);
+
+// This check needs to be broad to catch all possible variable names
+// We also verify that the URL is actually valid to consider it "configured"
+export const isConfigured = Boolean(
+  isValidSupabaseUrl(rawUrl) && 
+  rawKey && 
+  rawKey !== 'placeholder-key'
+);
+
+const SUPABASE_URL = isConfigured ? rawUrl.replace(/\/$/, '') : 'https://placeholder-project.supabase.co';
+const SUPABASE_KEY = isConfigured ? rawKey : 'placeholder-key';
 
 // Optional: Add a log to your browser console to see exactly what is missing
 if (!isConfigured) {
-  console.error("Environment variables missing. Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY");
+  if (!rawUrl || !rawKey) {
+    console.error("Supabase configuration missing. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Settings.");
+  } else if (!isValidSupabaseUrl(rawUrl)) {
+    console.error(`Supabase URL is invalid: "${rawUrl}". It must start with http:// or https://`);
+  }
 }
 
 // Diagnostic check to help users identify network issues
-if (typeof window !== 'undefined' && isConfigured) {
+// Only run if we actually have a valid-looking configuration
+if (typeof window !== 'undefined' && isConfigured && !SUPABASE_URL.includes('placeholder-project')) {
   fetch(`${SUPABASE_URL}/rest/v1/`, { 
     method: 'GET', 
     headers: { 'apikey': SUPABASE_KEY } 

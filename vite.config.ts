@@ -21,6 +21,10 @@ export default defineConfig(({ mode }) => {
   const supabaseKey = getEnvVar([
     'VITE_SUPABASE_ANON_KEY',
     'SUPABASE_ANON_KEY',
+    'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+    'VITE_SUPABASE_PUBLISHABLE_KEY',
+    'SUPABASE_PUBLISHABLE_KEY',
+    'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
     'VITE_SUPABASE_KEY',
     'SUPABASE_KEY'
   ]);
@@ -28,7 +32,8 @@ export default defineConfig(({ mode }) => {
   // Resolve Supabase URL
   const supabaseUrl = getEnvVar([
     'VITE_SUPABASE_URL',
-    'SUPABASE_URL'
+    'SUPABASE_URL',
+    'NEXT_PUBLIC_SUPABASE_URL'
   ]);
 
   // Generic API Key (for other services if needed)
