@@ -24,9 +24,12 @@ const logSupabaseError = (context: string, error: any) => {
     if (columnMatch) {
       const columnName = columnMatch[1];
       const table = columnMatch[2];
+      const isPriceOrAmount = columnName.includes('price') || columnName.includes('amount') || columnName.includes('deposit');
+      const type = isPriceOrAmount ? 'NUMERIC DEFAULT 0' : 'TEXT';
+      
       console.error(`Supabase Schema Error: The column '${columnName}' is missing from table '${table}'.`);
       console.error(`FIX: Run the following SQL in your Supabase SQL Editor:`);
-      console.error(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${columnName} TEXT;`);
+      console.error(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${columnName} ${type};`);
     } else if (tableName) {
       console.error(`Supabase Schema Error: The table '${tableName}' does not exist. Please run the SQL schema in your Supabase SQL Editor.`);
     } else {
@@ -386,12 +389,16 @@ export const apiService = {
 
   async searchMemberByIdentity(identityNumber: string, companyId: string): Promise<Member | null> {
     return withRetry(async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('members')
         .select('*')
-        .eq('identity_number', identityNumber)
-        .eq('company_id', companyId)
-        .maybeSingle();
+        .eq('identity_number', identityNumber);
+      
+      if (companyId !== 'superadmin') {
+        query = query.eq('company_id', companyId);
+      }
+
+      const { data, error } = await query.maybeSingle();
       
       if (error) {
         logSupabaseError('searchMemberByIdentity', error);
@@ -754,12 +761,16 @@ export const apiService = {
 
   async getStaffMemberByUid(uid: string, companyId: string): Promise<StaffMember | null> {
     return withRetry(async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('staff_members')
         .select('*')
-        .eq('designated_uid', uid)
-        .eq('company_id', companyId)
-        .single();
+        .eq('designated_uid', uid);
+
+      if (companyId !== 'superadmin') {
+        query = query.eq('company_id', companyId);
+      }
+
+      const { data, error } = await query.single();
 
       if (error) {
         if (error.code === 'PGRST116') return null; // Not found
@@ -772,12 +783,16 @@ export const apiService = {
 
   async getStaffMemberByName(name: string, companyId: string): Promise<StaffMember | null> {
     return withRetry(async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('staff_members')
         .select('*')
-        .eq('name', name)
-        .eq('company_id', companyId)
-        .maybeSingle();
+        .eq('name', name);
+
+      if (companyId !== 'superadmin') {
+        query = query.eq('company_id', companyId);
+      }
+
+      const { data, error } = await query.maybeSingle();
 
       if (error) {
         logSupabaseError('getStaffMemberByName', error);

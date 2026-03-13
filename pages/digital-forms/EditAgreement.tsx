@@ -126,6 +126,11 @@ export default function EditAgreement() {
         if (isValid(startDate) && !isNaN(duration)) {
           newFormData.end_date = format(addDays(startDate, duration), 'yyyy-MM-dd');
           triggerHighlight('date');
+          // Ensure 24-hour rule: return_time matches pickup_time
+          if (newFormData.pickup_time) {
+            newFormData.return_time = newFormData.pickup_time;
+            triggerHighlight('time');
+          }
         }
       } else if (newFormData.end_date) {
         const startDate = parseISO(value);
@@ -141,6 +146,11 @@ export default function EditAgreement() {
         if (isValid(startDate) && !isNaN(duration)) {
           newFormData.end_date = format(addDays(startDate, duration), 'yyyy-MM-dd');
           triggerHighlight('date');
+          // Ensure 24-hour rule: return_time matches pickup_time
+          if (newFormData.pickup_time) {
+            newFormData.return_time = newFormData.pickup_time;
+            triggerHighlight('time');
+          }
         }
       }
     } else if (name === 'end_date') {
