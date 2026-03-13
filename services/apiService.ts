@@ -185,9 +185,17 @@ export const apiService = {
 
   async addCar(car: Omit<Car, 'id'>, companyId: string): Promise<Car> {
     return withRetry(async () => {
+      let targetCompanyId = companyId;
+      
+      // If superadmin, we must use the actual auth UID for the DB record
+      if (companyId === 'superadmin') {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) targetCompanyId = user.id;
+      }
+
       const { data, error } = await supabase
         .from('cars')
-        .insert([{ ...mapCarToDB(car), company_id: companyId }])
+        .insert([{ ...mapCarToDB(car), company_id: targetCompanyId }])
         .select();
 
       if (error) {
@@ -210,12 +218,16 @@ export const apiService = {
 
   async updateCar(car: Partial<Car>, companyId: string): Promise<Car> {
     return withRetry(async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('cars')
         .update(mapCarToDB(car))
-        .eq('id', car.id)
-        .eq('company_id', companyId)
-        .select();
+        .eq('id', car.id);
+      
+      if (companyId !== 'superadmin') {
+        query = query.eq('company_id', companyId);
+      }
+
+      const { data, error } = await query.select();
 
       if (error) {
         logSupabaseError('updateCar', error);
@@ -232,13 +244,20 @@ export const apiService = {
 
   async saveCars(cars: Car[], companyId: string): Promise<void> {
     return withRetry(async () => {
+      let targetCompanyId = companyId;
+      
+      if (companyId === 'superadmin') {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) targetCompanyId = user.id;
+      }
+
       // Delete all existing cars for this company
-      await supabase.from('cars').delete().eq('company_id', companyId);
+      await supabase.from('cars').delete().eq('company_id', targetCompanyId);
       
       // Insert new ones
       const carsToInsert = cars.map(c => ({
         ...mapCarToDB(c),
-        company_id: companyId
+        company_id: targetCompanyId
       }));
       
       const { error } = await supabase.from('cars').insert(carsToInsert);
@@ -251,11 +270,16 @@ export const apiService = {
 
   async deleteCar(id: string, companyId: string): Promise<void> {
     return withRetry(async () => {
-      const { error } = await supabase
+      let query = supabase
         .from('cars')
         .delete()
-        .eq('id', id)
-        .eq('company_id', companyId);
+        .eq('id', id);
+      
+      if (companyId !== 'superadmin') {
+        query = query.eq('company_id', companyId);
+      }
+
+      const { error } = await query;
       
       if (error) {
         logSupabaseError('deleteCar', error);

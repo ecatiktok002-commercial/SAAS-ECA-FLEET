@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Plus, Car as CarIcon, AlertCircle, CheckCircle2, Trash2, Edit, Download, Upload, FileSpreadsheet, Search, ArrowRight } from 'lucide-react';
 import { Car, CarStatus, ExpiryStatus } from '../types';
+import { useAuth } from '../context/AuthContext';
 import * as Storage from '../services/storageService';
 import * as ExcelService from '../services/excelService';
 import CarForm from '../components/CarForm';
 import AlertModal from '../components/AlertModal';
 
 const FleetGuardianPage: React.FC = () => {
+  const { companyId } = useAuth();
   const [cars, setCars] = useState<Car[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingCar, setEditingCar] = useState<Car | null>(null);
@@ -14,6 +16,7 @@ const FleetGuardianPage: React.FC = () => {
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [dbError, setDbError] = useState<string | null>(null);
   
   // File Input Ref
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -48,13 +51,21 @@ const FleetGuardianPage: React.FC = () => {
   // Load Data
   useEffect(() => {
     const load = async () => {
+      if (!companyId) return;
       setIsLoading(true);
-      const loadedCars = await Storage.getCars();
-      setCars(loadedCars);
-      setIsLoading(false);
+      setDbError(null);
+      try {
+        const loadedCars = await Storage.getCars(companyId);
+        setCars(loadedCars);
+      } catch (err: any) {
+        console.error('Failed to load fleet data:', err);
+        setDbError(err.message || 'Could not connect to the database.');
+      } finally {
+        setIsLoading(false);
+      }
     };
     load();
-  }, []);
+  }, [companyId]);
 
   // Check for alerts whenever cars change
   useEffect(() => {
@@ -76,12 +87,13 @@ const FleetGuardianPage: React.FC = () => {
   }, [cars, getCarStatus]);
 
   const handleSaveCar = async (car: Car) => {
+    if (!companyId) return;
     setIsLoading(true);
     if (editingCar) {
-      const updated = await Storage.updateCar(car);
+      const updated = await Storage.updateCar(car, companyId);
       setCars(updated);
     } else {
-      const updated = await Storage.addCar(car);
+      const updated = await Storage.addCar(car, companyId);
       setCars(updated);
     }
     setShowForm(false);
@@ -92,8 +104,9 @@ const FleetGuardianPage: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
 
   const handleDeleteCar = async (id: string) => {
+    if (!companyId) return;
     setIsLoading(true);
-    const updated = await Storage.deleteCar(id);
+    const updated = await Storage.deleteCar(id, companyId);
     setCars(updated);
     setIsLoading(false);
     setShowDeleteConfirm(null);
@@ -114,7 +127,7 @@ const FleetGuardianPage: React.FC = () => {
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !companyId) return;
 
     try {
       setIsLoading(true);
@@ -127,9 +140,9 @@ const FleetGuardianPage: React.FC = () => {
       }
 
       // Override Logic: Replace all existing data with imported data
-      await Storage.saveCars(importedCars);
+      await Storage.saveCars(importedCars, companyId);
       // Refetch to ensure we are in sync with DB
-      const refreshedCars = await Storage.getCars();
+      const refreshedCars = await Storage.getCars(companyId);
       setCars(refreshedCars);
       
       alert(`Successfully imported ${importedCars.length} vehicles. Previous data has been replaced.`);
@@ -267,6 +280,25 @@ const FleetGuardianPage: React.FC = () => {
         {isLoading && (
           <div className="text-center py-4">
             <span className="text-slate-500 animate-pulse">Syncing with database...</span>
+          </div>
+        )}
+
+        {/* Error State */}
+        {dbError && (
+          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-6 mb-8 flex items-start gap-4">
+            <div className="bg-rose-100 p-2 rounded-lg">
+              <AlertCircle className="w-6 h-6 text-rose-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-rose-900 font-bold mb-1">Database Connection Issue</h3>
+              <p className="text-rose-700 text-sm mb-4">{dbError}</p>
+              <button 
+                onClick={() => window.location.reload()}
+                className="bg-rose-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-rose-700 transition-colors"
+              >
+                Retry Connection
+              </button>
+            </div>
           </div>
         )}
 

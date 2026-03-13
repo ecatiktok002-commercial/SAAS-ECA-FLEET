@@ -90,6 +90,21 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         };
         const displayId = getDisplayId(authData.user);
         setUserId(displayId);
+
+        // Ensure company record exists in DB
+        try {
+          const { error: upsertError } = await supabase
+            .from('companies')
+            .upsert({ 
+              id: authData.user.id, 
+              name: displayId,
+              tier: 'tier_1'
+            }, { onConflict: 'id' });
+          
+          if (upsertError) console.error('Error ensuring company record:', upsertError);
+        } catch (e) {
+          console.error('Failed to upsert company:', e);
+        }
         
         // Fetch staff members for this company
         const { data: staffData, error: staffError } = await supabase

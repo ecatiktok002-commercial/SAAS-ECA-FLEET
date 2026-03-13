@@ -1,17 +1,38 @@
 import { createClient } from '@supabase/supabase-js';
 
+// Helper to validate if a string is a valid HTTP/HTTPS URL
+const isValidSupabaseUrl = (url: string) => {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
+const DEFAULT_URL = 'https://czurhanyrjgeicnbrnev.supabase.co';
+const DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6dXJoYW55cmpnZWljbmJybmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4NTExMDEsImV4cCI6MjA4NzQyNzEwMX0.LV4hsQEazpbv8AcLDrEASg8s3uGKmvMJ0FrvMOX6AWQ';
+
 // Support both VITE_ and NEXT_PUBLIC_ prefixes for environment variables
-const SUPABASE_URL = (
+const rawUrl = (
   import.meta.env.VITE_SUPABASE_URL || 
   import.meta.env.NEXT_PUBLIC_SUPABASE_URL || 
-  'https://czurhanyrjgeicnbrnev.supabase.co'
+  DEFAULT_URL
 ).trim().replace(/\/$/, '');
 
-const SUPABASE_KEY = (
+const rawKey = (
   import.meta.env.VITE_SUPABASE_ANON_KEY || 
   import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6dXJoYW55cmpnZWljbmJybmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4NTExMDEsImV4cCI6MjA4NzQyNzEwMX0.LV4hsQEazpbv8AcLDrEASg8s3uGKmvMJ0FrvMOX6AWQ'
+  DEFAULT_KEY
 ).trim();
+
+// Final validation - if the provided URL is invalid, fallback to default
+const SUPABASE_URL = isValidSupabaseUrl(rawUrl) ? rawUrl : DEFAULT_URL;
+const SUPABASE_KEY = rawKey || DEFAULT_KEY;
+
+if (!isValidSupabaseUrl(rawUrl) && (import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL)) {
+  console.warn('Invalid Supabase URL provided in environment variables. Falling back to demo project.');
+}
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error('Supabase configuration is missing. Please check your environment variables.');

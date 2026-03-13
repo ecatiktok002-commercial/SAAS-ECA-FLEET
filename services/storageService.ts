@@ -1,39 +1,26 @@
 import { apiService } from './apiService';
-import { supabase } from './supabase';
 import { Car } from '../types';
 
-export const getCars = async (): Promise<Car[]> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
-  return apiService.getCars(user.id);
+export const getCars = async (companyId: string): Promise<Car[]> => {
+  return apiService.getCars(companyId);
 };
 
-export const addCar = async (car: Car): Promise<Car[]> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
+export const addCar = async (car: Car, companyId: string): Promise<Car[]> => {
   const { id, ...carData } = car;
-  await apiService.addCar(carData as any, user.id);
-  return apiService.getCars(user.id);
+  await apiService.addCar(carData as any, companyId);
+  return apiService.getCars(companyId);
 };
 
-export const updateCar = async (car: Car): Promise<Car[]> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-  
-  await apiService.updateCar(car, user.id);
-  return apiService.getCars(user.id);
+export const updateCar = async (car: Car, companyId: string): Promise<Car[]> => {
+  await apiService.updateCar(car, companyId);
+  return apiService.getCars(companyId);
 };
 
-export const deleteCar = async (id: string): Promise<Car[]> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-  await apiService.deleteCar(id, user.id);
-  return apiService.getCars(user.id);
+export const deleteCar = async (id: string, companyId: string): Promise<Car[]> => {
+  await apiService.deleteCar(id, companyId);
+  return apiService.getCars(companyId);
 };
 
-export const saveCars = async (cars: Car[]): Promise<void> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-  
-  await apiService.saveCars(cars, user.id);
+export const saveCars = async (cars: Car[], companyId: string): Promise<void> => {
+  await apiService.saveCars(cars, companyId);
 };
