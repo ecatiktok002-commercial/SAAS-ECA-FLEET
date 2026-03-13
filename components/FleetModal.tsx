@@ -9,11 +9,11 @@ interface FleetModalProps {
   cars: Car[];
   members: Member[];
   expenses: Expense[];
-  onAddCar: (car: Omit<Car, 'id'>) => void;
-  onDeleteCar: (id: string) => void;
-  onUpdateMember: (id: string, updates: Partial<Member>) => void;
-  onAddExpense: (expense: Omit<Expense, 'id'>) => void;
-  onDeleteExpense: (id: string) => void;
+  onAddCar: (car: Omit<Car, 'id'>) => Promise<void> | void;
+  onDeleteCar: (id: string) => Promise<void> | void;
+  onUpdateMember: (id: string, updates: Partial<Member>) => Promise<void> | void;
+  onAddExpense: (expense: Omit<Expense, 'id'>) => Promise<void> | void;
+  onDeleteExpense: (id: string) => Promise<void> | void;
   currentStaff?: StaffMember | null;
 }
 
@@ -53,18 +53,26 @@ const FleetModal: React.FC<FleetModalProps> = ({
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0]);
   const [expenseNotes, setExpenseNotes] = useState('');
 
+  const [isAdding, setIsAdding] = useState(false);
+
   if (!isOpen) return null;
 
-  const handleAddVehicle = (e: React.FormEvent) => {
+  const handleAddVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!plate || !carName) return;
-    onAddCar({
-      plate: plate.toUpperCase(),
-      name: carName,
-      type: 'Economy'
-    });
-    setPlate('');
-    setCarName('');
+    if (!plate || !carName || isAdding) return;
+    
+    setIsAdding(true);
+    try {
+      await onAddCar({
+        plate: plate.toUpperCase(),
+        name: carName,
+        type: 'Economy'
+      });
+      setPlate('');
+      setCarName('');
+    } finally {
+      setIsAdding(false);
+    }
   };
 
   const handleAddExpense = (e: React.FormEvent) => {
@@ -145,9 +153,17 @@ const FleetModal: React.FC<FleetModalProps> = ({
                   </div>
                   <button 
                     type="submit"
-                    className="md:col-span-2 py-2.5 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900 transition-colors"
+                    disabled={isAdding}
+                    className="md:col-span-2 py-2.5 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    Add to Fleet
+                    {isAdding ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Adding...
+                      </>
+                    ) : (
+                      'Add to Fleet'
+                    )}
                   </button>
                 </form>
               </section>

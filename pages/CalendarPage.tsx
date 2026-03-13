@@ -280,7 +280,11 @@ const CalendarPage: React.FC = () => {
     if (!currentCompanyId) return;
     try {
       setIsLoading(true);
-      await apiService.addCar(newCar, currentCompanyId);
+      const addedCar = await apiService.addCar(newCar, currentCompanyId);
+      
+      // Update local state immediately for better UX
+      setCars(prev => [...prev, addedCar]);
+      
       if (currentUserId) {
         await apiService.addLog({
           userId: currentUserId,
@@ -288,6 +292,9 @@ const CalendarPage: React.FC = () => {
           details: `Added new vehicle to fleet: ${newCar.plate} (${newCar.name})`
         }, currentCompanyId);
       }
+      
+      // Also refresh all data to be sure
+      await fetchData();
     } catch (err: any) {
       if (err.message === 'DATABASE_TABLES_MISSING') setIsTablesMissing(true);
       else alert(`Error adding car: ${err.message}`);
@@ -302,6 +309,9 @@ const CalendarPage: React.FC = () => {
       const car = cars.find(c => c.id === id);
       setIsLoading(true);
       await apiService.deleteCar(id, currentCompanyId);
+      
+      setCars(prev => prev.filter(c => c.id !== id));
+      
       if (currentUserId && car) {
         await apiService.addLog({
           userId: currentUserId,
@@ -309,6 +319,8 @@ const CalendarPage: React.FC = () => {
           details: `Removed vehicle from fleet: ${car.plate}`
         }, currentCompanyId);
       }
+      
+      await fetchData();
     } catch (err: any) {
       alert(`Error deleting car: ${err.message}`);
     } finally {

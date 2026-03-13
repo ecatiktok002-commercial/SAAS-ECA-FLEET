@@ -9,7 +9,7 @@ const logSupabaseError = (context: string, error: any) => {
                         error.message?.includes('NetworkError') ||
                         !window.navigator.onLine;
 
-  const isSchemaError = error.code === '42P01' || error.code === 'PGRST205' || error.message?.includes('schema cache');
+  const isSchemaError = error.code === '42P01' || error.code === 'PGRST205' || error.code === '42703' || error.message?.includes('schema cache');
 
   if (isSchemaError) {
     // Flexible regex to catch "relation 'cars' does not exist" or "relation 'public.cars' does not exist"
