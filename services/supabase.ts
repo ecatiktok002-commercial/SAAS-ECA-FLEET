@@ -10,18 +10,34 @@ const isValidSupabaseUrl = (url: string) => {
   }
 };
 
-// Support both VITE_ and NEXT_PUBLIC_ prefixes for environment variables
-const rawUrl = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL || '').trim();
-const isConfigured = isValidSupabaseUrl(rawUrl) && !!(import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+// Support both VITE_ and NEXT_PUBLIC_ prefixes for environment variables, plus process.env from vite define
+const rawUrl = (
+  import.meta.env.VITE_SUPABASE_URL || 
+  import.meta.env.NEXT_PUBLIC_SUPABASE_URL || 
+  (typeof process !== 'undefined' ? process.env.SUPABASE_URL : '') ||
+  ''
+).trim();
 
-const SUPABASE_URL = isConfigured ? rawUrl.replace(/\/$/, '') : 'https://placeholder-project.supabase.co';
-const SUPABASE_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim() || 'placeholder-key';
+const rawKey = (
+  import.meta.env.VITE_SUPABASE_ANON_KEY || 
+  import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
+  (typeof process !== 'undefined' ? process.env.SUPABASE_ANON_KEY : '') ||
+  ''
+).trim();
 
+// This check needs to be broad to catch all possible variable names
+export const isConfigured = Boolean(
+  (import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL || (typeof process !== 'undefined' && process.env.SUPABASE_URL)) &&
+  (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || (typeof process !== 'undefined' && process.env.SUPABASE_ANON_KEY))
+);
+
+const SUPABASE_URL = isConfigured && isValidSupabaseUrl(rawUrl) ? rawUrl.replace(/\/$/, '') : 'https://placeholder-project.supabase.co';
+const SUPABASE_KEY = rawKey || 'placeholder-key';
+
+// Optional: Add a log to your browser console to see exactly what is missing
 if (!isConfigured) {
-  console.error('Supabase configuration is missing or invalid. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment variables.');
+  console.error("Environment variables missing. Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY");
 }
-
-export { isConfigured };
 
 // Diagnostic check to help users identify network issues
 if (typeof window !== 'undefined' && SUPABASE_URL && SUPABASE_KEY) {

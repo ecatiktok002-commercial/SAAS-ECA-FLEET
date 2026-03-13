@@ -7,9 +7,12 @@ export type StaffRole = 'admin' | 'staff';
 interface AuthContextType {
   companyId: string | null;
   userId: string | null;
+  user: string | null; // Alias for userId to match refined App.tsx
   userName: string | null;
   staffRole: StaffRole | null;
+  role: StaffRole | null; // Alias for staffRole to match refined App.tsx
   subscriptionTier: SubscriptionTier | null;
+  subscriberTier: number; // Numeric representation for refined App.tsx
   isLoading: boolean;
   login: (companyId: string, staffRole: StaffRole, subscriptionTier: SubscriptionTier, userId?: string, userName?: string) => void;
   logout: () => void;
@@ -81,8 +84,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('userName');
   };
 
+  const getTierNumber = (tier: SubscriptionTier | null): number => {
+    if (tier === 'tier_3') return 3;
+    if (tier === 'tier_2') return 2;
+    return 1;
+  };
+
   return (
-    <AuthContext.Provider value={{ companyId, userId, userName, staffRole, subscriptionTier, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ 
+      companyId, 
+      userId, 
+      user: userId,
+      userName, 
+      staffRole, 
+      role: staffRole,
+      subscriptionTier, 
+      subscriberTier: getTierNumber(subscriptionTier),
+      isLoading, 
+      login, 
+      logout 
+    }}>
       {children}
     </AuthContext.Provider>
   );
