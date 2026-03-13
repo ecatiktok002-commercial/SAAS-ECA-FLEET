@@ -17,7 +17,17 @@ const logSupabaseError = (context: string, error: any) => {
     const tableNameMatch = error.message?.match(/relation ["'](?:public\.)?(.*?)["'] does not exist/i);
     const tableName = tableNameMatch ? tableNameMatch[1] : null;
     
-    if (tableName) {
+    // Check for missing column errors
+    const columnMatch = error.message?.match(/column ["'](.*?)["'] of relation ["'](.*?)["'] does not exist/i) || 
+                        error.message?.match(/Could not find the ["'](.*?)["'] column of ["'](.*?)["']/i);
+    
+    if (columnMatch) {
+      const columnName = columnMatch[1];
+      const table = columnMatch[2];
+      console.error(`Supabase Schema Error: The column '${columnName}' is missing from table '${table}'.`);
+      console.error(`FIX: Run the following SQL in your Supabase SQL Editor:`);
+      console.error(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${columnName} TEXT;`);
+    } else if (tableName) {
       console.error(`Supabase Schema Error: The table '${tableName}' does not exist. Please run the SQL schema in your Supabase SQL Editor.`);
     } else {
       console.error(`Supabase Schema Error [${context}]: ${error.message}. This usually means a table is missing or the schema cache is stale.`);

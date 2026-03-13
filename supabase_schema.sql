@@ -3,6 +3,21 @@
 -- Run this in your Supabase SQL Editor (https://supabase.com/dashboard)
 -- ===============================================================
 
+-- TROUBLESHOOTING: Missing Columns
+-- If you get an error like "Could not find the 'designated_uid' column", 
+-- it means your table exists but is missing a column. Run these fixes:
+--
+-- ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS designated_uid TEXT;
+-- ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'staff';
+-- ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS pin_hash TEXT;
+--
+-- ALTER TABLE companies ADD COLUMN IF NOT EXISTS tier TEXT DEFAULT 'tier_1';
+-- ALTER TABLE companies ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+--
+-- ALTER TABLE cars ADD COLUMN IF NOT EXISTS plate_number TEXT;
+-- ALTER TABLE cars ADD COLUMN IF NOT EXISTS make TEXT;
+-- ALTER TABLE cars ADD COLUMN IF NOT EXISTS model TEXT;
+
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
