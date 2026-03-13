@@ -12,12 +12,16 @@ const isValidSupabaseUrl = (url: string) => {
 
 // Support both VITE_ and NEXT_PUBLIC_ prefixes for environment variables
 const rawUrl = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL || '').trim();
-const SUPABASE_URL = isValidSupabaseUrl(rawUrl) ? rawUrl.replace(/\/$/, '') : 'https://placeholder-project.supabase.co';
+const isConfigured = isValidSupabaseUrl(rawUrl) && !!(import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+
+const SUPABASE_URL = isConfigured ? rawUrl.replace(/\/$/, '') : 'https://placeholder-project.supabase.co';
 const SUPABASE_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim() || 'placeholder-key';
 
-if (!isValidSupabaseUrl(rawUrl) || !SUPABASE_KEY || SUPABASE_KEY === 'placeholder-key') {
+if (!isConfigured) {
   console.error('Supabase configuration is missing or invalid. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment variables.');
 }
+
+export { isConfigured };
 
 // Diagnostic check to help users identify network issues
 if (typeof window !== 'undefined' && SUPABASE_URL && SUPABASE_KEY) {
