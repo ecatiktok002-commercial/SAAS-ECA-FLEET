@@ -40,8 +40,8 @@ export const isConfigured = Boolean(
   rawKey !== 'placeholder-key'
 );
 
-const SUPABASE_URL = isConfigured ? rawUrl.replace(/\/$/, '') : 'https://placeholder-project.supabase.co';
-const SUPABASE_KEY = isConfigured ? rawKey : 'placeholder-key';
+export const SUPABASE_URL = isConfigured ? rawUrl.replace(/\/$/, '') : 'https://placeholder-project.supabase.co';
+export const SUPABASE_KEY = isConfigured ? rawKey : 'placeholder-key';
 
 // Optional: Add a log to your browser console to see exactly what is missing
 if (!isConfigured) {
@@ -69,6 +69,9 @@ if (typeof window !== 'undefined' && isConfigured && !SUPABASE_URL.includes('pla
     .catch((err) => {
       console.error(`Supabase Connectivity Error: Could not reach ${SUPABASE_URL}. Error: ${err.message}`);
       console.error('This usually means the project is paused in Supabase or your network is blocking the connection.');
+      if (typeof window !== 'undefined') {
+        (window as any).supabaseConnectionError = err.message;
+      }
     });
 }
 
