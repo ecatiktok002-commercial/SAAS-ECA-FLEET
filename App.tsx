@@ -10,6 +10,7 @@ import DigitalFormPage from './pages/DigitalFormPage';
 import CustomersPage from './pages/CustomersPage';
 import FleetGuardianPage from './pages/FleetGuardianPage';
 import SubscriberManager from './pages/SubscriberManager';
+import SignAgreement from './pages/digital-forms/SignAgreement';
 import ConfigError from './components/ConfigError';
 import SupabaseErrorBanner from './components/SupabaseErrorBanner';
 import { isConfigured } from './services/supabase';
@@ -55,6 +56,7 @@ const AppRoutes: React.FC = () => {
   return (
     <Routes>
       <Route path="/login" element={<LoginScreen />} />
+      <Route path="/forms/sign/:id" element={<SignAgreement />} />
       
       <Route path="/" element={<Layout />}>
         {/* Tier 1: Digital Forms is available to everyone */}

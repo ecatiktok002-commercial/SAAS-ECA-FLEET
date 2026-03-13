@@ -110,7 +110,9 @@ export interface Agreement {
   return_time?: string;
   need_einvoice?: boolean;
   payment_receipt?: string;
-  status: 'pending' | 'signed';
+  signature_data?: string;
+  status: 'pending' | 'signed' | 'completed';
+  signed_at?: string;
   details?: string;
   created_at: string;
 }
@@ -137,7 +139,9 @@ export interface DigitalForm {
   return_time?: string;
   need_einvoice?: boolean;
   payment_receipt?: string;
-  status: 'pending' | 'signed';
+  signature_data?: string;
+  status: 'pending' | 'signed' | 'completed';
+  signed_at?: string;
   created_at: string;
 }
 

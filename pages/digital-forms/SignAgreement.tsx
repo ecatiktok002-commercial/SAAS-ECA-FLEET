@@ -68,13 +68,11 @@ export default function SignAgreement() {
       
       await apiService.updateAgreement(id!, undefined, {
         status: 'signed',
-        // We might need a column for signature_data, but for now we'll just update status
-        // and maybe store it in details or a new column if it exists.
-        // Looking at schema, there's no signature_data column.
-        // I'll just update the status for now.
+        signed_at: now.toISOString(),
+        signature_data: signatureData,
       });
 
-      setAgreement((prev: any) => ({ ...prev, signed_at: now.toISOString(), status: 'signed' }));
+      setAgreement((prev: any) => ({ ...prev, signed_at: now.toISOString(), signature_data: signatureData, status: 'signed' }));
       setSuccess(true);
     } catch (err: any) {
       alert(err.message);
@@ -141,6 +139,23 @@ export default function SignAgreement() {
     <div className="min-h-screen bg-slate-50 py-4 sm:py-12 px-4 sm:px-6 lg:px-8 font-sans text-base leading-relaxed">
       <div className="max-w-3xl mx-auto bg-white shadow-sm rounded-xl border border-slate-200 overflow-hidden mb-24">
         
+        {/* Print Button for Signed Agreements */}
+        {agreement?.signature_data && (
+          <div className="bg-emerald-50 border-b border-emerald-200 p-4 flex justify-between items-center print:hidden">
+            <div className="flex items-center text-emerald-700">
+              <CheckCircle className="w-5 h-5 mr-2" />
+              <span className="font-medium">This agreement has been signed.</span>
+            </div>
+            <button
+              onClick={handlePrint}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+            >
+              <Printer className="h-4 w-4 mr-2" />
+              Download PDF
+            </button>
+          </div>
+        )}
+
         {/* 1. Header (Corporate Identity) */}
         <div className="p-8 sm:p-10 print:p-0 border-b border-slate-200 print:border-b-2 print:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white print:mb-2 print:flex-row print:items-center print:page-break-inside-avoid">
           <div className="flex items-center w-full sm:w-auto mb-6 sm:mb-0 print:mb-0">
@@ -341,15 +356,19 @@ export default function SignAgreement() {
           {/* 4. Section D: Ruangan Tandatangan & Footer */}
           <section className="pt-8 print:pt-2 border-t border-slate-200 print:border-slate-800 print:page-break-inside-avoid">
             {/* Consent Checkbox */}
-            <div className="bg-slate-50 print:bg-transparent border border-slate-300 print:border-none p-6 print:p-0 rounded-xl print:rounded-none flex items-start cursor-pointer hover:bg-slate-100 print:hover:bg-transparent transition-colors mb-8 print:mb-2" onClick={() => setAgreed(!agreed)}>
+            <div 
+              className={`bg-slate-50 print:bg-transparent border border-slate-300 print:border-none p-6 print:p-0 rounded-xl print:rounded-none flex items-start transition-colors mb-8 print:mb-2 ${!agreement?.signature_data ? 'cursor-pointer hover:bg-slate-100 print:hover:bg-transparent' : ''}`} 
+              onClick={() => !agreement?.signature_data && setAgreed(!agreed)}
+            >
               <div className="flex items-center h-6 print:h-3 mt-0.5 print:mt-0">
                 <input
                   id="terms"
                   name="terms"
                   type="checkbox"
-                  checked={agreed}
+                  checked={agreed || !!agreement?.signature_data}
+                  disabled={!!agreement?.signature_data}
                   onChange={(e) => setAgreed(e.target.checked)}
-                  className="focus:ring-slate-900 h-6 w-6 print:h-3 print:w-3 text-slate-900 border-slate-400 rounded cursor-pointer"
+                  className="focus:ring-slate-900 h-6 w-6 print:h-3 print:w-3 text-slate-900 border-slate-400 rounded cursor-pointer disabled:opacity-50"
                   onClick={(e) => e.stopPropagation()}
                 />
               </div>
@@ -365,25 +384,33 @@ export default function SignAgreement() {
               <div className="max-w-md print:max-w-xs">
                 <div className="flex justify-between items-center mb-2 print:mb-1">
                   <p className="font-bold text-slate-900 uppercase tracking-wider text-sm print:text-[8pt]">Tandatangan Pelanggan</p>
-                  <button
-                    type="button"
-                    onClick={clearSignature}
-                    className="text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors uppercase tracking-wider print:hidden"
-                  >
-                    Clear
-                  </button>
+                  {!agreement?.signature_data && (
+                    <button
+                      type="button"
+                      onClick={clearSignature}
+                      className="text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors uppercase tracking-wider print:hidden"
+                    >
+                      Clear
+                    </button>
+                  )}
                 </div>
                 <div className="border-2 border-slate-300 print:border-slate-400 print:border-dashed rounded-xl print:rounded-none bg-white overflow-hidden shadow-inner print:shadow-none relative h-48 print:h-20">
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-5 print:opacity-20">
-                    <span className="text-3xl print:text-lg font-bold uppercase tracking-widest transform -rotate-12">Sign Here</span>
-                  </div>
-                  <SignatureCanvas
-                    ref={sigCanvas}
-                    penColor="#0f172a"
-                    canvasProps={{
-                      className: 'signature-canvas w-full h-full cursor-crosshair relative z-10',
-                    }}
-                  />
+                  {agreement?.signature_data ? (
+                    <img src={agreement.signature_data} alt="Customer Signature" className="w-full h-full object-contain relative z-10" />
+                  ) : (
+                    <>
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-5 print:opacity-20">
+                        <span className="text-3xl print:text-lg font-bold uppercase tracking-widest transform -rotate-12">Sign Here</span>
+                      </div>
+                      <SignatureCanvas
+                        ref={sigCanvas}
+                        penColor="#0f172a"
+                        canvasProps={{
+                          className: 'signature-canvas w-full h-full cursor-crosshair relative z-10',
+                        }}
+                      />
+                    </>
+                  )}
                 </div>
                 {agreement?.signed_at && (
                   <p className="mt-2 text-xs text-slate-500 font-medium italic">
@@ -396,18 +423,20 @@ export default function SignAgreement() {
                 )}
               </div>
 
-              <div className="mt-8 flex justify-start print:hidden">
-                <button
-                  onClick={handleSubmit}
-                  disabled={submitting || !agreed}
-                  className="w-full sm:w-auto inline-flex justify-center items-center py-4 px-10 border border-transparent shadow-xl text-lg font-bold rounded-xl text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:-translate-y-0.5"
-                >
-                  {submitting ? (
-                    <div className="animate-spin rounded-full h-6 w-6 border-2 border-white border-t-transparent mr-3"></div>
-                  ) : null}
-                  {submitting ? 'Submitting...' : 'Confirm & Sign Agreement'}
-                </button>
-              </div>
+              {!agreement?.signature_data && (
+                <div className="mt-8 flex justify-start print:hidden">
+                  <button
+                    onClick={handleSubmit}
+                    disabled={submitting || !agreed}
+                    className="w-full sm:w-auto inline-flex justify-center items-center py-4 px-10 border border-transparent shadow-xl text-lg font-bold rounded-xl text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:-translate-y-0.5"
+                  >
+                    {submitting ? (
+                      <div className="animate-spin rounded-full h-6 w-6 border-2 border-white border-t-transparent mr-3"></div>
+                    ) : null}
+                    {submitting ? 'Submitting...' : 'Confirm & Sign Agreement'}
+                  </button>
+                </div>
+              )}
             </div>
           </section>
         </div>
@@ -432,15 +461,17 @@ export default function SignAgreement() {
       </div>
 
       {/* Sticky Footer */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-200 z-50">
-        <button
-          onClick={handleSubmit}
-          disabled={submitting || !agreed}
-          className="w-full inline-flex justify-center items-center py-3 px-4 border border-transparent shadow-sm text-base font-bold rounded-lg text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 transition-colors"
-        >
-          {submitting ? 'Submitting...' : 'Confirm & Sign Agreement'}
-        </button>
-      </div>
+      {!agreement?.signature_data && (
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-200 z-50">
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || !agreed}
+            className="w-full inline-flex justify-center items-center py-3 px-4 border border-transparent shadow-sm text-base font-bold rounded-lg text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 transition-colors"
+          >
+            {submitting ? 'Submitting...' : 'Confirm & Sign Agreement'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

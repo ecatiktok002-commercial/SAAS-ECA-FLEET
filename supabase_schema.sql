@@ -150,7 +150,9 @@ CREATE TABLE IF NOT EXISTS agreements (
   return_time TIME,
   need_einvoice BOOLEAN DEFAULT FALSE,
   payment_receipt TEXT,
+  signature_data TEXT,
   status TEXT DEFAULT 'pending',
+  signed_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -177,7 +179,9 @@ CREATE TABLE IF NOT EXISTS digital_forms (
   return_time TIME,
   need_einvoice BOOLEAN DEFAULT FALSE,
   payment_receipt TEXT,
+  signature_data TEXT,
   status TEXT DEFAULT 'pending',
+  signed_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -324,6 +328,7 @@ CREATE POLICY "Bookings modify access" ON bookings
 
 -- 6. Agreements
 -- Subscriber can see all. Agent can only see their own agreements.
+-- Public can read and update pending agreements for signing.
 DROP POLICY IF EXISTS "Agreements access" ON agreements;
 CREATE POLICY "Agreements access" ON agreements 
   FOR ALL USING (
@@ -331,6 +336,14 @@ CREATE POLICY "Agreements access" ON agreements
     OR 
     (agent_id = auth.uid() AND subscriber_id = current_subscriber_id()) -- Agent
   );
+
+DROP POLICY IF EXISTS "Public read agreements" ON agreements;
+CREATE POLICY "Public read agreements" ON agreements
+  FOR SELECT USING (status IN ('pending', 'signed', 'completed'));
+
+DROP POLICY IF EXISTS "Public sign pending agreements" ON agreements;
+CREATE POLICY "Public sign pending agreements" ON agreements
+  FOR UPDATE USING (status = 'pending');
 
 -- 7. Digital Forms
 -- Subscriber can see all. Agent can only see their own forms.
@@ -341,6 +354,14 @@ CREATE POLICY "Digital forms access" ON digital_forms
     OR 
     (agent_id = auth.uid() AND subscriber_id = current_subscriber_id()) -- Agent
   );
+
+DROP POLICY IF EXISTS "Public read digital forms" ON digital_forms;
+CREATE POLICY "Public read digital forms" ON digital_forms
+  FOR SELECT USING (status IN ('pending', 'signed', 'completed'));
+
+DROP POLICY IF EXISTS "Public sign pending digital forms" ON digital_forms;
+CREATE POLICY "Public sign pending digital forms" ON digital_forms
+  FOR UPDATE USING (status = 'pending');
 
 -- 8. Expenses
 -- Subscriber can see all. Agent can see expenses for cars they are managing? 

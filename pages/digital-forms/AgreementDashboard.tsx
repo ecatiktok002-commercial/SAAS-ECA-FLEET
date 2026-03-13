@@ -14,7 +14,9 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Link as LinkIcon,
+  Download
 } from 'lucide-react';
 
 const AgreementDashboard: React.FC = () => {
@@ -176,27 +178,60 @@ const AgreementDashboard: React.FC = () => {
                       RM {agreement.total_price.toLocaleString()}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
-                        agreement.status === 'signed' 
-                          ? 'bg-emerald-100 text-emerald-700' 
-                          : 'bg-amber-100 text-amber-700'
-                      }`}>
-                        {agreement.status === 'signed' ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                        {agreement.status === 'signed' ? 'Signed' : 'Pending'}
-                      </span>
+                      {(() => {
+                        const isCompleted = agreement.status === 'signed' && !!agreement.payment_receipt;
+                        const isSigned = agreement.status === 'signed' && !agreement.payment_receipt;
+                        
+                        if (isCompleted) {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Completed
+                            </span>
+                          );
+                        } else if (isSigned) {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Signed
+                            </span>
+                          );
+                        } else {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
+                              <Clock className="w-3 h-3" />
+                              Pending
+                            </span>
+                          );
+                        }
+                      })()}
                     </td>
                     <td className="px-6 py-4 text-slate-500 text-sm">
                       {new Date(agreement.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
-                        <button 
-                          onClick={() => window.open(`${window.location.origin}/forms/sign/${agreement.id}`, '_blank')}
-                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="View/Sign Link"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </button>
+                        {agreement.status === 'pending' ? (
+                          <button 
+                            onClick={() => {
+                              const link = `${window.location.origin}/forms/sign/${agreement.id}`;
+                              navigator.clipboard.writeText(link);
+                              alert('Link generated and copied to clipboard! Share this with the customer.');
+                            }}
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Generate Link"
+                          >
+                            <LinkIcon className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <button 
+                            onClick={() => window.open(`${window.location.origin}/forms/sign/${agreement.id}`, '_blank')}
+                            className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                            title="Download PDF"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                        )}
                         <button 
                           onClick={() => navigate(`edit/${agreement.id}`)}
                           className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
