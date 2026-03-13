@@ -17,10 +17,15 @@ const cleanEnvVar = (value: string | undefined): string => {
 };
 
 // Support both VITE_ and NEXT_PUBLIC_ prefixes for environment variables, plus process.env from vite define
+// HARDCODED FALLBACKS: Added to ensure the app works in standalone browser view without manual settings.
+const FALLBACK_URL = 'https://czurhanyrjgeicnbrnev.supabase.co';
+const FALLBACK_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6dXJoYW55cmpnZWljbmJybmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4NTExMDEsImV4cCI6MjA4NzQyNzEwMX0.LV4hsQEazpbv8AcLDrEASg8s3uGKmvMJ0FrvMOX6AWQ';
+
 const rawUrl = cleanEnvVar(
   import.meta.env.VITE_SUPABASE_URL || 
   import.meta.env.NEXT_PUBLIC_SUPABASE_URL || 
-  (typeof process !== 'undefined' ? process.env.SUPABASE_URL : '')
+  (typeof process !== 'undefined' ? process.env.SUPABASE_URL : '') ||
+  FALLBACK_URL
 );
 
 const rawKey = cleanEnvVar(
@@ -29,7 +34,8 @@ const rawKey = cleanEnvVar(
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
   import.meta.env.SUPABASE_PUBLISHABLE_KEY ||
   import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-  (typeof process !== 'undefined' ? process.env.SUPABASE_ANON_KEY : '')
+  (typeof process !== 'undefined' ? process.env.SUPABASE_ANON_KEY : '') ||
+  FALLBACK_KEY
 );
 
 // This check needs to be broad to catch all possible variable names
