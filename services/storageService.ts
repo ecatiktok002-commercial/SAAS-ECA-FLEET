@@ -1,5 +1,8 @@
 import { apiService } from './apiService';
 import { Car } from '../types';
+import { supabase } from './supabase';
+
+export { supabase };
 
 export const getCars = async (companyId: string): Promise<Car[]> => {
   return apiService.getCars(companyId);
@@ -23,4 +26,12 @@ export const deleteCar = async (id: string, companyId: string): Promise<Car[]> =
 
 export const saveCars = async (cars: Car[], companyId: string): Promise<void> => {
   await apiService.saveCars(cars, companyId);
+};
+
+export const getDigitalForms = async (companyId: string, agentId?: string) => {
+  return apiService.getDigitalForms(companyId, agentId);
+};
+
+export const getAgreements = async (companyId: string, agentId?: string) => {
+  return apiService.getAgreements(companyId, agentId);
 };

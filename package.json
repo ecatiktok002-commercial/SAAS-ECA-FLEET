@@ -12,6 +12,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
     "browser-image-compression": "^2.0.2",
+    "date-fns": "^4.1.0",
     "lucide-react": "^0.577.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

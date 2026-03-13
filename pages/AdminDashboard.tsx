@@ -22,7 +22,7 @@ interface AgentStat {
 }
 
 const AdminDashboard: React.FC = () => {
-  const { companyId } = useAuth();
+  const { companyId, staffRole, userId } = useAuth();
   
   const [stats, setStats] = useState({
     totalSales: 0,
@@ -39,25 +39,27 @@ const AdminDashboard: React.FC = () => {
     if (companyId) {
       fetchDashboardData();
     }
-  }, [companyId]);
+  }, [companyId, staffRole, userId]);
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
       setError(null);
       
+      const agentId = staffRole === 'staff' ? userId || undefined : undefined;
+
       const [bookings, cars, agreements, forms] = await Promise.all([
-        apiService.getBookings(companyId!),
+        apiService.getBookings(companyId!, undefined, undefined, agentId),
         apiService.getCars(companyId!),
-        apiService.getAgreements(companyId!),
-        apiService.getDigitalForms(companyId!)
+        apiService.getAgreements(companyId!, agentId),
+        apiService.getDigitalForms(companyId!, agentId)
       ]);
 
       const now = new Date();
       const todayStr = now.toISOString().split('T')[0];
 
       // 1. Total Sales
-      const totalSales = agreements.reduce((sum, a) => sum + a.amount, 0);
+      const totalSales = agreements.reduce((sum, a) => sum + a.total_price, 0);
 
       // 2. Today's Orders
       const todayOrders = bookings.filter(b => b.start.startsWith(todayStr)).length;
@@ -87,7 +89,7 @@ const AdminDashboard: React.FC = () => {
       const agentMap = new Map<string, number>();
       agreements.forEach(a => {
         const current = agentMap.get(a.agent_name) || 0;
-        agentMap.set(a.agent_name, current + a.amount);
+        agentMap.set(a.agent_name, current + a.total_price);
       });
 
       const sortedAgents = Array.from(agentMap.entries())
@@ -302,7 +304,7 @@ const AdminDashboard: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <p className="text-sm font-black text-slate-900">RM {form.amount.toLocaleString()}</p>
+                        <p className="text-sm font-black text-slate-900">RM {form.total_price.toLocaleString()}</p>
                       </td>
                     </tr>
                   )) : (

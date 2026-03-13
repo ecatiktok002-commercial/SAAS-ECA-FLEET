@@ -100,14 +100,22 @@ const mapMemberFromDB = (dbMember: any): Member => ({
   name: dbMember.name,
   color: dbMember.color,
   email: dbMember.email,
-  phone: dbMember.phone
+  phone: dbMember.phone,
+  identity_number: dbMember.identity_number,
+  billing_address: dbMember.billing_address,
+  emergency_contact_name: dbMember.emergency_contact_name,
+  emergency_contact_relation: dbMember.emergency_contact_relation
 });
 
 const mapMemberToDB = (member: any) => ({
   name: member.name,
   color: member.color,
   email: member.email,
-  phone: member.phone
+  phone: member.phone,
+  identity_number: member.identity_number,
+  billing_address: member.billing_address,
+  emergency_contact_name: member.emergency_contact_name,
+  emergency_contact_relation: member.emergency_contact_relation
 });
 
 const mapLogFromDB = (dbLog: any): LogEntry => ({
@@ -146,17 +154,22 @@ const mapExpenseToDB = (expense: any) => ({
 
 const mapStaffFromDB = (dbStaff: any): StaffMember => ({
   id: dbStaff.id,
+  company_id: dbStaff.company_id,
   name: dbStaff.name,
+  designated_uid: dbStaff.designated_uid,
   pin_hash: dbStaff.pin_hash,
   role: dbStaff.role,
   created_at: dbStaff.created_at
 });
 
-const mapStaffToDB = (staff: any) => ({
-  name: staff.name,
-  pin_hash: staff.pin_hash,
-  role: staff.role
-});
+const mapStaffToDB = (staff: any) => {
+  const db: any = {};
+  if (staff.name !== undefined) db.name = staff.name;
+  if (staff.designated_uid !== undefined) db.designated_uid = staff.designated_uid;
+  if (staff.pin_hash !== undefined) db.pin_hash = staff.pin_hash;
+  if (staff.role !== undefined) db.role = staff.role;
+  return db;
+};
 
 export const apiService = {
   // Cars
@@ -322,28 +335,47 @@ export const apiService = {
     });
   },
 
-  async deleteMember(id: string, companyId: string): Promise<void> {
+  async deleteMember(id: string, company_id: string): Promise<void> {
+    const { error } = await supabase
+      .from('members')
+      .delete()
+      .eq('id', id)
+      .eq('company_id', company_id);
+    
+    if (error) {
+      logSupabaseError('deleteMember', error);
+      throw new Error(error.message || 'Failed to delete member');
+    }
+  },
+
+  async searchMemberByIdentity(identityNumber: string, companyId: string): Promise<Member | null> {
     return withRetry(async () => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('members')
-        .delete()
-        .eq('id', id)
-        .eq('company_id', companyId);
+        .select('*')
+        .eq('identity_number', identityNumber)
+        .eq('company_id', companyId)
+        .maybeSingle();
       
       if (error) {
-        logSupabaseError('deleteMember', error);
-        throw new Error(error.message || 'Failed to delete member');
+        logSupabaseError('searchMemberByIdentity', error);
+        return null;
       }
+      return data ? mapMemberFromDB(data) : null;
     });
   },
 
   // Bookings
-  async getBookings(companyId: string, startDate?: string, endDate?: string): Promise<Booking[]> {
+  async getBookings(companyId: string, startDate?: string, endDate?: string, agentId?: string): Promise<Booking[]> {
     return withRetry(async () => {
       let query = supabase.from('bookings').select('*');
       
       if (companyId !== 'superadmin') {
         query = query.eq('company_id', companyId);
+      }
+
+      if (agentId) {
+        query = query.eq('agent_id', agentId);
       }
       
       if (startDate && endDate) {
@@ -677,6 +709,24 @@ export const apiService = {
     });
   },
 
+  async getStaffMemberByUid(uid: string, companyId: string): Promise<StaffMember | null> {
+    return withRetry(async () => {
+      const { data, error } = await supabase
+        .from('staff_members')
+        .select('*')
+        .eq('designated_uid', uid)
+        .eq('company_id', companyId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') return null; // Not found
+        logSupabaseError('getStaffMemberByUid', error);
+        return null;
+      }
+      return mapStaffFromDB(data);
+    });
+  },
+
   async getStaffMemberByName(name: string, companyId: string): Promise<StaffMember | null> {
     return withRetry(async () => {
       const { data, error } = await supabase
@@ -684,22 +734,27 @@ export const apiService = {
         .select('*')
         .eq('name', name)
         .eq('company_id', companyId)
-        .single();
+        .maybeSingle();
 
       if (error) {
-        if (error.code === 'PGRST116') return null; // Not found
         logSupabaseError('getStaffMemberByName', error);
         return null;
       }
-      return mapStaffFromDB(data);
+      return data ? mapStaffFromDB(data) : null;
     });
   },
 
-  async addStaffMember(name: string, companyId: string, role: 'admin' | 'staff' = 'staff', pinHash?: string): Promise<StaffMember> {
+  async addStaffMember(name: string, companyId: string, role: 'admin' | 'staff' = 'staff', pinHash?: string, designatedUid?: string): Promise<StaffMember> {
     return withRetry(async () => {
       const { data, error } = await supabase
         .from('staff_members')
-        .insert([{ name, company_id: companyId, role, pin_hash: pinHash }])
+        .insert([{ 
+          name, 
+          company_id: companyId, 
+          role, 
+          pin_hash: pinHash,
+          designated_uid: designatedUid || name.toLowerCase().replace(/\s+/g, '')
+        }])
         .select()
         .single();
 
@@ -805,12 +860,16 @@ export const apiService = {
   },
 
   // Agreements
-  async getAgreements(companyId: string): Promise<Agreement[]> {
+  async getAgreements(companyId: string, agentId?: string): Promise<Agreement[]> {
     return withRetry(async () => {
       let query = supabase.from('agreements').select('*');
       
       if (companyId !== 'superadmin') {
         query = query.eq('company_id', companyId);
+      }
+
+      if (agentId) {
+        query = query.eq('agent_id', agentId);
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
@@ -884,12 +943,16 @@ export const apiService = {
   },
 
   // Digital Forms
-  async getDigitalForms(companyId: string): Promise<DigitalForm[]> {
+  async getDigitalForms(companyId: string, agentId?: string): Promise<DigitalForm[]> {
     return withRetry(async () => {
       let query = supabase.from('digital_forms').select('*');
       
       if (companyId !== 'superadmin') {
         query = query.eq('company_id', companyId);
+      }
+
+      if (agentId) {
+        query = query.eq('agent_id', agentId);
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });

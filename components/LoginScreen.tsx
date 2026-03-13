@@ -18,7 +18,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
-  const [selectedStaffId, setSelectedStaffId] = useState<string>('');
+  const [staffUid, setStaffUid] = useState('');
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -133,7 +133,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             tier = companyData.subscription_tier as 'tier_1' | 'tier_2' | 'tier_3';
           }
 
-          login(authData.user.id, 'admin', tier, displayId);
+          login(authData.user.id, 'admin', tier, displayId, displayId);
           if (onLogin) onLogin(authData.user.id);
           return;
         }
@@ -188,8 +188,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   // Step 2: Handle Staff PIN Login
   const handleStaffLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedStaffId) {
-      setError('Please select your name.');
+    if (!staffUid) {
+      setError('Please enter your Designated UID.');
       return;
     }
     if (!pin) {
@@ -201,10 +201,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     setError('');
 
     try {
-      const staffMember = staffMembers.find(s => s.id === selectedStaffId);
+      if (!companyId) throw new Error('Company context lost. Please restart login.');
+
+      const { data: staffMember, error: staffError } = await supabase
+        .from('staff_members')
+        .select('*')
+        .eq('company_id', companyId)
+        .eq('designated_uid', staffUid.toLowerCase().trim())
+        .single();
       
-      if (!staffMember) {
-        throw new Error('Staff member not found.');
+      if (staffError || !staffMember) {
+        throw new Error('Staff member not found with this UID.');
       }
 
       if (staffMember.pin_hash) {
@@ -212,32 +219,27 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         if (hashedInputPin !== staffMember.pin_hash) {
           throw new Error('Incorrect PIN.');
         }
-      } else {
-        // If no PIN is set for this staff member, we might allow them in or require them to set one.
-        // For now, we'll allow them in if they don't have a PIN set.
       }
 
       // Fetch company subscription tier
       let tier: 'tier_1' | 'tier_2' | 'tier_3' = 'tier_1'; // Default
       
-      if (companyId) {
-        const { data: companyData, error: companyError } = await supabase
-          .from('companies')
-          .select('subscription_tier')
-          .eq('id', companyId)
-          .single();
-          
-        if (!companyError && companyData && companyData.subscription_tier) {
-          tier = companyData.subscription_tier as 'tier_1' | 'tier_2' | 'tier_3';
-        }
+      const { data: companyData, error: companyError } = await supabase
+        .from('companies')
+        .select('tier')
+        .eq('id', companyId)
+        .single();
+        
+      if (!companyError && companyData && companyData.tier) {
+        tier = companyData.tier as 'tier_1' | 'tier_2' | 'tier_3';
       }
 
       // Log in via Context
-      const role = staffMember.role || 'staff';
-      login(companyId!, role, tier, userId || undefined);
+      // Staff members always have 'staff' role as per requirements
+      login(companyId, 'staff', tier, staffMember.id, staffMember.name);
       
       if (onLogin) {
-        onLogin(companyId!);
+        onLogin(companyId);
       }
       
     } catch (err: any) {
@@ -263,7 +265,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           <h1 className="text-2xl font-black text-slate-900 mb-2">Welcome to EcaFleet</h1>
           <p className="text-slate-500 font-medium">
             {step === 1 ? 'Please enter your Access Code to continue.' : 
-             step === 2 ? 'Select your profile and enter PIN.' : 
+             step === 2 ? 'Enter your Designated UID and PIN.' : 
              'Enter Master Admin PIN.'}
           </p>
         </div>
@@ -303,20 +305,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         ) : step === 2 ? (
           <form onSubmit={handleStaffLogin} className="space-y-4">
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Select Staff Member</label>
-              <select
-                value={selectedStaffId}
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Designated UID</label>
+              <input 
+                type="text"
+                value={staffUid}
                 onChange={(e) => {
-                  setSelectedStaffId(e.target.value);
+                  setStaffUid(e.target.value);
                   setError('');
                 }}
-                className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-bold text-slate-800"
-              >
-                <option value="" disabled>Select your name</option>
-                {staffMembers.map(staff => (
-                  <option key={staff.id} value={staff.id}>{staff.name}</option>
-                ))}
-              </select>
+                className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-bold text-slate-800 placeholder-slate-300 text-center text-lg tracking-wider font-mono"
+                placeholder="e.g. idmahira"
+                autoFocus
+              />
             </div>
 
             <div>

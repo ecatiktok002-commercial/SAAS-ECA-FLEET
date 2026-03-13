@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 const AgreementDashboard: React.FC = () => {
-  const { companyId } = useAuth();
+  const { companyId, staffRole, userId } = useAuth();
   const navigate = useNavigate();
   const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,12 +27,13 @@ const AgreementDashboard: React.FC = () => {
     if (companyId) {
       fetchAgreements();
     }
-  }, [companyId]);
+  }, [companyId, staffRole, userId]);
 
   const fetchAgreements = async () => {
     try {
       setLoading(true);
-      const data = await apiService.getAgreements(companyId!);
+      const agentId = staffRole === 'staff' ? userId || undefined : undefined;
+      const data = await apiService.getAgreements(companyId!, agentId);
       setAgreements(data);
     } catch (err) {
       console.error(err);
@@ -128,10 +129,10 @@ const AgreementDashboard: React.FC = () => {
             <thead>
               <tr className="bg-slate-50/50 text-slate-500 text-xs font-bold uppercase tracking-wider">
                 <th className="px-6 py-4">Customer</th>
+                <th className="px-6 py-4">IC / Phone</th>
                 <th className="px-6 py-4">Agent</th>
                 <th className="px-6 py-4">Amount</th>
                 <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Date</th>
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -156,9 +157,13 @@ const AgreementDashboard: React.FC = () => {
                       <div className="font-bold text-slate-900">{agreement.customer_name || 'Unnamed Customer'}</div>
                       <div className="text-xs text-slate-500">{agreement.id.substring(0, 8)}</div>
                     </td>
-                    <td className="px-6 py-4 text-slate-600">{agreement.agent_name}</td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-slate-700 font-mono">{agreement.identity_number || 'N/A'}</div>
+                      <div className="text-xs text-slate-500">{agreement.customer_phone || 'N/A'}</div>
+                    </td>
+                    <td className="px-6 py-4 text-slate-600 text-sm">{agreement.agent_name}</td>
                     <td className="px-6 py-4 font-mono font-bold text-slate-900">
-                      RM {agreement.amount.toLocaleString()}
+                      RM {agreement.total_price.toLocaleString()}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${

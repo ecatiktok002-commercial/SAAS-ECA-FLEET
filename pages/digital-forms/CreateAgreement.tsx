@@ -1,123 +1,510 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { ArrowLeft, Save, Upload, CheckCircle2 } from 'lucide-react';
+import { addDays, differenceInDays, parseISO, format, isValid } from 'date-fns';
 import { apiService } from '../../services/apiService';
-import { ArrowLeft, Save, User, DollarSign, FileText } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
-const CreateAgreement: React.FC = () => {
-  const { companyId, userId } = useAuth();
+export default function CreateAgreement() {
+  const { companyId, userId, userName, staffRole } = useAuth();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     customer_name: '',
-    amount: 0,
-    details: '',
+    identity_number: '',
+    customer_phone: '',
+    billing_address: '',
+    emergency_contact_name: '',
+    emergency_contact_relation: '',
+    car_plate_number: '',
+    car_model: '',
+    start_date: '',
+    end_date: '',
+    total_price: '',
+    deposit: '',
+    duration_days: '',
+    pickup_time: '',
+    return_time: '',
+    need_einvoice: false,
   });
+  const [paymentReceipt, setPaymentReceipt] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [highlightReturnDate, setHighlightReturnDate] = useState(false);
+  const [highlightReturnTime, setHighlightReturnTime] = useState(false);
+  const [customerFound, setCustomerFound] = useState(false);
+
+  // Handle auto-calculation of end_date and return_time
+  const updateReturnDate = (startDateStr: string, durationStr: string) => {
+    if (startDateStr && durationStr) {
+      const startDate = parseISO(startDateStr);
+      const duration = parseInt(durationStr, 10);
+      if (isValid(startDate) && !isNaN(duration)) {
+        const endDate = addDays(startDate, duration);
+        const formattedEndDate = format(endDate, 'yyyy-MM-dd');
+        if (formData.end_date !== formattedEndDate) {
+          setFormData(prev => ({ ...prev, end_date: formattedEndDate }));
+          triggerHighlight('date');
+        }
+      }
+    }
+  };
+
+  const updateDuration = (startDateStr: string, endDateStr: string) => {
+    if (startDateStr && endDateStr) {
+      const startDate = parseISO(startDateStr);
+      const endDate = parseISO(endDateStr);
+      if (isValid(startDate) && isValid(endDate)) {
+        const duration = differenceInDays(endDate, startDate);
+        if (duration >= 0 && formData.duration_days !== duration.toString()) {
+          setFormData(prev => ({ ...prev, duration_days: duration.toString() }));
+        }
+      }
+    }
+  };
+
+  const triggerHighlight = (type: 'date' | 'time') => {
+    if (type === 'date') {
+      setHighlightReturnDate(true);
+      setTimeout(() => setHighlightReturnDate(false), 1000);
+    } else {
+      setHighlightReturnTime(true);
+      setTimeout(() => setHighlightReturnTime(false), 1000);
+    }
+  };
+
+  const handleICBlur = async () => {
+    if (!formData.identity_number || formData.identity_number.length < 5 || !companyId) return;
+    
+    try {
+      const member = await apiService.searchMemberByIdentity(formData.identity_number, companyId);
+
+      if (member) {
+        setFormData(prev => ({
+          ...prev,
+          customer_name: member.name || prev.customer_name,
+          customer_phone: member.phone || prev.customer_phone,
+          billing_address: member.billing_address || prev.billing_address,
+          emergency_contact_name: member.emergency_contact_name || prev.emergency_contact_name,
+          emergency_contact_relation: member.emergency_contact_relation || prev.emergency_contact_relation,
+        }));
+        setCustomerFound(true);
+        setTimeout(() => setCustomerFound(false), 4000);
+      }
+    } catch (err) {
+      console.error('Error fetching customer:', err);
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value, type } = e.target;
+    let newFormData = { ...formData };
+
+    if (type === 'checkbox') {
+      (newFormData as any)[name] = (e.target as HTMLInputElement).checked;
+    } else {
+      (newFormData as any)[name] = value;
+    }
+
+    // Auto-calculation logic
+    if (name === 'start_date') {
+      if (newFormData.duration_days) {
+        const startDate = parseISO(value);
+        const duration = parseInt(newFormData.duration_days, 10);
+        if (isValid(startDate) && !isNaN(duration)) {
+          newFormData.end_date = format(addDays(startDate, duration), 'yyyy-MM-dd');
+          triggerHighlight('date');
+        }
+      } else if (newFormData.end_date) {
+        const startDate = parseISO(value);
+        const endDate = parseISO(newFormData.end_date);
+        if (isValid(startDate) && isValid(endDate)) {
+          newFormData.duration_days = Math.max(0, differenceInDays(endDate, startDate)).toString();
+        }
+      }
+    } else if (name === 'duration_days') {
+      if (newFormData.start_date && value) {
+        const startDate = parseISO(newFormData.start_date);
+        const duration = parseInt(value, 10);
+        if (isValid(startDate) && !isNaN(duration)) {
+          newFormData.end_date = format(addDays(startDate, duration), 'yyyy-MM-dd');
+          triggerHighlight('date');
+        }
+      }
+    } else if (name === 'end_date') {
+      if (newFormData.start_date && value) {
+        const startDate = parseISO(newFormData.start_date);
+        const endDate = parseISO(value);
+        if (isValid(startDate) && isValid(endDate)) {
+          newFormData.duration_days = Math.max(0, differenceInDays(endDate, startDate)).toString();
+        }
+      }
+    } else if (name === 'pickup_time') {
+      newFormData.return_time = value;
+      triggerHighlight('time');
+    }
+
+    setFormData(newFormData);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setPaymentReceipt(e.target.files[0]);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!companyId) return;
+    setLoading(true);
+    setError('');
 
     try {
-      setLoading(true);
-      await apiService.createAgreement({
+      let receiptData = '';
+      if (paymentReceipt) {
+        const reader = new FileReader();
+        receiptData = await new Promise((resolve) => {
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(paymentReceipt);
+        });
+      }
+
+      // Get current staff name if available
+      const staffName = userName || 'Agent';
+
+      const agreementData: any = {
         company_id: companyId,
-        agent_id: companyId, // Simplified for now
-        agent_name: userId || 'Admin',
+        agent_id: userId || '', // Or staff ID if we have it
+        agent_name: staffName,
         customer_name: formData.customer_name,
-        amount: formData.amount,
+        identity_number: formData.identity_number,
+        customer_phone: formData.customer_phone,
+        billing_address: formData.billing_address,
+        emergency_contact_name: formData.emergency_contact_name,
+        emergency_contact_relation: formData.emergency_contact_relation,
+        car_plate_number: formData.car_plate_number,
+        car_model: formData.car_model,
+        start_date: formData.start_date,
+        end_date: formData.end_date,
+        total_price: parseFloat(formData.total_price),
+        deposit: formData.deposit ? parseFloat(formData.deposit) : 0,
+        duration_days: parseInt(formData.duration_days, 10),
+        pickup_time: formData.pickup_time,
+        return_time: formData.return_time,
+        need_einvoice: formData.need_einvoice,
+        payment_receipt: receiptData,
         status: 'pending'
-      });
-      navigate('/forms');
-    } catch (err) {
-      alert('Failed to create agreement');
+      };
+
+      const newAgreement = await apiService.createAgreement(agreementData);
+      
+      // Also save/update member for future lookup
+      await apiService.addMember({
+        name: formData.customer_name,
+        phone: formData.customer_phone,
+        identity_number: formData.identity_number,
+        billing_address: formData.billing_address,
+        emergency_contact_name: formData.emergency_contact_name,
+        emergency_contact_relation: formData.emergency_contact_relation,
+        color: 'bg-blue-500'
+      }, companyId);
+
+      alert(`Agreement created! ID: ${newAgreement.id}`);
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
-      <button 
-        onClick={() => navigate('/forms')}
-        className="flex items-center gap-2 text-slate-500 hover:text-slate-800 mb-6 transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to Dashboard
-      </button>
-
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
-        <div className="p-8 border-b border-slate-100 bg-slate-50/50">
-          <h1 className="text-2xl font-bold text-slate-900">Create New Agreement</h1>
-          <p className="text-slate-500 mt-1">Fill in the details to generate a digital signature link.</p>
+    <div className="min-h-screen bg-slate-50 font-sans py-4 sm:py-10 px-4 sm:px-6 lg:px-8 text-base">
+      <div className="max-w-3xl mx-auto">
+        <div className="mb-6 flex justify-between text-xs font-medium text-slate-500 bg-white p-3 rounded-lg shadow-sm border border-slate-200">
+          <span className="text-slate-900">1. Customer</span>
+          <span>2. Vehicle</span>
+          <span>3. Sign</span>
+        </div>
+        <div className="mb-8 flex items-center">
+          <Link to="/dashboard" className="text-slate-400 hover:text-slate-900 mr-4 transition-colors">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">New Agreement</h1>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-8 space-y-6">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Customer Name</label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input 
-                  required
+        <div className="bg-white shadow-sm rounded-xl border border-slate-200 overflow-hidden mb-24">
+          <form id="agreement-form" onSubmit={handleSubmit} className="p-4 sm:p-8 space-y-6">
+            {error && (
+              <div className="bg-red-50 text-red-700 p-4 rounded-md text-sm border border-red-200">
+                {error}
+              </div>
+            )}
+
+            <div className="bg-slate-50 p-3 rounded-lg font-medium text-slate-900 mb-4">Customer Details</div>
+            <div className="grid grid-cols-1 gap-y-4 gap-x-6 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Identity Number (IC/Passport)</label>
+                <input
                   type="text"
-                  value={formData.customer_name}
-                  onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
-                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
-                  placeholder="e.g. John Doe"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Agreement Amount (RM)</label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input 
+                  name="identity_number"
                   required
+                  value={formData.identity_number}
+                  onChange={handleChange}
+                  onBlur={handleICBlur}
+                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  placeholder="Enter IC to auto-fill details"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Customer Name</label>
+                <input
+                  type="text"
+                  name="customer_name"
+                  required
+                  value={formData.customer_name}
+                  onChange={handleChange}
+                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
+                <input
+                  type="tel"
+                  name="customer_phone"
+                  required
+                  value={formData.customer_phone}
+                  onChange={handleChange}
+                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Billing Address</label>
+                <textarea
+                  name="billing_address"
+                  rows={3}
+                  required
+                  value={formData.billing_address}
+                  onChange={handleChange}
+                  className="block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Emergency Contact Name</label>
+                <input
+                  type="text"
+                  name="emergency_contact_name"
+                  required
+                  value={formData.emergency_contact_name}
+                  onChange={handleChange}
+                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Relationship</label>
+                <input
+                  type="text"
+                  name="emergency_contact_relation"
+                  required
+                  value={formData.emergency_contact_relation}
+                  onChange={handleChange}
+                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                />
+              </div>
+
+              <div className="sm:col-span-2 flex items-center mt-2 mb-4">
+                <input
+                  id="need_einvoice"
+                  name="need_einvoice"
+                  type="checkbox"
+                  checked={formData.need_einvoice}
+                  onChange={handleChange}
+                  className="h-5 w-5 text-slate-900 focus:ring-slate-900 border-slate-300 rounded"
+                />
+                <label htmlFor="need_einvoice" className="ml-2 block text-sm text-slate-900">
+                  Adakah Perlu E-invoice: Ya
+                </label>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-lg font-medium text-slate-900 mb-4">Rental Details</div>
+            <div className="grid grid-cols-1 gap-y-4 gap-x-6 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Car Plate Number</label>
+                <input
+                  type="text"
+                  name="car_plate_number"
+                  required
+                  value={formData.car_plate_number}
+                  onChange={handleChange}
+                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm uppercase"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Car Model</label>
+                <input
+                  type="text"
+                  name="car_model"
+                  required
+                  value={formData.car_model}
+                  onChange={handleChange}
+                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Total Price (RM)</label>
+                <input
                   type="number"
-                  value={formData.amount}
-                  onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) })}
-                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
-                  placeholder="0.00"
+                  step="0.01"
+                  name="total_price"
+                  required
+                  value={formData.total_price}
+                  onChange={handleChange}
+                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Deposit (RM)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  name="deposit"
+                  required
+                  value={formData.deposit}
+                  onChange={handleChange}
+                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
+                <input
+                  type="date"
+                  name="start_date"
+                  required
+                  value={formData.start_date}
+                  onChange={handleChange}
+                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">End Date</label>
+                <input
+                  type="date"
+                  name="end_date"
+                  required
+                  value={formData.end_date}
+                  onChange={handleChange}
+                  className={`h-11 block w-full rounded-md shadow-sm sm:text-sm transition-colors duration-300 ${
+                    highlightReturnDate 
+                      ? 'border-emerald-500 ring-2 ring-emerald-500 bg-emerald-50' 
+                      : 'border-slate-300 focus:border-slate-900 focus:ring-slate-900'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Duration (Days)</label>
+                <input
+                  type="number"
+                  name="duration_days"
+                  required
+                  min="1"
+                  value={formData.duration_days}
+                  onChange={handleChange}
+                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Pickup Time</label>
+                <input
+                  type="time"
+                  name="pickup_time"
+                  required
+                  value={formData.pickup_time}
+                  onChange={handleChange}
+                  className="h-11 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Return Time</label>
+                <input
+                  type="time"
+                  name="return_time"
+                  required
+                  value={formData.return_time}
+                  onChange={handleChange}
+                  className={`h-11 block w-full rounded-md shadow-sm sm:text-sm transition-colors duration-300 ${
+                    highlightReturnTime 
+                      ? 'border-emerald-500 ring-2 ring-emerald-500 bg-emerald-50' 
+                      : 'border-slate-300 focus:border-slate-900 focus:ring-slate-900'
+                  }`}
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Payment Receipt</label>
+                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-md hover:bg-slate-50 transition-colors">
+                  <div className="space-y-1 text-center">
+                    <Upload className="mx-auto h-12 w-12 text-slate-400" />
+                    <div className="flex text-sm text-slate-600 justify-center">
+                      <label
+                        htmlFor="file-upload"
+                        className="relative cursor-pointer bg-white rounded-md font-medium text-slate-900 hover:text-slate-700 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-slate-900"
+                      >
+                        <span>Upload a file</span>
+                        <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept="image/*,.pdf" />
+                      </label>
+                      <p className="pl-1">or drag and drop</p>
+                    </div>
+                    <p className="text-xs text-slate-500">PNG, JPG, PDF up to 10MB</p>
+                    {paymentReceipt && (
+                      <p className="text-sm font-medium text-emerald-600 mt-2">{paymentReceipt.name}</p>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Agreement Details / Terms</label>
-              <div className="relative">
-                <FileText className="absolute left-3 top-4 w-4 h-4 text-slate-400" />
-                <textarea 
-                  value={formData.details}
-                  onChange={(e) => setFormData({ ...formData, details: e.target.value })}
-                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all min-h-[150px]"
-                  placeholder="Enter specific rental terms, vehicle details, etc."
-                />
-              </div>
+            <div className="pt-6 border-t border-slate-100 hidden sm:flex justify-end">
+              <button
+                type="submit"
+                disabled={loading}
+                className="inline-flex justify-center items-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 disabled:opacity-50 transition-colors"
+              >
+                {loading ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Create Agreement
+              </button>
             </div>
-          </div>
-
-          <div className="pt-4">
-            <button 
-              type="submit"
-              disabled={loading}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-900/20 active:scale-[0.98] disabled:opacity-50"
-            >
-              {loading ? (
-                <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
-              ) : (
-                <>
-                  <Save className="w-5 h-5" />
-                  Generate Agreement
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+          </form>
+        </div>
+      </div>
+      
+      {/* Sticky Footer */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-200 sm:hidden z-50">
+        <button
+          type="submit"
+          form="agreement-form"
+          disabled={loading}
+          className="w-full inline-flex justify-center items-center py-3 px-4 border border-transparent shadow-sm text-base font-medium rounded-md text-white bg-slate-900 hover:bg-slate-800 transition-colors"
+        >
+          {loading ? 'Submitting...' : 'Create Agreement'}
+        </button>
       </div>
     </div>
   );
-};
-
-export default CreateAgreement;
+}

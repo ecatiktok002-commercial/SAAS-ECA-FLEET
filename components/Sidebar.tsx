@@ -7,27 +7,35 @@ const Sidebar: React.FC = () => {
   const { staffRole, subscriptionTier, companyId, logout } = useAuth();
 
   const getMenuItems = () => {
-    const items = [
-      { name: 'Dashboard', path: '/', icon: <LayoutDashboard className="w-5 h-5" /> },
-    ];
+    const items = [];
 
+    // Master Admin (Superadmin)
     if (companyId === 'superadmin') {
       items.push({ name: 'Subscribers', path: '/subscribers', icon: <Users className="w-5 h-5" /> });
+      items.push({ name: 'Global Fleet', path: '/fleet', icon: <Car className="w-5 h-5" /> });
+      return items;
     }
 
-    if (subscriptionTier === 'tier_1' || subscriptionTier === 'tier_3') {
+    // Tier 3 Dashboard
+    if (subscriptionTier === 'tier_3') {
+      items.push({ name: 'Dashboard', path: '/', icon: <LayoutDashboard className="w-5 h-5" /> });
+    }
+
+    // Tier 2 & 3 Calendar
+    if (subscriptionTier === 'tier_2' || subscriptionTier === 'tier_3') {
       items.push({ name: 'Calendar', path: '/calendar', icon: <Calendar className="w-5 h-5" /> });
     }
 
-    if (subscriptionTier === 'tier_2' || subscriptionTier === 'tier_3') {
-      items.push({ name: 'Digital Form', path: '/forms', icon: <FileText className="w-5 h-5" /> });
-      items.push({ name: 'Customers', path: '/customers', icon: <Users className="w-5 h-5" /> });
-    }
+    // All Tiers have Digital Forms (Handovers)
+    items.push({ name: 'Digital Form', path: '/forms', icon: <FileText className="w-5 h-5" /> });
+    items.push({ name: 'Customers', path: '/customers', icon: <Users className="w-5 h-5" /> });
 
-    if (subscriptionTier === 'tier_3') {
+    // Fleet Guardian (Global Fleet Overview) - Only for Admin (Subscriber)
+    if (staffRole === 'admin' && subscriptionTier === 'tier_3') {
       items.push({ name: 'Fleet Guardian', path: '/fleet', icon: <Car className="w-5 h-5" /> });
     }
 
+    // Staff Management - Only for Admin (Subscriber)
     if (staffRole === 'admin') {
       items.push({ name: 'Staff Management', path: '/staff', icon: <Settings className="w-5 h-5" /> });
     }

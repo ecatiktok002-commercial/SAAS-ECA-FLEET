@@ -7,10 +7,11 @@ export type StaffRole = 'admin' | 'staff';
 interface AuthContextType {
   companyId: string | null;
   userId: string | null;
+  userName: string | null;
   staffRole: StaffRole | null;
   subscriptionTier: SubscriptionTier | null;
   isLoading: boolean;
-  login: (companyId: string, staffRole: StaffRole, subscriptionTier: SubscriptionTier, userId?: string) => void;
+  login: (companyId: string, staffRole: StaffRole, subscriptionTier: SubscriptionTier, userId?: string, userName?: string) => void;
   logout: () => void;
 }
 
@@ -19,6 +20,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
   const [staffRole, setStaffRole] = useState<StaffRole | null>(null);
   const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -36,13 +38,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const isSuperAdmin = session.user.email === 'superadmin@ecafleet.com';
         setCompanyId(isSuperAdmin ? 'superadmin' : session.user.id);
         setUserId(getDisplayId(session.user));
+        setUserName(isSuperAdmin ? 'Super Admin' : (session.user.user_metadata?.full_name || getDisplayId(session.user)));
         
         const storedRole = localStorage.getItem('staffRole') as StaffRole;
         const storedTier = localStorage.getItem('subscriptionTier') as SubscriptionTier;
+        const storedName = localStorage.getItem('userName');
         
         if (storedRole && storedTier) {
           setStaffRole(storedRole);
           setSubscriptionTier(storedTier);
+          if (storedName) setUserName(storedName);
         }
       }
       setIsLoading(false);
@@ -51,11 +56,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkSession();
   }, []);
 
-  const login = (id: string, role: StaffRole, tier: SubscriptionTier, uId?: string) => {
+  const login = (id: string, role: StaffRole, tier: SubscriptionTier, uId?: string, uName?: string) => {
     setCompanyId(id);
     setStaffRole(role);
     setSubscriptionTier(tier);
     if (uId) setUserId(uId);
+    if (uName) {
+      setUserName(uName);
+      localStorage.setItem('userName', uName);
+    }
     localStorage.setItem('staffRole', role);
     localStorage.setItem('subscriptionTier', tier);
   };
@@ -64,14 +73,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await supabase.auth.signOut();
     setCompanyId(null);
     setUserId(null);
+    setUserName(null);
     setStaffRole(null);
     setSubscriptionTier(null);
     localStorage.removeItem('staffRole');
     localStorage.removeItem('subscriptionTier');
+    localStorage.removeItem('userName');
   };
 
   return (
-    <AuthContext.Provider value={{ companyId, userId, staffRole, subscriptionTier, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ companyId, userId, userName, staffRole, subscriptionTier, isLoading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

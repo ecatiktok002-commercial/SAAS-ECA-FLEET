@@ -13,7 +13,7 @@ const StaffManagementPage: React.FC = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
-  const [formData, setFormData] = useState({ name: '', role: 'staff' as 'admin' | 'staff', pin: '' });
+  const [formData, setFormData] = useState({ name: '', designated_uid: '', pin: '' });
 
   useEffect(() => {
     if (companyId) {
@@ -43,19 +43,19 @@ const StaffManagementPage: React.FC = () => {
       
       if (editingStaff) {
         // Update existing
-        const updates: Partial<StaffMember> = { name: formData.name, role: formData.role };
+        const updates: Partial<StaffMember> = { name: formData.name, designated_uid: formData.designated_uid };
         if (hashedPin) {
           updates.pin_hash = hashedPin; 
         }
         await apiService.updateStaffMember(editingStaff.id, companyId, updates);
       } else {
         // Create new
-        await apiService.addStaffMember(formData.name, companyId, formData.role, hashedPin);
+        await apiService.addStaffMember(formData.name, companyId, 'staff', hashedPin, formData.designated_uid);
       }
       await loadStaff();
       setIsModalOpen(false);
       setEditingStaff(null);
-      setFormData({ name: '', role: 'staff', pin: '' });
+      setFormData({ name: '', designated_uid: '', pin: '' });
     } catch (err: any) {
       alert(`Error saving staff: ${err.message}`);
     } finally {
@@ -78,7 +78,7 @@ const StaffManagementPage: React.FC = () => {
 
   const openEditModal = (member: StaffMember) => {
     setEditingStaff(member);
-    setFormData({ name: member.name, role: member.role || 'staff', pin: '' });
+    setFormData({ name: member.name, designated_uid: member.designated_uid || '', pin: '' });
     setIsModalOpen(true);
   };
 
@@ -102,7 +102,7 @@ const StaffManagementPage: React.FC = () => {
         <button
           onClick={() => {
             setEditingStaff(null);
-            setFormData({ name: '', role: 'staff', pin: '' });
+            setFormData({ name: '', designated_uid: '', pin: '' });
             setIsModalOpen(true);
           }}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-medium flex items-center gap-2 transition-colors"
@@ -123,7 +123,7 @@ const StaffManagementPage: React.FC = () => {
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Name</th>
-              <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Role</th>
+              <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Designated UID</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
             </tr>
           </thead>
@@ -143,11 +143,8 @@ const StaffManagementPage: React.FC = () => {
                     <div className="font-medium text-slate-900">{member.name}</div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium capitalize ${
-                      member.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'
-                    }`}>
-                      {member.role === 'admin' && <Shield className="w-3.5 h-3.5" />}
-                      {member.role || 'staff'}
+                    <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                      {member.designated_uid}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
@@ -202,17 +199,18 @@ const StaffManagementPage: React.FC = () => {
                   placeholder="e.g. John Doe"
                 />
               </div>
-              
+
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
-                <select
-                  value={formData.role}
-                  onChange={e => setFormData({ ...formData, role: e.target.value as 'admin' | 'staff' })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                >
-                  <option value="staff">Staff (Standard Access)</option>
-                  <option value="admin">Admin (Full Access)</option>
-                </select>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Designated UID</label>
+                <input
+                  type="text"
+                  required
+                  value={formData.designated_uid}
+                  onChange={e => setFormData({ ...formData, designated_uid: e.target.value.toLowerCase().replace(/\s+/g, '') })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono"
+                  placeholder="e.g. idmahira"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">This will be used for login. No spaces allowed.</p>
               </div>
 
               <div>

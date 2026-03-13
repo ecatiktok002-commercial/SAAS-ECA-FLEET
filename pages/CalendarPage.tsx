@@ -13,7 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import { AlertTriangle } from 'lucide-react';
 
 const CalendarPage: React.FC = () => {
-  const { companyId: currentCompanyId, userId: currentUserId } = useAuth();
+  const { companyId: currentCompanyId, userId: currentUserId, staffRole } = useAuth();
   
   const [currentStaff, setCurrentStaff] = useState<StaffMember | null>(null);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
@@ -50,10 +50,12 @@ const CalendarPage: React.FC = () => {
       end.setMonth(end.getMonth() + 3);
       end.setDate(0);
 
+      const agentId = staffRole === 'staff' ? currentUserId : undefined;
+
       const [fetchedCars, fetchedMembers, fetchedBookings, fetchedExpenses, fetchedStaff] = await Promise.all([
         apiService.getCars(currentCompanyId),
         apiService.getMembers(currentCompanyId),
-        apiService.getBookings(currentCompanyId, start.toISOString(), end.toISOString()),
+        apiService.getBookings(currentCompanyId, start.toISOString(), end.toISOString(), agentId),
         apiService.getExpenses(currentCompanyId),
         apiService.getStaffMembers(currentCompanyId)
       ]);
@@ -62,6 +64,12 @@ const CalendarPage: React.FC = () => {
       setBookings(fetchedBookings);
       setExpenses(fetchedExpenses);
       setStaffMembers(fetchedStaff);
+
+      // Set current staff from fetched staff members if it matches currentUserId
+      if (currentUserId) {
+        const found = fetchedStaff.find(s => s.id === currentUserId);
+        if (found) setCurrentStaff(found);
+      }
     } catch (err: any) {
       if (err.message === 'DATABASE_TABLES_MISSING') {
         setIsTablesMissing(true);
@@ -558,17 +566,6 @@ const CalendarPage: React.FC = () => {
         onClose={() => setIsLogModalOpen(false)}
         companyId={currentCompanyId}
       />
-
-      {currentCompanyId && (
-        <StaffSelectionModal
-          isOpen={!currentStaff}
-          companyId={currentCompanyId}
-          onStaffSelected={(staff) => {
-            setCurrentStaff(staff);
-            apiService.getStaffMembers(currentCompanyId).then(setStaffMembers);
-          }}
-        />
-      )}
     </div>
   );
 };

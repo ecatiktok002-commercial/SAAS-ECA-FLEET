@@ -34,6 +34,10 @@ export interface Member {
   color: string; // Tailwind class like 'bg-blue-500'
   email?: string;
   phone?: string;
+  identity_number?: string;
+  billing_address?: string;
+  emergency_contact_name?: string;
+  emergency_contact_relation?: string;
 }
 
 export interface Booking {
@@ -74,7 +78,9 @@ export interface LogEntry {
 
 export interface StaffMember {
   id: string;
+  company_id: string;
   name: string;
+  designated_uid: string;
   pin_hash?: string; // Hashed PIN
   role?: 'admin' | 'staff';
   created_at?: string;
@@ -86,7 +92,22 @@ export interface Agreement {
   agent_id: string;
   agent_name: string;
   customer_name: string;
-  amount: number;
+  identity_number?: string;
+  customer_phone?: string;
+  billing_address?: string;
+  emergency_contact_name?: string;
+  emergency_contact_relation?: string;
+  car_plate_number?: string;
+  car_model?: string;
+  start_date?: string;
+  end_date?: string;
+  total_price: number;
+  deposit?: number;
+  duration_days?: number;
+  pickup_time?: string;
+  return_time?: string;
+  need_einvoice?: boolean;
+  payment_receipt?: string;
   status: 'pending' | 'signed';
   details?: string;
   created_at: string;
@@ -95,9 +116,26 @@ export interface Agreement {
 export interface DigitalForm {
   id: string;
   company_id: string;
+  agent_id?: string;
+  agent_name?: string;
   customer_name: string;
+  identity_number?: string;
+  customer_phone?: string;
+  billing_address?: string;
+  emergency_contact_name?: string;
+  emergency_contact_relation?: string;
+  car_plate_number?: string;
+  car_model?: string;
+  start_date?: string;
+  end_date?: string;
+  total_price: number;
+  deposit?: number;
+  duration_days?: number;
+  pickup_time?: string;
+  return_time?: string;
+  need_einvoice?: boolean;
+  payment_receipt?: string;
   status: 'pending' | 'signed';
-  amount: number;
   created_at: string;
 }
 

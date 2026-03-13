@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Plus, Car as CarIcon, AlertCircle, CheckCircle2, Trash2, Edit, Download, Upload, FileSpreadsheet, Search, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Plus, Car as CarIcon, AlertCircle, CheckCircle2, Trash2, Edit, Search } from 'lucide-react';
 import { Car, CarStatus, ExpiryStatus } from '../types';
 import { useAuth } from '../context/AuthContext';
 import * as Storage from '../services/storageService';
-import * as ExcelService from '../services/excelService';
 import CarForm from '../components/CarForm';
 import AlertModal from '../components/AlertModal';
 
@@ -18,9 +17,6 @@ const FleetGuardianPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
   
-  // File Input Ref
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   // Core Logic: Calculate Status
   const calculateStatus = useCallback((dateStr: string | undefined, type: ExpiryStatus['type']): ExpiryStatus => {
     if (!dateStr) {
@@ -65,6 +61,33 @@ const FleetGuardianPage: React.FC = () => {
       }
     };
     load();
+
+    // Real-time sync
+    if (!companyId) return;
+    
+    const channel = Storage.supabase.channel('fleet-guardian-realtime')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'cars', 
+        filter: `company_id=eq.${companyId}` 
+      }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setCars(prev => {
+            if (prev.some(c => c.id === payload.new.id)) return prev;
+            return [...prev, payload.new as Car];
+          });
+        } else if (payload.eventType === 'UPDATE') {
+          setCars(prev => prev.map(c => c.id === payload.new.id ? (payload.new as Car) : c));
+        } else if (payload.eventType === 'DELETE') {
+          setCars(prev => prev.filter(c => c.id !== payload.old.id));
+        }
+      })
+      .subscribe();
+
+    return () => {
+      Storage.supabase.removeChannel(channel);
+    };
   }, [companyId]);
 
   // Check for alerts whenever cars change
@@ -73,7 +96,6 @@ const FleetGuardianPage: React.FC = () => {
     
     cars.forEach(car => {
       const status = getCarStatus(car);
-      // Fix: Cast Object.values to ExpiryStatus[] to avoid "Property 'status' does not exist on type 'unknown'" error
       const hasIssue = (Object.values(status) as ExpiryStatus[]).some(s => s.status !== 'good');
       if (hasIssue) {
         alerts.push({ car, status });
@@ -110,50 +132,6 @@ const FleetGuardianPage: React.FC = () => {
     setCars(updated);
     setIsLoading(false);
     setShowDeleteConfirm(null);
-  };
-
-  // Excel Handlers
-  const handleExport = () => {
-    if (cars.length === 0) {
-      alert("No data to export.");
-      return;
-    }
-    ExcelService.exportData(cars);
-  };
-
-  const handleImportClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !companyId) return;
-
-    try {
-      setIsLoading(true);
-      const importedCars = await ExcelService.parseExcel(file);
-      
-      if (importedCars.length === 0) {
-        alert("No valid vehicle data found in the Excel file.");
-        setIsLoading(false);
-        return;
-      }
-
-      // Override Logic: Replace all existing data with imported data
-      await Storage.saveCars(importedCars, companyId);
-      // Refetch to ensure we are in sync with DB
-      const refreshedCars = await Storage.getCars(companyId);
-      setCars(refreshedCars);
-      
-      alert(`Successfully imported ${importedCars.length} vehicles. Previous data has been replaced.`);
-    } catch (error) {
-      console.error(error);
-      alert("Failed to import Excel file. Please ensure it is a valid format.");
-    } finally {
-      // Reset input so same file can be selected again if needed
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      setIsLoading(false);
-    }
   };
 
   const renderStatusBadge = (status: ExpiryStatus) => {
@@ -232,35 +210,6 @@ const FleetGuardianPage: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-2 w-full sm:w-auto order-3 sm:order-none">
-            {/* Hidden File Input */}
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleFileChange} 
-              accept=".xlsx, .xls" 
-              hidden 
-            />
-            
-            <button 
-              onClick={handleImportClick}
-              disabled={isLoading}
-              className="bg-slate-800 hover:bg-slate-700 text-white p-2.5 rounded-lg transition-colors border border-slate-700 disabled:opacity-50"
-              title="Import from Excel"
-            >
-              <Upload className="w-5 h-5" />
-            </button>
-            
-            <button 
-              onClick={handleExport}
-              disabled={isLoading}
-              className="bg-slate-800 hover:bg-slate-700 text-white p-2.5 rounded-lg transition-colors border border-slate-700 disabled:opacity-50"
-              title="Export to Excel"
-            >
-              <Download className="w-5 h-5" />
-            </button>
-
-            <div className="w-px h-8 bg-slate-700 mx-1 hidden sm:block"></div>
-
             <button 
               onClick={() => { setEditingCar(null); setShowForm(true); }}
               disabled={isLoading}
@@ -320,22 +269,16 @@ const FleetGuardianPage: React.FC = () => {
         {sortedCars.length === 0 && !isLoading ? (
           <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300">
             <div className="bg-slate-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-              <FileSpreadsheet className="w-8 h-8 text-slate-400" />
+              <CarIcon className="w-8 h-8 text-slate-400" />
             </div>
             <h3 className="text-lg font-medium text-slate-900 mb-2">
               {searchTerm ? 'No Matching Vehicles Found' : 'No Vehicles Tracked'}
             </h3>
             <p className="text-slate-500 max-w-sm mx-auto mb-6">
-              {searchTerm ? `No vehicles match "${searchTerm}".` : 'Add a vehicle manually or import your existing Excel backup to get started.'}
+              {searchTerm ? `No vehicles match "${searchTerm}".` : 'Add a vehicle manually to get started.'}
             </p>
             {!searchTerm && (
               <div className="flex justify-center gap-3">
-                <button 
-                  onClick={handleImportClick}
-                  className="text-slate-600 font-medium hover:text-slate-900 flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-lg"
-                >
-                  <Upload className="w-4 h-4" /> Import Excel
-                </button>
                 <button 
                   onClick={() => { setEditingCar(null); setShowForm(true); }}
                   className="text-blue-600 font-medium hover:text-blue-800 flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-lg"

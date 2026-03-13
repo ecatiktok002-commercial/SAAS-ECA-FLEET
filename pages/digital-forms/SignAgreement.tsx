@@ -158,9 +158,27 @@ const SignAgreement: React.FC = () => {
             <section>
               <h2 className="text-lg font-bold text-slate-900 mb-4 border-b border-slate-100 pb-2">2. Agreement Details</h2>
               <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-                <div className="flex justify-between items-center mb-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                  <div>
+                    <div className="text-xs font-bold text-slate-400 uppercase mb-1">Vehicle</div>
+                    <div className="font-bold text-slate-900">{agreement.car_model} ({agreement.car_plate_number})</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-slate-400 uppercase mb-1">Duration</div>
+                    <div className="font-bold text-slate-900">{agreement.duration_days} Days</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-slate-400 uppercase mb-1">Pickup</div>
+                    <div className="font-bold text-slate-900">{agreement.start_date} @ {agreement.pickup_time}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-slate-400 uppercase mb-1">Return</div>
+                    <div className="font-bold text-slate-900">{agreement.end_date} @ {agreement.return_time}</div>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center mb-6 pt-4 border-t border-slate-200">
                   <span className="text-slate-500">Total Rental Amount:</span>
-                  <span className="text-2xl font-black text-slate-900">RM {agreement.amount.toLocaleString()}</span>
+                  <span className="text-2xl font-black text-slate-900">RM {agreement.total_price.toLocaleString()}</span>
                 </div>
                 <div className="text-sm text-slate-600 whitespace-pre-wrap">
                   {agreement.details || 'Standard rental terms apply. Vehicle must be returned in the same condition as received. Fuel level must be maintained as per handover record.'}

@@ -21,10 +21,11 @@ CREATE TABLE IF NOT EXISTS staff_members (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
+  designated_uid TEXT NOT NULL,
   role TEXT DEFAULT 'staff',
   pin_hash TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(company_id, name)
+  UNIQUE(company_id, designated_uid)
 );
 
 -- 3. Cars Table
@@ -51,6 +52,10 @@ CREATE TABLE IF NOT EXISTS members (
   name TEXT NOT NULL,
   email TEXT,
   phone TEXT,
+  identity_number TEXT,
+  billing_address TEXT,
+  emergency_contact_name TEXT,
+  emergency_contact_relation TEXT,
   color TEXT DEFAULT 'bg-blue-500',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -61,6 +66,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   car_id UUID NOT NULL REFERENCES cars(id) ON DELETE CASCADE,
   member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  agent_id UUID, -- The staff member who created it
   start TIMESTAMP WITH TIME ZONE NOT NULL,
   duration INTEGER NOT NULL,
   status TEXT DEFAULT 'active',
@@ -74,7 +80,24 @@ CREATE TABLE IF NOT EXISTS agreements (
   company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   agent_id UUID NOT NULL,
   agent_name TEXT NOT NULL,
-  amount NUMERIC NOT NULL DEFAULT 0,
+  customer_name TEXT NOT NULL,
+  identity_number TEXT,
+  customer_phone TEXT,
+  billing_address TEXT,
+  emergency_contact_name TEXT,
+  emergency_contact_relation TEXT,
+  car_plate_number TEXT,
+  car_model TEXT,
+  start_date DATE,
+  end_date DATE,
+  total_price NUMERIC NOT NULL DEFAULT 0,
+  deposit NUMERIC DEFAULT 0,
+  duration_days INTEGER,
+  pickup_time TIME,
+  return_time TIME,
+  need_einvoice BOOLEAN DEFAULT FALSE,
+  payment_receipt TEXT,
+  status TEXT DEFAULT 'pending',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -82,9 +105,26 @@ CREATE TABLE IF NOT EXISTS agreements (
 CREATE TABLE IF NOT EXISTS digital_forms (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  agent_id UUID, -- The staff member who created it
+  agent_name TEXT,
   customer_name TEXT NOT NULL,
+  identity_number TEXT,
+  customer_phone TEXT,
+  billing_address TEXT,
+  emergency_contact_name TEXT,
+  emergency_contact_relation TEXT,
+  car_plate_number TEXT,
+  car_model TEXT,
+  start_date DATE,
+  end_date DATE,
+  total_price NUMERIC NOT NULL DEFAULT 0,
+  deposit NUMERIC DEFAULT 0,
+  duration_days INTEGER,
+  pickup_time TIME,
+  return_time TIME,
+  need_einvoice BOOLEAN DEFAULT FALSE,
+  payment_receipt TEXT,
   status TEXT DEFAULT 'pending',
-  amount NUMERIC NOT NULL DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
