@@ -65,10 +65,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         const storedRole = localStorage.getItem('staffRole') as StaffRole;
         const storedName = localStorage.getItem('userName');
+        const storedUserId = localStorage.getItem('userId');
         
         if (storedRole) {
           setStaffRole(storedRole);
           if (storedName) setUserName(storedName);
+          if (storedUserId) setUserId(storedUserId);
         } else if (isSuperAdmin) {
           setStaffRole('admin');
         }
@@ -99,7 +101,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSubscriberId(id);
     setStaffRole(role);
     setSubscriptionTier(tier);
-    if (uId) setUserId(uId);
+    if (uId) {
+      setUserId(uId);
+      localStorage.setItem('userId', uId);
+    }
     if (uName) {
       setUserName(uName);
       localStorage.setItem('userName', uName);
@@ -118,6 +123,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('staffRole');
     localStorage.removeItem('subscriptionTier');
     localStorage.removeItem('userName');
+    localStorage.removeItem('userId');
   };
 
   const getTierNumber = (tier: SubscriptionTier | null): number => {

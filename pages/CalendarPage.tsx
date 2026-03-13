@@ -62,10 +62,26 @@ const CalendarPage: React.FC = () => {
       setExpenses(fetchedExpenses);
       setStaffMembers(fetchedStaff);
 
-      // Set current staff from fetched staff members if it matches currentUserId (designated_uid)
+      // Set current staff from fetched staff members if it matches currentUserId (designated_uid or id)
       if (currentUserId) {
-        const found = fetchedStaff.find(s => s.designated_uid === currentUserId);
-        if (found) setCurrentStaff(found);
+        const found = fetchedStaff.find(s => s.designated_uid === currentUserId || s.id === currentUserId);
+        if (found) {
+          setCurrentStaff(found);
+          // Auto-sync if missing
+          const hasMember = fetchedMembers.some(m => m.staff_id === found.id);
+          if (!hasMember) {
+            try {
+              const newMember = await apiService.addMember({
+                name: found.name,
+                color: 'bg-blue-600',
+                staff_id: found.id
+              }, currentSubscriberId);
+              setMembers(prev => [...prev, newMember]);
+            } catch (e) {
+              console.error('Failed to auto-sync staff to member', e);
+            }
+          }
+        }
       }
     } catch (err: any) {
       if (err.message === 'DATABASE_TABLES_MISSING') {

@@ -28,8 +28,18 @@ const COLORS = [
   { name: 'Violet', value: 'bg-violet-600' },
   { name: 'Pink', value: 'bg-pink-500' },
   { name: 'Orange', value: 'bg-orange-500' },
-  { name: 'Pastel Pink', value: 'bg-[#fdb0c0]' },
-  { name: 'Bright Yellow', value: 'bg-[#FFFF00]' },
+  { name: 'Teal', value: 'bg-teal-500' },
+  { name: 'Cyan', value: 'bg-cyan-500' },
+  { name: 'Lime', value: 'bg-lime-500' },
+  { name: 'Fuchsia', value: 'bg-fuchsia-500' },
+  { name: 'Purple', value: 'bg-purple-500' },
+  { name: 'Sky', value: 'bg-sky-500' },
+  { name: 'Yellow', value: 'bg-yellow-400' },
+  { name: 'Stone', value: 'bg-stone-600' },
+  { name: 'Zinc', value: 'bg-zinc-600' },
+  { name: 'Neutral', value: 'bg-neutral-600' },
+  { name: 'Light Pink', value: 'bg-pink-300' },
+  { name: 'Light Yellow', value: 'bg-yellow-300' },
 ];
 
 const EXPENSE_CATEGORIES = ['Car Wash', 'Service', 'Fuel', 'Maintenance', 'Insurance', 'Other'];
