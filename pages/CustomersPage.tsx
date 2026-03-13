@@ -25,9 +25,10 @@ const CustomersPage: React.FC = () => {
       if (!companyId) return;
       setIsLoading(true);
       try {
+        const agentId = staffRole === 'staff' ? userId || undefined : undefined;
         const [formsData, agreementsData] = await Promise.all([
-          Storage.getDigitalForms(companyId),
-          Storage.getAgreements(companyId)
+          Storage.getDigitalForms(companyId, agentId),
+          Storage.getAgreements(companyId, agentId)
         ]);
         
         // Combine both sources as they both represent customer interactions

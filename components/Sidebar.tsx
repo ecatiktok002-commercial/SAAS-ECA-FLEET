@@ -8,35 +8,61 @@ const Sidebar: React.FC = () => {
 
   const getMenuItems = () => {
     const items = [];
+    const isSuperAdmin = companyId === 'superadmin';
+    const isAdmin = staffRole === 'admin';
+    const isStaff = staffRole === 'staff';
 
-    // Master Admin (Superadmin)
-    if (companyId === 'superadmin') {
+    // Master Admin (Superadmin) specific items
+    if (isSuperAdmin) {
       items.push({ name: 'Subscribers', path: '/subscribers', icon: <Users className="w-5 h-5" /> });
+      items.push({ name: 'Dashboard', path: '/', icon: <LayoutDashboard className="w-5 h-5" /> });
+      items.push({ name: 'Calendar', path: '/calendar', icon: <Calendar className="w-5 h-5" /> });
+      items.push({ name: 'Digital Form', path: '/forms', icon: <FileText className="w-5 h-5" /> });
+      items.push({ name: 'Customers', path: '/customers', icon: <Users className="w-5 h-5" /> });
       items.push({ name: 'Global Fleet', path: '/fleet', icon: <Car className="w-5 h-5" /> });
+      items.push({ name: 'Staff Management', path: '/staff', icon: <Settings className="w-5 h-5" /> });
       return items;
     }
 
-    // Tier 3 Dashboard
-    if (subscriptionTier === 'tier_3') {
-      items.push({ name: 'Dashboard', path: '/', icon: <LayoutDashboard className="w-5 h-5" /> });
+    // Layer 1: Tier Gate (Feature Access)
+    // Tier 1: Only Digital Forms
+    // Tier 2: Only Calendar
+    // Tier 3: All (Forms, Calendar, Fleet)
+    
+    // Dashboard Access
+    // Subscriber always gets Business Dashboard (except Tier 2 which is Calendar ONLY)
+    // Agent only gets Personal Stats if Tier 3
+    if ((isAdmin && subscriptionTier !== 'tier_2') || (isStaff && subscriptionTier === 'tier_3')) {
+      items.push({ 
+        name: isAdmin ? 'Business Dashboard' : 'Personal Stats', 
+        path: '/', 
+        icon: <LayoutDashboard className="w-5 h-5" /> 
+      });
     }
 
-    // Tier 2 & 3 Calendar
+    // Digital Forms (Tier 1 or Tier 3)
+    if (subscriptionTier === 'tier_1' || subscriptionTier === 'tier_3') {
+      items.push({ name: 'Digital Form', path: '/forms', icon: <FileText className="w-5 h-5" /> });
+    }
+
+    // Calendar (Tier 2 or Tier 3)
     if (subscriptionTier === 'tier_2' || subscriptionTier === 'tier_3') {
       items.push({ name: 'Calendar', path: '/calendar', icon: <Calendar className="w-5 h-5" /> });
     }
 
-    // All Tiers have Digital Forms (Handovers)
-    items.push({ name: 'Digital Form', path: '/forms', icon: <FileText className="w-5 h-5" /> });
-    items.push({ name: 'Customers', path: '/customers', icon: <Users className="w-5 h-5" /> });
-
-    // Fleet Guardian (Global Fleet Overview) - Only for Admin (Subscriber)
-    if (staffRole === 'admin' && subscriptionTier === 'tier_3') {
+    // Fleet Guardian (Tier 3 only)
+    if (subscriptionTier === 'tier_3') {
       items.push({ name: 'Fleet Guardian', path: '/fleet', icon: <Car className="w-5 h-5" /> });
     }
 
-    // Staff Management - Only for Admin (Subscriber)
-    if (staffRole === 'admin') {
+    // Customers (Available if they have access to Forms or Tier 3 Calendar)
+    // For Tier 2 (Calendar ONLY), we exclude Customers to keep it strictly Calendar
+    if (subscriptionTier === 'tier_1' || subscriptionTier === 'tier_3') {
+      items.push({ name: 'Customers', path: '/customers', icon: <Users className="w-5 h-5" /> });
+    }
+
+    // Staff Management - Subscriber only (Available by Default for Subscriber)
+    if (isAdmin) {
       items.push({ name: 'Staff Management', path: '/staff', icon: <Settings className="w-5 h-5" /> });
     }
 

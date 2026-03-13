@@ -146,10 +146,12 @@ const AdminDashboard: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">
-            {companyId === 'superadmin' ? 'Global Fleet Overview' : 'Executive Command Center'}
+            {companyId === 'superadmin' ? 'Global Fleet Overview' : 
+             staffRole === 'admin' ? 'Executive Command Center' : 'Personal Performance Hub'}
           </h1>
           <p className="text-slate-500 mt-1 font-medium">
-            {companyId === 'superadmin' ? 'Monitoring all platform subscribers and fleet performance.' : 'Real-time fleet performance and sales analytics.'}
+            {companyId === 'superadmin' ? 'Monitoring all platform subscribers and fleet performance.' : 
+             staffRole === 'admin' ? 'Real-time fleet performance and sales analytics.' : 'Your personal sales and activity overview.'}
           </p>
         </div>
 
@@ -165,7 +167,9 @@ const AdminDashboard: React.FC = () => {
                 Live
               </div>
             </div>
-            <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest">Total Sales</h3>
+            <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest">
+              {staffRole === 'admin' ? 'Total Sales' : 'My Total Sales'}
+            </h3>
             <p className="text-3xl font-black text-emerald-600 mt-1">
               RM {stats.totalSales.toLocaleString()}
             </p>
@@ -178,27 +182,31 @@ const AdminDashboard: React.FC = () => {
                 <CalendarCheck className="w-6 h-6 text-blue-600" />
               </div>
             </div>
-            <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest">Today's Orders</h3>
+            <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest">
+              {staffRole === 'admin' ? "Today's Orders" : "My Orders Today"}
+            </h3>
             <p className="text-3xl font-black text-slate-900 mt-1">{stats.todayOrders}</p>
           </div>
 
-          {/* Idle Vehicles */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center">
-                <Car className={`w-6 h-6 ${stats.idleVehicles > 0 ? 'text-orange-500' : 'text-slate-600'}`} />
-              </div>
-              {stats.idleVehicles > 0 && (
-                <div className="px-2 py-1 bg-orange-50 text-orange-600 rounded-lg text-[10px] font-bold uppercase tracking-wider animate-pulse">
-                  Alert
+          {/* Idle Vehicles - Only for Admin */}
+          {staffRole === 'admin' && (
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center">
+                  <Car className={`w-6 h-6 ${stats.idleVehicles > 0 ? 'text-orange-500' : 'text-slate-600'}`} />
                 </div>
-              )}
+                {stats.idleVehicles > 0 && (
+                  <div className="px-2 py-1 bg-orange-50 text-orange-600 rounded-lg text-[10px] font-bold uppercase tracking-wider animate-pulse">
+                    Alert
+                  </div>
+                )}
+              </div>
+              <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest">Idle Vehicles</h3>
+              <p className={`text-3xl font-black mt-1 ${stats.idleVehicles > 0 ? 'text-orange-600' : 'text-slate-900'}`}>
+                {stats.idleVehicles}
+              </p>
             </div>
-            <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest">Idle Vehicles</h3>
-            <p className={`text-3xl font-black mt-1 ${stats.idleVehicles > 0 ? 'text-orange-600' : 'text-slate-900'}`}>
-              {stats.idleVehicles}
-            </p>
-          </div>
+          )}
 
           {/* New Forms Created */}
           <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
@@ -207,7 +215,9 @@ const AdminDashboard: React.FC = () => {
                 <FileText className="w-6 h-6 text-purple-600" />
               </div>
             </div>
-            <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest">Forms Today</h3>
+            <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest">
+              {staffRole === 'admin' ? 'Forms Today' : 'My Forms Today'}
+            </h3>
             <p className="text-3xl font-black text-slate-900 mt-1">{stats.newFormsToday}</p>
           </div>
 
@@ -230,47 +240,70 @@ const AdminDashboard: React.FC = () => {
 
         {/* Bottom Row: Split View */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left Panel: Agent Sales Leaderboard */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-50 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <TrendingUp className="w-5 h-5 text-emerald-600" />
-                <h2 className="font-bold text-slate-800">Agent Sales Leaderboard</h2>
+          {/* Left Panel: Agent Sales Leaderboard (Admin only) */}
+          {staffRole === 'admin' ? (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <TrendingUp className="w-5 h-5 text-emerald-600" />
+                  <h2 className="font-bold text-slate-800">Agent Sales Leaderboard</h2>
+                </div>
               </div>
-            </div>
-            <div className="p-6">
-              <div className="space-y-6">
-                {leaderboard.length > 0 ? leaderboard.map((agent, idx) => (
-                  <div key={idx} className="space-y-2">
-                    <div className="flex justify-between items-end">
-                      <div>
-                        <p className="text-sm font-bold text-slate-900">{agent.name}</p>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Agent ID: {idx + 101}</p>
+              <div className="p-6">
+                <div className="space-y-6">
+                  {leaderboard.length > 0 ? leaderboard.map((agent, idx) => (
+                    <div key={idx} className="space-y-2">
+                      <div className="flex justify-between items-end">
+                        <div>
+                          <p className="text-sm font-bold text-slate-900">{agent.name}</p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Agent ID: {idx + 101}</p>
+                        </div>
+                        <p className="text-sm font-black text-slate-900">RM {agent.total.toLocaleString()}</p>
                       </div>
-                      <p className="text-sm font-black text-slate-900">RM {agent.total.toLocaleString()}</p>
+                      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-emerald-500 rounded-full transition-all duration-1000" 
+                          style={{ width: `${agent.percentage}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-emerald-500 rounded-full transition-all duration-1000" 
-                        style={{ width: `${agent.percentage}%` }}
-                      />
+                  )) : (
+                    <div className="text-center py-12">
+                      <p className="text-slate-400 text-sm">No sales data recorded yet.</p>
                     </div>
-                  </div>
-                )) : (
-                  <div className="text-center py-12">
-                    <p className="text-slate-400 text-sm">No sales data recorded yet.</p>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            /* Agent View: Personal Progress */
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <TrendingUp className="w-5 h-5 text-emerald-600" />
+                  <h2 className="font-bold text-slate-800">My Sales Progress</h2>
+                </div>
+              </div>
+              <div className="p-12 text-center">
+                <div className="w-24 h-24 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <TrendingUp className="w-10 h-10" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">Keep it up!</h3>
+                <p className="text-slate-500 max-w-xs mx-auto">
+                  You have generated <span className="font-bold text-emerald-600">RM {stats.totalSales.toLocaleString()}</span> in sales so far.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Right Panel: Recent Form History */}
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-slate-50 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Clock className="w-5 h-5 text-blue-600" />
-                <h2 className="font-bold text-slate-800">Recent Form History</h2>
+                <h2 className="font-bold text-slate-800">
+                  {staffRole === 'admin' ? 'Recent Form History' : 'My Recent Forms'}
+                </h2>
               </div>
               <Link to="/forms" className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1">
                 View All <ArrowRight className="w-3 h-3" />

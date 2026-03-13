@@ -3,7 +3,6 @@ import CalendarView from '../components/CalendarView';
 import BookingModal from '../components/BookingModal';
 import FleetModal from '../components/FleetModal';
 import ActivityLogModal from '../components/ActivityLogModal';
-import StaffSelectionModal from '../components/StaffSelectionModal';
 import { Booking, Car, Member, Expense, StaffMember } from '../types';
 import { apiService } from '../services/apiService';
 import { supabase } from '../services/supabase';
@@ -50,12 +49,10 @@ const CalendarPage: React.FC = () => {
       end.setMonth(end.getMonth() + 3);
       end.setDate(0);
 
-      const agentId = staffRole === 'staff' ? currentUserId : undefined;
-
       const [fetchedCars, fetchedMembers, fetchedBookings, fetchedExpenses, fetchedStaff] = await Promise.all([
         apiService.getCars(currentCompanyId),
         apiService.getMembers(currentCompanyId),
-        apiService.getBookings(currentCompanyId, start.toISOString(), end.toISOString(), agentId),
+        apiService.getBookings(currentCompanyId, start.toISOString(), end.toISOString()),
         apiService.getExpenses(currentCompanyId),
         apiService.getStaffMembers(currentCompanyId)
       ]);
@@ -65,9 +62,9 @@ const CalendarPage: React.FC = () => {
       setExpenses(fetchedExpenses);
       setStaffMembers(fetchedStaff);
 
-      // Set current staff from fetched staff members if it matches currentUserId
+      // Set current staff from fetched staff members if it matches currentUserId (designated_uid)
       if (currentUserId) {
-        const found = fetchedStaff.find(s => s.id === currentUserId);
+        const found = fetchedStaff.find(s => s.designated_uid === currentUserId);
         if (found) setCurrentStaff(found);
       }
     } catch (err: any) {
@@ -221,6 +218,16 @@ const CalendarPage: React.FC = () => {
       alert(`Error deleting booking: ${err.message}`);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleUpdateMember = async (id: string, updates: Partial<Member>) => {
+    if (!currentCompanyId) return;
+    try {
+      await apiService.updateMember(id, currentCompanyId, updates);
+      setMembers(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
+    } catch (err: any) {
+      alert(`Error updating member: ${err.message}`);
     }
   };
 
@@ -545,6 +552,8 @@ const CalendarPage: React.FC = () => {
         companyId={currentCompanyId}
         staffMembers={staffMembers}
         currentStaff={currentStaff}
+        currentUserId={currentUserId}
+        staffRole={staffRole}
       />
 
       <FleetModal
@@ -555,10 +564,10 @@ const CalendarPage: React.FC = () => {
         expenses={expenses}
         onAddCar={handleAddCar}
         onDeleteCar={handleDeleteCar}
-        onAddMember={handleAddMember}
-        onDeleteMember={handleDeleteMember}
+        onUpdateMember={handleUpdateMember}
         onAddExpense={handleAddExpense}
         onDeleteExpense={handleDeleteExpense}
+        currentStaff={currentStaff}
       />
 
       <ActivityLogModal

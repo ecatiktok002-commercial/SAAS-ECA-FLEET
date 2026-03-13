@@ -38,12 +38,14 @@ export interface Member {
   billing_address?: string;
   emergency_contact_name?: string;
   emergency_contact_relation?: string;
+  staff_id?: string;
 }
 
 export interface Booking {
   id: string;
   carId: string;
   memberId: string; // Link to Member
+  agent_id?: string; // The staff member who created it
   start: string; // ISO string
   duration: number; // in days
   track?: number; // assigned vertical slot

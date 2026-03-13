@@ -12,6 +12,8 @@ import CustomersPage from './pages/CustomersPage';
 import FleetGuardianPage from './pages/FleetGuardianPage';
 import SubscriberManager from './pages/SubscriberManager';
 
+import ProtectedRoute from './components/ProtectedRoute';
+
 const App: React.FC = () => {
   return (
     <AuthProvider>
@@ -20,13 +22,54 @@ const App: React.FC = () => {
           <Route path="/login" element={<LoginScreen />} />
           
           <Route path="/" element={<Layout />}>
-            <Route index element={<AdminDashboard />} />
-            <Route path="calendar" element={<CalendarPage />} />
-            <Route path="forms/*" element={<DigitalFormPage />} />
-            <Route path="customers" element={<CustomersPage />} />
-            <Route path="fleet" element={<FleetGuardianPage />} />
-            <Route path="staff" element={<StaffManagementPage />} />
-            <Route path="subscribers" element={<SubscriberManager />} />
+            {/* Dashboard: Tier 3 Only */}
+            <Route index element={
+              <ProtectedRoute requiredTier="tier_3">
+                <AdminDashboard />
+              </ProtectedRoute>
+            } />
+            
+            {/* Calendar: Tier 2 or 3 */}
+            <Route path="calendar" element={
+              <ProtectedRoute requiredTier="tier_2">
+                <CalendarPage />
+              </ProtectedRoute>
+            } />
+            
+            {/* Digital Forms: All Tiers */}
+            <Route path="forms/*" element={
+              <ProtectedRoute>
+                <DigitalFormPage />
+              </ProtectedRoute>
+            } />
+            
+            {/* Customers: All Tiers */}
+            <Route path="customers" element={
+              <ProtectedRoute>
+                <CustomersPage />
+              </ProtectedRoute>
+            } />
+            
+            {/* Fleet Guardian: Tier 3 Only */}
+            <Route path="fleet" element={
+              <ProtectedRoute requiredTier="tier_3">
+                <FleetGuardianPage />
+              </ProtectedRoute>
+            } />
+            
+            {/* Staff Management: Admin Only */}
+            <Route path="staff" element={
+              <ProtectedRoute adminOnly>
+                <StaffManagementPage />
+              </ProtectedRoute>
+            } />
+            
+            {/* Subscriber Manager: Superadmin Only (Handled by ProtectedRoute logic if needed, but here we just use adminOnly or explicit check) */}
+            <Route path="subscribers" element={
+              <ProtectedRoute adminOnly>
+                <SubscriberManager />
+              </ProtectedRoute>
+            } />
           </Route>
           
           <Route path="*" element={<Navigate to="/" replace />} />

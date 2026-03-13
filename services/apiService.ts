@@ -80,6 +80,7 @@ const mapBookingFromDB = (dbBooking: any): Booking => ({
   id: dbBooking.id,
   carId: dbBooking.car_id,
   memberId: dbBooking.member_id,
+  agent_id: dbBooking.agent_id,
   start: dbBooking.start,
   duration: dbBooking.duration,
   status: dbBooking.status,
@@ -89,6 +90,7 @@ const mapBookingFromDB = (dbBooking: any): Booking => ({
 const mapBookingToDB = (booking: any) => ({
   car_id: booking.carId || booking.car_id,
   member_id: booking.memberId || booking.member_id,
+  agent_id: booking.agent_id,
   start: booking.start,
   duration: booking.duration,
   status: booking.status,
@@ -104,7 +106,8 @@ const mapMemberFromDB = (dbMember: any): Member => ({
   identity_number: dbMember.identity_number,
   billing_address: dbMember.billing_address,
   emergency_contact_name: dbMember.emergency_contact_name,
-  emergency_contact_relation: dbMember.emergency_contact_relation
+  emergency_contact_relation: dbMember.emergency_contact_relation,
+  staff_id: dbMember.staff_id
 });
 
 const mapMemberToDB = (member: any) => ({
@@ -115,7 +118,8 @@ const mapMemberToDB = (member: any) => ({
   identity_number: member.identity_number,
   billing_address: member.billing_address,
   emergency_contact_name: member.emergency_contact_name,
-  emergency_contact_relation: member.emergency_contact_relation
+  emergency_contact_relation: member.emergency_contact_relation,
+  staff_id: member.staff_id
 });
 
 const mapLogFromDB = (dbLog: any): LogEntry => ({
@@ -302,12 +306,16 @@ export const apiService = {
   },
 
   // Members
-  async getMembers(companyId: string): Promise<Member[]> {
+  async getMembers(companyId: string, staffId?: string): Promise<Member[]> {
     return withRetry(async () => {
       let query = supabase.from('members').select('*');
       
       if (companyId !== 'superadmin') {
         query = query.eq('company_id', companyId);
+      }
+
+      if (staffId) {
+        query = query.eq('staff_id', staffId);
       }
 
       const { data, error } = await query;
@@ -346,6 +354,24 @@ export const apiService = {
       logSupabaseError('deleteMember', error);
       throw new Error(error.message || 'Failed to delete member');
     }
+  },
+
+  async updateMember(id: string, companyId: string, updates: Partial<Member>): Promise<Member> {
+    return withRetry(async () => {
+      const { data, error } = await supabase
+        .from('members')
+        .update(mapMemberToDB(updates))
+        .eq('id', id)
+        .eq('company_id', companyId)
+        .select()
+        .single();
+
+      if (error) {
+        logSupabaseError('updateMember', error);
+        throw new Error(error.message || 'Failed to update member');
+      }
+      return mapMemberFromDB(data);
+    });
   },
 
   async searchMemberByIdentity(identityNumber: string, companyId: string): Promise<Member | null> {
@@ -449,9 +475,16 @@ export const apiService = {
         if (!data || data.length === 0) throw new Error('Update failed');
         return mapBookingFromDB(data[0]);
       } else {
+        // For new bookings, ensure agent_id is set
+        let finalBooking = { ...booking };
+        if (!finalBooking.agent_id) {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) finalBooking.agent_id = user.id;
+        }
+
         const { data, error } = await supabase
           .from('bookings')
-          .insert([{ ...mapBookingToDB(booking), company_id: companyId }])
+          .insert([{ ...mapBookingToDB(finalBooking), company_id: companyId }])
           .select();
         
         if (error) {

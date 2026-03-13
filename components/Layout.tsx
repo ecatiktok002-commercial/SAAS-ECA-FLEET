@@ -1,11 +1,63 @@
-import React from 'react';
-import { Outlet, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Outlet, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { useAuth } from '../context/AuthContext';
 import SupabaseConnectionBanner from './SupabaseConnectionBanner';
 
 const Layout: React.FC = () => {
   const { companyId, staffRole, subscriptionTier, isLoading } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isLoading || !companyId || !staffRole || !subscriptionTier) return;
+
+    const path = location.pathname;
+    const isAdmin = staffRole === 'admin';
+    const isStaff = staffRole === 'staff';
+    const isSuperAdmin = companyId === 'superadmin';
+
+    if (isSuperAdmin) return;
+
+    // Layer 2: Role Gate (Data Access)
+    // Agent Role: NEVER sees /staff-management
+    if (isStaff && path.startsWith('/staff')) {
+      navigate('/', { replace: true });
+      return;
+    }
+
+    // Layer 1: Tier Gate (Feature Access)
+    // Tier 1: Only /forms
+    if (subscriptionTier === 'tier_1') {
+      // Agent Tier 1 cannot see Dashboard
+      if (isStaff && path === '/') {
+        navigate('/forms', { replace: true });
+        return;
+      }
+      const allowedPaths = ['/', '/forms', '/customers'];
+      const isAllowed = allowedPaths.some(p => path === p || path.startsWith(p + '/'));
+      if (!isAllowed && path !== '/staff') { // Staff is handled by Role Gate
+        navigate('/forms', { replace: true });
+      }
+    }
+
+    // Tier 2: Only /calendar
+    if (subscriptionTier === 'tier_2') {
+      // Agent Tier 2 cannot see Dashboard
+      if (isStaff && path === '/') {
+        navigate('/calendar', { replace: true });
+        return;
+      }
+      const allowedPaths = ['/', '/calendar', '/customers'];
+      const isAllowed = allowedPaths.some(p => path === p || path.startsWith(p + '/'));
+      if (!isAllowed && path !== '/staff') {
+        navigate('/calendar', { replace: true });
+      }
+    }
+
+    // Tier 3: All (Forms, Calendar, Fleet)
+    // No extra restrictions for Tier 3 other than Role Gate
+  }, [location.pathname, companyId, staffRole, subscriptionTier, isLoading, navigate]);
 
   if (isLoading) {
     return (

@@ -3,22 +3,23 @@ import { AlertTriangle, Settings, ExternalLink, WifiOff } from 'lucide-react';
 
 const SupabaseConnectionBanner: React.FC = () => {
   const [isUnreachable, setIsUnreachable] = useState(false);
-  const [isDefault, setIsDefault] = useState(false);
 
   useEffect(() => {
     const checkConnection = async () => {
-      const url = import.meta.env.VITE_SUPABASE_URL || 'https://czurhanyrjgeicnbrnev.supabase.co';
+      const url = import.meta.env.VITE_SUPABASE_URL;
       const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
       
-      setIsDefault(url.includes('czurhanyrjgeicnbrnev'));
+      if (!url || !key) return;
 
       try {
         const res = await fetch(`${url.replace(/\/$/, '')}/rest/v1/`, { 
           method: 'GET', 
-          headers: { 'apikey': key || '' } 
+          headers: { 'apikey': key } 
         });
         if (!res.ok && res.status !== 401) {
           setIsUnreachable(true);
+        } else {
+          setIsUnreachable(false);
         }
       } catch (err) {
         setIsUnreachable(true);
@@ -42,9 +43,7 @@ const SupabaseConnectionBanner: React.FC = () => {
         </div>
         <div className="p-6">
           <p className="text-slate-600 text-sm leading-relaxed mb-6">
-            {isDefault 
-              ? "The default Supabase demo project is currently unreachable or paused. This prevents the app from loading data."
-              : "Could not connect to your Supabase project. Please check if it's paused or if your network is blocking the connection."}
+            Could not connect to your Supabase project. Please check if it's paused or if your network is blocking the connection.
           </p>
           
           <div className="space-y-3">

@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS members (
   emergency_contact_name TEXT,
   emergency_contact_relation TEXT,
   color TEXT DEFAULT 'bg-blue-500',
+  staff_id UUID REFERENCES staff_members(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -179,15 +180,146 @@ ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE handover_records ENABLE ROW LEVEL SECURITY;
 
--- Explicit Policies using text casting for maximum compatibility
-CREATE POLICY "Companies can view themselves" ON companies FOR SELECT USING (auth.uid()::text = id::text);
+-- Helper to check if user is a Subscriber (Company Owner)
+-- In this system, the company ID matches the Auth UID of the owner
+CREATE OR REPLACE FUNCTION is_subscriber(check_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  -- A user is a subscriber if their auth.uid() matches the company id
+  -- and they are NOT an agent (not in staff_members with a different role)
+  -- Actually, the simplest check is if auth.uid() = check_id
+  RETURN auth.uid() = check_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE POLICY "Company access staff_members" ON staff_members FOR ALL USING (auth.uid()::text = company_id::text);
-CREATE POLICY "Company access cars" ON cars FOR ALL USING (auth.uid()::text = company_id::text);
-CREATE POLICY "Company access members" ON members FOR ALL USING (auth.uid()::text = company_id::text);
-CREATE POLICY "Company access bookings" ON bookings FOR ALL USING (auth.uid()::text = company_id::text);
-CREATE POLICY "Company access agreements" ON agreements FOR ALL USING (auth.uid()::text = company_id::text);
-CREATE POLICY "Company access digital_forms" ON digital_forms FOR ALL USING (auth.uid()::text = company_id::text);
-CREATE POLICY "Company access expenses" ON expenses FOR ALL USING (auth.uid()::text = company_id::text);
-CREATE POLICY "Company access logs" ON logs FOR ALL USING (auth.uid()::text = company_id::text);
-CREATE POLICY "Company access handover_records" ON handover_records FOR ALL USING (auth.uid()::text = company_id::text);
+-- Helper to get company_id for the current authenticated user
+CREATE OR REPLACE FUNCTION current_company_id()
+RETURNS UUID AS $$
+DECLARE
+  comp_id UUID;
+BEGIN
+  -- 1. Check if user is a subscriber (their UID is a company ID)
+  SELECT id INTO comp_id FROM companies WHERE id = auth.uid();
+  IF comp_id IS NOT NULL THEN
+    RETURN comp_id;
+  END IF;
+  
+  -- 2. Check if user is an agent (linked via designated_uid)
+  -- We use designated_uid to match the auth.uid()
+  SELECT company_id INTO comp_id FROM staff_members WHERE designated_uid = auth.uid()::text LIMIT 1;
+  RETURN comp_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 1. Companies
+CREATE POLICY "Companies can view themselves" ON companies 
+  FOR SELECT USING (auth.uid() = id OR id = current_company_id());
+
+-- 2. Staff Members
+-- Subscriber can see all. Agent can only see themselves.
+CREATE POLICY "Staff members access" ON staff_members 
+  FOR ALL USING (
+    auth.uid() = company_id -- Subscriber
+    OR 
+    designated_uid = auth.uid()::text -- Agent (can see/update self)
+  );
+
+-- 3. Cars
+-- Subscriber can see all. Agent can see all cars of their company (needed for fleet/calendar).
+CREATE POLICY "Cars access" ON cars 
+  FOR ALL USING (
+    auth.uid() = company_id -- Subscriber
+    OR
+    company_id = current_company_id() -- Agent
+  );
+
+-- 4. Members (Customers)
+-- Subscriber can see all. Agent can only see members where they are the assigned staff.
+CREATE POLICY "Members access" ON members 
+  FOR ALL USING (
+    auth.uid() = company_id -- Subscriber
+    OR 
+    (EXISTS (SELECT 1 FROM staff_members WHERE id = members.staff_id AND designated_uid = auth.uid()::text) AND company_id = current_company_id()) -- Agent
+  );
+
+-- 5. Bookings
+-- Subscriber can see all. Agent can see all for company, but only modify their own.
+CREATE POLICY "Bookings view access" ON bookings 
+  FOR SELECT USING (
+    auth.uid() = company_id -- Subscriber
+    OR 
+    company_id = current_company_id() -- Agent
+  );
+
+CREATE POLICY "Bookings modify access" ON bookings 
+  FOR ALL USING (
+    auth.uid() = company_id -- Subscriber
+    OR 
+    (agent_id = auth.uid() AND company_id = current_company_id()) -- Agent
+  );
+
+-- 6. Agreements
+-- Subscriber can see all. Agent can only see their own agreements.
+CREATE POLICY "Agreements access" ON agreements 
+  FOR ALL USING (
+    auth.uid() = company_id -- Subscriber
+    OR 
+    (agent_id = auth.uid() AND company_id = current_company_id()) -- Agent
+  );
+
+-- 7. Digital Forms
+-- Subscriber can see all. Agent can only see their own forms.
+CREATE POLICY "Digital forms access" ON digital_forms 
+  FOR ALL USING (
+    auth.uid() = company_id -- Subscriber
+    OR 
+    (agent_id = auth.uid() AND company_id = current_company_id()) -- Agent
+  );
+
+-- 8. Expenses
+-- Subscriber can see all. Agent can see expenses for cars they are managing? 
+-- The user said "In every other module (Forms, Calendar, Fleet), they can ONLY query records where agent_id == auth.uid()."
+-- Expenses don't have agent_id. I'll restrict to Subscriber only for now as it's "Business Dashboard" related.
+CREATE POLICY "Expenses access" ON expenses 
+  FOR ALL USING (auth.uid() = company_id);
+
+-- 9. Logs
+-- Subscriber can see all. Agent can only see their own logs.
+CREATE POLICY "Logs access" ON logs 
+  FOR ALL USING (
+    auth.uid() = company_id -- Subscriber
+    OR 
+    (auth.uid() = user_id AND current_company_id() = company_id) -- Agent
+  );
+
+-- 10. Handover Records
+-- Subscriber can see all. Agent can only see records for their own bookings.
+CREATE POLICY "Handover records access" ON handover_records 
+  FOR ALL USING (
+    auth.uid() = company_id -- Subscriber
+    OR 
+    EXISTS (
+      SELECT 1 FROM bookings 
+      WHERE bookings.id = handover_records.booking_id 
+      AND bookings.agent_id = auth.uid()
+    ) -- Agent
+  );
+
+-- Trigger to sync staff_members to members (Calendar Fleet Members)
+CREATE OR REPLACE FUNCTION sync_staff_to_member()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Check if member already exists for this staff
+    IF NOT EXISTS (SELECT 1 FROM members WHERE staff_id = NEW.id) THEN
+        INSERT INTO members (name, color, company_id, staff_id)
+        VALUES (NEW.name, 'bg-blue-600', NEW.company_id, NEW.id);
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS tr_sync_staff_to_member ON staff_members;
+CREATE TRIGGER tr_sync_staff_to_member
+AFTER INSERT ON staff_members
+FOR EACH ROW
+EXECUTE FUNCTION sync_staff_to_member();

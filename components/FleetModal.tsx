@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Car, Member, Expense } from '../types';
+import { Car, Member, Expense, StaffMember } from '../types';
 
 // Modal for managing Fleet, Members, and Expenses
 interface FleetModalProps {
@@ -11,10 +11,10 @@ interface FleetModalProps {
   expenses: Expense[];
   onAddCar: (car: Omit<Car, 'id'>) => void;
   onDeleteCar: (id: string) => void;
-  onAddMember: (member: Omit<Member, 'id'>) => void;
-  onDeleteMember: (id: string) => void;
+  onUpdateMember: (id: string, updates: Partial<Member>) => void;
   onAddExpense: (expense: Omit<Expense, 'id'>) => void;
   onDeleteExpense: (id: string) => void;
+  currentStaff?: StaffMember | null;
 }
 
 const COLORS = [
@@ -35,7 +35,7 @@ const COLORS = [
 const EXPENSE_CATEGORIES = ['Car Wash', 'Service', 'Fuel', 'Maintenance', 'Insurance', 'Other'];
 
 const FleetModal: React.FC<FleetModalProps> = ({ 
-  isOpen, onClose, cars, members, expenses, onAddCar, onDeleteCar, onAddMember, onDeleteMember, onAddExpense, onDeleteExpense 
+  isOpen, onClose, cars, members, expenses, onAddCar, onDeleteCar, onUpdateMember, onAddExpense, onDeleteExpense, currentStaff
 }) => {
   const [activeTab, setActiveTab] = useState<'vehicles' | 'members' | 'expenses'>('vehicles');
   
@@ -43,9 +43,8 @@ const FleetModal: React.FC<FleetModalProps> = ({
   const [plate, setPlate] = useState('');
   const [carName, setCarName] = useState('');
 
-  // Member State
-  const [memberName, setMemberName] = useState('');
-  const [memberColor, setMemberColor] = useState(COLORS[0].value);
+  // Member State - for editing own color
+  const [isEditingColor, setIsEditingColor] = useState(false);
 
   // Expense State
   const [expenseCarId, setExpenseCarId] = useState('');
@@ -66,16 +65,6 @@ const FleetModal: React.FC<FleetModalProps> = ({
     });
     setPlate('');
     setCarName('');
-  };
-
-  const handleAddMember = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!memberName) return;
-    onAddMember({
-      name: memberName,
-      color: memberColor
-    });
-    setMemberName('');
   };
 
   const handleAddExpense = (e: React.FormEvent) => {
@@ -193,68 +182,71 @@ const FleetModal: React.FC<FleetModalProps> = ({
           )}
 
           {activeTab === 'members' && (
-            <>
-               {/* Add New Member */}
-               <section>
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Add Fleet Member</h3>
-                <form onSubmit={handleAddMember} className="bg-slate-50 p-4 rounded-2xl space-y-4">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Member Name</label>
-                    <input 
-                      type="text"
-                      placeholder="e.g. John Doe"
-                      value={memberName}
-                      onChange={(e) => setMemberName(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">Display Color</label>
-                    <div className="flex flex-wrap gap-2">
-                      {COLORS.map(c => (
-                        <button
-                          key={c.value}
-                          type="button"
-                          onClick={() => setMemberColor(c.value)}
-                          className={`w-8 h-8 rounded-full ${c.value} ${memberColor === c.value ? 'ring-4 ring-offset-2 ring-blue-400' : ''} transition-all`}
-                          title={c.name}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <button 
-                    type="submit"
-                    className="w-full py-2.5 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900 transition-colors"
-                  >
-                    Register Member
-                  </button>
-                </form>
-              </section>
+            <div className="space-y-6">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <h4 className="text-sm font-semibold text-slate-900 mb-1">Registered Members</h4>
+                <p className="text-xs text-slate-500">
+                  Members are automatically synced from Staff Management. You can only edit your own display color.
+                </p>
+              </div>
 
-              {/* List Members */}
-              <section>
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Registered Members ({members.length})</h3>
-                <div className="space-y-2">
-                  {members.map(member => (
-                    <div key={member.id} className="flex items-center justify-between p-3 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors">
+              <div className="space-y-3">
+                {members.map((member) => {
+                  const isOwnMember = currentStaff && member.staff_id === currentStaff.id;
+                  return (
+                    <div key={member.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
                       <div className="flex items-center gap-3">
                         <div className={`w-8 h-8 rounded-full ${member.color} flex items-center justify-center text-white text-xs font-bold shadow-sm`}>
                           {member.name.substring(0,2).toUpperCase()}
                         </div>
-                        <div className="text-sm font-bold text-slate-800">{member.name}</div>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-slate-900">{member.name}</span>
+                          {isOwnMember && (
+                            <span className="text-[10px] text-blue-600 font-bold uppercase tracking-wider">
+                              You
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <button 
-                        onClick={() => onDeleteMember(member.id)}
-                        className="text-slate-300 hover:text-red-500 transition-colors p-1"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                      </button>
+                      
+                      {isOwnMember && (
+                        <div className="flex items-center gap-2">
+                          {isEditingColor ? (
+                            <div className="flex flex-wrap gap-1 max-w-[200px] justify-end">
+                              {COLORS.map((c) => (
+                                <button
+                                  key={c.value}
+                                  onClick={() => {
+                                    onUpdateMember(member.id, { color: c.value });
+                                    setIsEditingColor(false);
+                                  }}
+                                  className={`w-6 h-6 rounded-full ${c.value} border-2 ${member.color === c.value ? 'border-slate-900' : 'border-transparent'} hover:scale-110 transition-transform`}
+                                  title={c.name}
+                                />
+                              ))}
+                              <button
+                                onClick={() => setIsEditingColor(false)}
+                                className="text-[10px] text-slate-500 hover:text-slate-700 ml-2"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setIsEditingColor(true)}
+                              className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                            >
+                              Edit Color
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  ))}
-                  {members.length === 0 && <div className="text-center py-4 text-slate-400 text-sm">No members registered.</div>}
-                </div>
-              </section>
-            </>
+                  );
+                })}
+                {members.length === 0 && <div className="text-center py-4 text-slate-400 text-sm">No members registered.</div>}
+              </div>
+            </div>
           )}
 
           {activeTab === 'expenses' && (

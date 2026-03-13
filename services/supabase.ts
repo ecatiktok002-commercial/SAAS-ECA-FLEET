@@ -10,38 +10,16 @@ const isValidSupabaseUrl = (url: string) => {
   }
 };
 
-const DEFAULT_URL = 'https://czurhanyrjgeicnbrnev.supabase.co';
-const DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6dXJoYW55cmpnZWljbmJybmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4NTExMDEsImV4cCI6MjA4NzQyNzEwMX0.LV4hsQEazpbv8AcLDrEASg8s3uGKmvMJ0FrvMOX6AWQ';
-
 // Support both VITE_ and NEXT_PUBLIC_ prefixes for environment variables
-const rawUrl = (
-  import.meta.env.VITE_SUPABASE_URL || 
-  import.meta.env.NEXT_PUBLIC_SUPABASE_URL || 
-  DEFAULT_URL
-).trim().replace(/\/$/, '');
-
-const rawKey = (
-  import.meta.env.VITE_SUPABASE_ANON_KEY || 
-  import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
-  DEFAULT_KEY
-).trim();
-
-// Final validation - if the provided URL is invalid, fallback to default
-const SUPABASE_URL = isValidSupabaseUrl(rawUrl) ? rawUrl : DEFAULT_URL;
-const SUPABASE_KEY = rawKey || DEFAULT_KEY;
-
-if (!isValidSupabaseUrl(rawUrl) && (import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL)) {
-  console.warn('Invalid Supabase URL provided in environment variables. Falling back to demo project.');
-}
+const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL || '').trim().replace(/\/$/, '');
+const SUPABASE_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim();
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error('Supabase configuration is missing. Please check your environment variables.');
+  console.error('Supabase configuration is missing. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment variables.');
 }
 
 // Diagnostic check to help users identify network issues
-if (typeof window !== 'undefined') {
-  const isDefaultProject = SUPABASE_URL.includes('czurhanyrjgeicnbrnev');
-  
+if (typeof window !== 'undefined' && SUPABASE_URL && SUPABASE_KEY) {
   fetch(`${SUPABASE_URL}/rest/v1/`, { 
     method: 'GET', 
     headers: { 'apikey': SUPABASE_KEY } 
@@ -54,10 +32,7 @@ if (typeof window !== 'undefined') {
       }
     })
     .catch(() => {
-      const message = isDefaultProject 
-        ? 'The default Supabase demo project appears to be unreachable or paused. Please set up your own Supabase project in the Settings menu for full functionality.'
-        : 'Could not reach your Supabase URL. Please check if the project is paused or if your network is blocking the connection.';
-      console.error(`Supabase Connectivity Error: ${message}`);
+      console.error('Supabase Connectivity Error: Could not reach your Supabase URL. Please check if the project is paused or if your network is blocking the connection.');
     });
 }
 

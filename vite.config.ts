@@ -23,13 +23,13 @@ export default defineConfig(({ mode }) => {
     'SUPABASE_ANON_KEY',
     'VITE_SUPABASE_KEY',
     'SUPABASE_KEY'
-  ]) || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6dXJoYW55cmpnZWljbmJybmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4NTExMDEsImV4cCI6MjA4NzQyNzEwMX0.LV4hsQEazpbv8AcLDrEASg8s3uGKmvMJ0FrvMOX6AWQ';
+  ]);
 
   // Resolve Supabase URL
   const supabaseUrl = getEnvVar([
     'VITE_SUPABASE_URL',
     'SUPABASE_URL'
-  ]) || 'https://czurhanyrjgeicnbrnev.supabase.co';
+  ]);
 
   // Generic API Key (for other services if needed)
   const apiKey = getEnvVar(['API_KEY', 'VITE_API_KEY']);

@@ -23,10 +23,12 @@ interface BookingModalProps {
   companyId: string | null;
   staffMembers?: StaffMember[];
   currentStaff?: StaffMember | null;
+  currentUserId?: string | null;
+  staffRole?: string | null;
 }
 
 const BookingModal: React.FC<BookingModalProps> = ({ 
-  isOpen, onClose, initialDate, editingBooking, onSave, onDelete, existingBookings, cars, members, preselectedCarId, companyId, staffMembers = [], currentStaff
+  isOpen, onClose, initialDate, editingBooking, onSave, onDelete, existingBookings, cars, members, preselectedCarId, companyId, staffMembers = [], currentStaff, currentUserId, staffRole
 }) => {
   // Modes: 'category' (Auto-assign based on model) or 'specific' (Manual plate selection)
   const [bookingMode, setBookingMode] = useState<'category' | 'specific'>('category');
@@ -57,15 +59,10 @@ const BookingModal: React.FC<BookingModalProps> = ({
   const [pendingAction, setPendingAction] = useState<{ type: 'save' | 'delete', data?: any } | null>(null);
   const [selectedStaffMember, setSelectedStaffMember] = useState<StaffMember | null>(null);
 
-  // Initialize staff name from currentStaff or local storage
+  // Initialize staff name from currentStaff
   useEffect(() => {
-    if (isOpen) {
-      if (currentStaff) {
-        setStaffName(currentStaff.name);
-      } else {
-        const lastUsedStaff = localStorage.getItem('last_staff_name');
-        if (lastUsedStaff) setStaffName(lastUsedStaff);
-      }
+    if (isOpen && currentStaff) {
+      setStaffName(currentStaff.name);
     }
   }, [isOpen, currentStaff]);
 
@@ -184,6 +181,14 @@ const BookingModal: React.FC<BookingModalProps> = ({
         setBookingMode('category');
         setCarId(preselectedCarId || '');
         
+        // Pre-select memberId if it corresponds to currentStaff
+        if (currentStaff) {
+          const ownMember = members.find(m => m.staff_id === currentStaff.id);
+          if (ownMember) setMemberId(ownMember.id);
+        } else {
+          setMemberId('');
+        }
+        
         // If a car was clicked on the calendar row (preselectedCarId), select its model
         if (preselectedCarId) {
           const car = cars.find(c => c.id === preselectedCarId);
@@ -191,8 +196,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
         } else {
           setSelectedModel('');
         }
-
-        setMemberId('');
+        
         setDuration(1);
         
         const now = new Date();
@@ -253,8 +257,16 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
   if (!isOpen) return null;
 
+  // Privacy Shield Logic
+  const isEditable = useMemo(() => {
+    if (!editingBooking) return true; // New bookings are always editable
+    if (staffRole === 'admin') return true; // Subscriber has full access
+    return editingBooking.agent_id === currentUserId; // Agents can only edit their own
+  }, [editingBooking, staffRole, currentUserId]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isEditable) return; // Guard
     setError('');
     setUpgradeSuggestion(null);
 
@@ -397,7 +409,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
       <div className="bg-white rounded-2xl md:rounded-3xl shadow-2xl w-full max-w-md my-auto animate-in fade-in zoom-in-95 duration-200">
         <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 rounded-t-3xl z-10">
           <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-            {editingBooking ? 'Edit Booking' : 'New Reservation'}
+            {editingBooking ? (isEditable ? 'Edit Booking' : 'View Booking') : 'New Reservation'}
           </h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors p-2 rounded-full hover:bg-slate-50">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -405,6 +417,18 @@ const BookingModal: React.FC<BookingModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {/* Privacy Shield Notice */}
+          {!isEditable && (
+            <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-center gap-3">
+              <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 shrink-0">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m0 0v2m0-2h2m-2 0H10m11-3V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2v-4z"/></svg>
+              </div>
+              <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider leading-tight">
+                Privacy Shield Active: This booking belongs to another agent and cannot be modified.
+              </p>
+            </div>
+          )}
+
           {/* Booking Mode Toggles */}
           {!editingBooking && (
             <div className="flex bg-slate-100 p-1 rounded-xl">
@@ -431,7 +455,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
               type="datetime-local"
               value={selectedDateTimeStr}
               onChange={(e) => setSelectedDateTimeStr(e.target.value)}
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all font-semibold text-slate-700 text-sm"
+              disabled={!isEditable}
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all font-semibold text-slate-700 text-sm disabled:opacity-60"
             />
           </div>
 
@@ -447,7 +472,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
                      setError('');
                      setUpgradeSuggestion(null);
                    }}
-                   className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:border-transparent outline-none transition-all appearance-none font-semibold text-sm ${isSelectedModelFull ? 'bg-rose-50 border-rose-300 text-rose-800 focus:ring-rose-500' : 'bg-slate-50 border-slate-200 text-slate-700 focus:ring-slate-900'}`}
+                   disabled={!isEditable}
+                   className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:border-transparent outline-none transition-all appearance-none font-semibold text-sm disabled:opacity-60 ${isSelectedModelFull ? 'bg-rose-50 border-rose-300 text-rose-800 focus:ring-rose-500' : 'bg-slate-50 border-slate-200 text-slate-700 focus:ring-slate-900'}`}
                  >
                    <option value="">-- Select Model --</option>
                    {uniqueModels.map(model => {
@@ -479,7 +505,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 <select 
                   value={carId} 
                   onChange={(e) => setCarId(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all appearance-none font-semibold text-slate-700 text-sm"
+                  disabled={!isEditable}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all appearance-none font-semibold text-slate-700 text-sm disabled:opacity-60"
                 >
                   <option value="">-- Select Available Car --</option>
                   {dropdownCars.map(car => (
@@ -493,14 +520,15 @@ const BookingModal: React.FC<BookingModalProps> = ({
             </div>
           )}
 
-          <div className="hidden">
+          <div>
             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2 tracking-wider">Staff In-charge</label>
             <div className="relative flex gap-2">
               <div className="relative flex-1">
                 <select 
                   value={staffName} 
                   onChange={(e) => setStaffName(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all appearance-none font-semibold text-slate-700 text-sm"
+                  disabled={!isEditable}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all appearance-none font-semibold text-slate-700 text-sm disabled:opacity-60"
                 >
                   <option value="">-- Select Staff --</option>
                   {staffMembers.map(staff => (
@@ -520,7 +548,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
               <select 
                 value={memberId} 
                 onChange={(e) => setMemberId(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all appearance-none font-semibold text-slate-700 text-sm"
+                disabled={!isEditable}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all appearance-none font-semibold text-slate-700 text-sm disabled:opacity-60"
               >
                 <option value="">-- Select Member --</option>
                 {members.map(member => (
@@ -545,9 +574,10 @@ const BookingModal: React.FC<BookingModalProps> = ({
                     id="earlyReturn"
                     checked={isEarlyReturn}
                     onChange={(e) => setIsEarlyReturn(e.target.checked)}
-                    className="w-4 h-4 text-slate-900 rounded border-slate-300 focus:ring-slate-900 accent-slate-900"
+                    disabled={!isEditable}
+                    className="w-4 h-4 text-slate-900 rounded border-slate-300 focus:ring-slate-900 accent-slate-900 disabled:opacity-60"
                   />
-                  <label htmlFor="earlyReturn" className="text-[10px] font-bold text-blue-600 uppercase tracking-wider cursor-pointer select-none hover:text-blue-800">
+                  <label htmlFor="earlyReturn" className="text-[10px] font-bold text-blue-600 uppercase tracking-wider cursor-pointer select-none hover:text-blue-800 disabled:opacity-60">
                     If Customer Early Return
                   </label>
                 </div>
@@ -561,7 +591,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
               max="365"
               value={duration}
               onChange={(e) => setDuration(parseFloat(e.target.value))}
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all font-semibold text-slate-700 text-sm"
+              disabled={!isEditable}
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all font-semibold text-slate-700 text-sm disabled:opacity-60"
             />
           </div>
 
@@ -620,15 +651,17 @@ const BookingModal: React.FC<BookingModalProps> = ({
               </div>
             )}
 
-            <button 
-              type="submit"
-              disabled={(!carId && !selectedModel) || !memberId}
-              className="w-full py-4 bg-slate-900 rounded-xl text-white font-bold uppercase text-xs tracking-widest hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
-            >
-              {editingBooking ? 'Update Booking' : 'Confirm'}
-            </button>
+            {isEditable && (
+              <button 
+                type="submit"
+                disabled={(!carId && !selectedModel) || !memberId}
+                className="w-full py-4 bg-slate-900 rounded-xl text-white font-bold uppercase text-xs tracking-widest hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
+              >
+                {editingBooking ? 'Update Booking' : 'Confirm'}
+              </button>
+            )}
             
-            {editingBooking && onDelete && (
+            {editingBooking && onDelete && isEditable && (
               <button 
                 type="button" 
                 onClick={handleDeleteClick}

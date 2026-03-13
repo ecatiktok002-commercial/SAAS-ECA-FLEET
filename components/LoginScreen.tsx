@@ -179,7 +179,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         if (onLogin) onLogin('superadmin');
       }
     } catch (err: any) {
-      setError(err.message || 'Authentication failed. Please ensure the password for superadmin@ecafleet.com is set to "superadmin".');
+      let errorMessage = err.message || 'Authentication failed.';
+      
+      if (errorMessage.includes('Invalid API key')) {
+        errorMessage = 'Supabase Configuration Error: The API Key provided is invalid for this project URL. Please check your environment variables in the Settings menu.';
+      } else if (errorMessage.includes('Invalid login credentials')) {
+        errorMessage = 'Invalid credentials for Master Admin. Please ensure the password for superadmin@ecafleet.com is set to "superadmin".';
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
