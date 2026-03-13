@@ -30,7 +30,13 @@ const logSupabaseError = (context: string, error: any) => {
       
       console.error(`Supabase Schema Error: The column '${columnName}' is missing from table '${table}'.`);
       console.error(`FIX: Run the following SQL in your Supabase SQL Editor:`);
-      console.error(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${columnName} ${type};`);
+      const sql = `ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${columnName} ${type};`;
+      console.error(sql);
+
+      // Dispatch custom event for UI feedback
+      window.dispatchEvent(new CustomEvent('supabase-schema-error', { 
+        detail: { table, column: columnName, type, sql } 
+      }));
     } else if (tableName) {
       console.error(`Supabase Schema Error: The table '${tableName}' does not exist. Please run the SQL schema in your Supabase SQL Editor.`);
     } else {

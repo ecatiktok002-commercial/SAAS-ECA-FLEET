@@ -3,6 +3,7 @@ import { Outlet, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { useAuth } from '../context/AuthContext';
 import SupabaseConnectionBanner from './SupabaseConnectionBanner';
+import SchemaErrorBanner from './SchemaErrorBanner';
 
 const Layout: React.FC = () => {
   const { companyId, staffRole, subscriptionTier, isLoading } = useAuth();
@@ -79,6 +80,7 @@ const Layout: React.FC = () => {
         <Outlet />
       </main>
       <SupabaseConnectionBanner />
+      <SchemaErrorBanner />
     </div>
   );
 };
