@@ -3,6 +3,20 @@
 -- Run this in your Supabase SQL Editor (https://supabase.com/dashboard)
 -- ===============================================================
 
+-- WARNING: UNCOMMENT THE FOLLOWING LINES TO COMPLETELY RESET YOUR DATABASE
+-- THIS WILL DELETE ALL EXISTING DATA. ONLY DO THIS IF YOU WANT A FRESH START.
+-- DROP TABLE IF EXISTS handover_records CASCADE;
+-- DROP TABLE IF EXISTS logs CASCADE;
+-- DROP TABLE IF EXISTS expenses CASCADE;
+-- DROP TABLE IF EXISTS digital_forms CASCADE;
+-- DROP TABLE IF EXISTS agreements CASCADE;
+-- DROP TABLE IF EXISTS bookings CASCADE;
+-- DROP TABLE IF EXISTS members CASCADE;
+-- DROP TABLE IF EXISTS cars CASCADE;
+-- DROP TABLE IF EXISTS staff_members CASCADE;
+-- DROP TABLE IF EXISTS companies CASCADE;
+-- DROP FUNCTION IF EXISTS verify_login_uid CASCADE;
+
 -- TROUBLESHOOTING: Missing Columns
 -- If you get an error like "Could not find the 'designated_uid' column", 
 -- it means your table exists but is missing a column. Run these fixes:
@@ -31,6 +45,15 @@
 -- ALTER TABLE cars ADD COLUMN IF NOT EXISTS inspection_expiry DATE;
 -- ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'staff';
 -- ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS pin_hash TEXT;
+--
+-- FIX MISSING SUBSCRIBER_ID ERRORS:
+-- ALTER TABLE members ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES companies(id) ON DELETE CASCADE;
+-- ALTER TABLE bookings ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES companies(id) ON DELETE CASCADE;
+-- ALTER TABLE agreements ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES companies(id) ON DELETE CASCADE;
+-- ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES companies(id) ON DELETE CASCADE;
+-- ALTER TABLE expenses ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES companies(id) ON DELETE CASCADE;
+-- ALTER TABLE logs ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES companies(id) ON DELETE CASCADE;
+-- ALTER TABLE handover_records ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES companies(id) ON DELETE CASCADE;
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -241,6 +264,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 1. Companies
+DROP POLICY IF EXISTS "Companies access" ON companies;
 CREATE POLICY "Companies access" ON companies 
   FOR ALL USING (
     auth.uid() = id -- Subscriber
@@ -252,6 +276,7 @@ CREATE POLICY "Companies access" ON companies
 
 -- 2. Staff Members
 -- Subscriber can see all. Agent can only see themselves.
+DROP POLICY IF EXISTS "Staff members access" ON staff_members;
 CREATE POLICY "Staff members access" ON staff_members 
   FOR ALL USING (
     auth.uid() = subscriber_id -- Subscriber
@@ -261,6 +286,7 @@ CREATE POLICY "Staff members access" ON staff_members
 
 -- 3. Cars
 -- Subscriber can see all. Agent can see all cars of their company (needed for fleet/calendar).
+DROP POLICY IF EXISTS "Cars access" ON cars;
 CREATE POLICY "Cars access" ON cars 
   FOR ALL USING (
     auth.uid() = subscriber_id -- Subscriber
@@ -270,6 +296,7 @@ CREATE POLICY "Cars access" ON cars
 
 -- 4. Members (Customers)
 -- Subscriber can see all. Agent can only see members where they are the assigned staff.
+DROP POLICY IF EXISTS "Members access" ON members;
 CREATE POLICY "Members access" ON members 
   FOR ALL USING (
     auth.uid() = subscriber_id -- Subscriber
@@ -279,6 +306,7 @@ CREATE POLICY "Members access" ON members
 
 -- 5. Bookings
 -- Subscriber can see all. Agent can see all for company, but only modify their own.
+DROP POLICY IF EXISTS "Bookings view access" ON bookings;
 CREATE POLICY "Bookings view access" ON bookings 
   FOR SELECT USING (
     auth.uid() = subscriber_id -- Subscriber
@@ -286,6 +314,7 @@ CREATE POLICY "Bookings view access" ON bookings
     subscriber_id = current_subscriber_id() -- Agent
   );
 
+DROP POLICY IF EXISTS "Bookings modify access" ON bookings;
 CREATE POLICY "Bookings modify access" ON bookings 
   FOR ALL USING (
     auth.uid() = subscriber_id -- Subscriber
@@ -295,6 +324,7 @@ CREATE POLICY "Bookings modify access" ON bookings
 
 -- 6. Agreements
 -- Subscriber can see all. Agent can only see their own agreements.
+DROP POLICY IF EXISTS "Agreements access" ON agreements;
 CREATE POLICY "Agreements access" ON agreements 
   FOR ALL USING (
     auth.uid() = subscriber_id -- Subscriber
@@ -304,6 +334,7 @@ CREATE POLICY "Agreements access" ON agreements
 
 -- 7. Digital Forms
 -- Subscriber can see all. Agent can only see their own forms.
+DROP POLICY IF EXISTS "Digital forms access" ON digital_forms;
 CREATE POLICY "Digital forms access" ON digital_forms 
   FOR ALL USING (
     auth.uid() = subscriber_id -- Subscriber
@@ -315,11 +346,13 @@ CREATE POLICY "Digital forms access" ON digital_forms
 -- Subscriber can see all. Agent can see expenses for cars they are managing? 
 -- The user said "In every other module (Forms, Calendar, Fleet), they can ONLY query records where agent_id == auth.uid()."
 -- Expenses don't have agent_id. I'll restrict to Subscriber only for now as it's "Business Dashboard" related.
+DROP POLICY IF EXISTS "Expenses access" ON expenses;
 CREATE POLICY "Expenses access" ON expenses 
   FOR ALL USING (auth.uid() = subscriber_id);
 
 -- 9. Logs
 -- Subscriber can see all. Agent can only see their own logs.
+DROP POLICY IF EXISTS "Logs access" ON logs;
 CREATE POLICY "Logs access" ON logs 
   FOR ALL USING (
     auth.uid() = subscriber_id -- Subscriber
@@ -329,6 +362,7 @@ CREATE POLICY "Logs access" ON logs
 
 -- 10. Handover Records
 -- Subscriber can see all. Agent can only see records for their own bookings.
+DROP POLICY IF EXISTS "Handover records access" ON handover_records;
 CREATE POLICY "Handover records access" ON handover_records 
   FOR ALL USING (
     auth.uid() = subscriber_id -- Subscriber
@@ -358,3 +392,48 @@ CREATE TRIGGER tr_sync_staff_to_member
 AFTER INSERT ON staff_members
 FOR EACH ROW
 EXECUTE FUNCTION sync_staff_to_member();
+
+-- ===============================================================
+-- SMART LOGIN DETECTION RPC
+-- ===============================================================
+CREATE OR REPLACE FUNCTION verify_login_uid(p_uid TEXT)
+RETURNS JSON AS $$
+DECLARE
+  v_company companies%ROWTYPE;
+  v_staff staff_members%ROWTYPE;
+BEGIN
+  IF p_uid = 'superadmin' THEN
+    RETURN json_build_object('role', 'superadmin');
+  END IF;
+
+  -- Check if it's a company (Subscriber)
+  -- We assume the company name/code is used as the UID
+  SELECT * INTO v_company FROM companies WHERE name ILIKE p_uid LIMIT 1;
+  IF FOUND THEN
+    RETURN json_build_object(
+      'role', 'subscriber', 
+      'id', v_company.id, 
+      'tier', v_company.tier, 
+      'company_code', v_company.name
+    );
+  END IF;
+
+  -- Check if it's a staff member
+  SELECT * INTO v_staff FROM staff_members WHERE designated_uid ILIKE p_uid LIMIT 1;
+  IF FOUND THEN
+    -- Get the company code to allow Supabase Auth login behind the scenes
+    SELECT * INTO v_company FROM companies WHERE id = v_staff.subscriber_id LIMIT 1;
+    RETURN json_build_object(
+      'role', 'staff', 
+      'subscriber_id', v_staff.subscriber_id, 
+      'company_code', v_company.name,
+      'staff_id', v_staff.id, 
+      'staff_name', v_staff.name, 
+      'pin_hash', v_staff.pin_hash,
+      'tier', v_company.tier
+    );
+  END IF;
+
+  RETURN json_build_object('role', 'unknown');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

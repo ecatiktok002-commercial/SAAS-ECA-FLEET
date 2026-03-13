@@ -30,12 +30,11 @@ const Layout: React.FC = () => {
     // Layer 1: Tier Gate (Feature Access)
     // Tier 1: Only /forms
     if (subscriptionTier === 'tier_1') {
-      // Agent Tier 1 cannot see Dashboard
-      if (isStaff && path === '/') {
+      if (path === '/') {
         navigate('/forms', { replace: true });
         return;
       }
-      const allowedPaths = ['/', '/forms', '/customers'];
+      const allowedPaths = ['/forms', '/customers'];
       const isAllowed = allowedPaths.some(p => path === p || path.startsWith(p + '/'));
       if (!isAllowed && path !== '/staff') { // Staff is handled by Role Gate
         navigate('/forms', { replace: true });
@@ -44,12 +43,11 @@ const Layout: React.FC = () => {
 
     // Tier 2: Only /calendar
     if (subscriptionTier === 'tier_2') {
-      // Agent Tier 2 cannot see Dashboard
-      if (isStaff && path === '/') {
+      if (path === '/') {
         navigate('/calendar', { replace: true });
         return;
       }
-      const allowedPaths = ['/', '/calendar', '/customers'];
+      const allowedPaths = ['/calendar', '/customers'];
       const isAllowed = allowedPaths.some(p => path === p || path.startsWith(p + '/'));
       if (!isAllowed && path !== '/staff') {
         navigate('/calendar', { replace: true });

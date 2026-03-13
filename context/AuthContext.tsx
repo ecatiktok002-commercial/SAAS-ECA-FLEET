@@ -69,6 +69,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (storedRole) {
           setStaffRole(storedRole);
           if (storedName) setUserName(storedName);
+        } else if (isSuperAdmin) {
+          setStaffRole('admin');
         }
 
         // Always fetch latest tier from DB for non-superadmins

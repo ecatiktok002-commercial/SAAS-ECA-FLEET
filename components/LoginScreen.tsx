@@ -3,155 +3,160 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
-import { StaffMember } from '../types';
 import { hashPin } from '../utils/crypto';
 
 interface LoginScreenProps {
-  onLogin?: (userId: string) => void; // Keeping for backward compatibility if needed
+  onLogin?: (userId: string) => void;
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const navigate = useNavigate();
-  const { login, subscriberId: existingSubscriberId } = useAuth();
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [accessCode, setAccessCode] = useState('');
-  const [subscriberId, setSubscriberId] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
-  const [staffUid, setStaffUid] = useState('');
+  const { login, subscriberId: existingSubscriberId, staffRole: existingStaffRole } = useAuth();
+  const [step, setStep] = useState<1 | 2 | 3>(1); // 1: UID, 2: Staff PIN, 3: Superadmin PIN
+  const [uidInput, setUidInput] = useState('');
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [detectedRole, setDetectedRole] = useState<any>(null);
 
-  // Redirect if already logged in
+  // Redirect if already logged in fully
   useEffect(() => {
-    if (existingSubscriberId) {
+    if (existingSubscriberId && existingStaffRole) {
       navigate('/');
     }
-  }, [existingSubscriberId, navigate]);
+  }, [existingSubscriberId, existingStaffRole, navigate]);
 
-  // Step 1: Handle Company UID Login
-  const handleCompanyLogin = async (e: React.FormEvent) => {
+  // Step 1: Handle UID Verification (Smart Detection)
+  const handleVerifyUid = async (e: React.FormEvent) => {
     e.preventDefault();
+    const uid = uidInput.trim();
+    if (!uid) {
+      setError('Please enter your UID.');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
-    const code = accessCode.trim();
-    if (!code) {
-      setError('Please enter your Access Code.');
+    try {
+      // Path A: Superadmin
+      if (uid.toLowerCase() === 'superadmin') {
+        setStep(3);
+        setLoading(false);
+        return;
+      }
+
+      // Call RPC to detect role
+      const { data, error: rpcError } = await supabase.rpc('verify_login_uid', { p_uid: uid });
+      
+      let roleData = data;
+
+      // Fallback if RPC is missing or fails
+      if (rpcError || !roleData || roleData.role === 'unknown') {
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email: `${uid}@ecafleet.com`,
+          password: uid,
+        });
+
+        if (authError || !authData.user) {
+          throw new Error('Invalid UID. If you are a staff member, please ensure the database RPC is installed.');
+        }
+
+        // It's a company (Subscriber)
+        const { data: companyData } = await supabase
+          .from('companies')
+          .select('tier')
+          .eq('id', authData.user.id)
+          .single();
+
+        roleData = {
+          role: 'subscriber',
+          id: authData.user.id,
+          tier: companyData?.tier || 'tier_1',
+          company_code: uid
+        };
+      }
+
+      setDetectedRole(roleData);
+
+      // Path B: Subscriber (Owner)
+      if (roleData.role === 'subscriber') {
+        await loginAsSubscriber(roleData);
+      } 
+      // Path C: Staff (Agent)
+      else if (roleData.role === 'staff') {
+        setStep(2);
+      } else {
+        throw new Error('Unknown role detected.');
+      }
+
+    } catch (err: any) {
+      setError(err.message || 'Verification failed.');
+    } finally {
       setLoading(false);
+    }
+  };
+
+  const loginAsSubscriber = async (roleData: any) => {
+    try {
+      // Ensure Supabase Auth session
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: `${roleData.company_code}@ecafleet.com`,
+        password: roleData.company_code,
+      });
+
+      if (authError) throw authError;
+
+      login(roleData.id, 'admin', roleData.tier, roleData.company_code, roleData.company_code);
+      if (onLogin) onLogin(roleData.id);
+    } catch (err: any) {
+      setError('Failed to login as Subscriber: ' + err.message);
+    }
+  };
+
+  // Step 2: Handle Staff PIN Login
+  const handleStaffLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pin) {
+      setError('Please enter your PIN.');
       return;
     }
 
-    if (code.toLowerCase() === 'superadmin') {
-      setStep(3);
-      setLoading(false);
-      return;
-    }
+    setLoading(true);
+    setError('');
 
     try {
-      let signInEmail = null;
-      let signInPassword = code;
+      if (!detectedRole || detectedRole.role !== 'staff') {
+        throw new Error('Invalid state. Please restart login.');
+      }
 
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(code);
-
-      if (isUuid) {
-        const { data: email, error: rpcError } = await supabase
-          .rpc('get_user_email', { user_id: code });
-        
-        if (!rpcError && email) {
-          signInEmail = email;
+      // Verify PIN
+      if (detectedRole.pin_hash) {
+        const hashedInputPin = await hashPin(pin);
+        if (hashedInputPin !== detectedRole.pin_hash) {
+          throw new Error('Incorrect PIN.');
         }
       }
 
-      if (!signInEmail) {
-        signInEmail = `${code}@ecafleet.com`;
-      }
-
+      // Login to Supabase Auth as the Company to satisfy RLS
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: signInEmail,
-        password: signInPassword,
+        email: `${detectedRole.company_code}@ecafleet.com`,
+        password: detectedRole.company_code,
       });
 
       if (authError) {
-        if (authError.message.includes('Invalid login credentials')) {
-          throw new Error('Access Denied. Please ensure your Password matches your Access Code.');
-        }
-        throw authError;
+        throw new Error('Failed to authenticate with company credentials. Please contact admin.');
       }
 
-      if (authData.user) {
-        setSubscriberId(authData.user.id);
-        
-        const getDisplayId = (user: any) => {
-          const email = user.email || '';
-          if (email.endsWith('@ecafleet.com')) return email.split('@')[0];
-          return email || 'Anonymous';
-        };
-        const displayId = getDisplayId(authData.user);
-        setUserId(displayId);
-
-        // Ensure company record exists in DB
-        try {
-          // First check if it exists to avoid overwriting tier
-          const { data: existingCompany } = await supabase
-            .from('companies')
-            .select('tier')
-            .eq('id', authData.user.id)
-            .single();
-
-          if (!existingCompany) {
-            const { error: insertError } = await supabase
-              .from('companies')
-              .insert({ 
-                id: authData.user.id, 
-                name: displayId,
-                tier: 'tier_1'
-              });
-            
-            if (insertError) console.error('Error creating company record:', insertError);
-          }
-        } catch (e) {
-          console.error('Failed to ensure company:', e);
-        }
-        
-        // Fetch staff members for this company
-        const { data: staffData, error: staffError } = await supabase
-          .from('staff_members')
-          .select('*')
-          .eq('subscriber_id', authData.user.id);
-          
-        if (staffError) {
-          console.error('Error fetching staff members:', staffError);
-        } else if (staffData) {
-          setStaffMembers(staffData);
-        }
-        
-        // If no staff members exist, log them in directly as admin (company owner)
-        if (!staffData || staffData.length === 0) {
-          // Fetch company subscription tier
-          let tier: 'tier_1' | 'tier_2' | 'tier_3' = 'tier_1'; // Default
-          
-          const { data: companyData, error: companyError } = await supabase
-            .from('companies')
-            .select('tier')
-            .eq('id', authData.user.id)
-            .single();
-            
-          if (!companyError && companyData && companyData.tier) {
-            tier = companyData.tier as 'tier_1' | 'tier_2' | 'tier_3';
-          }
-
-          login(authData.user.id, 'admin', tier, displayId, displayId);
-          if (onLogin) onLogin(authData.user.id);
-          return;
-        }
-        
-        setStep(2);
+      // Log in via Context
+      login(detectedRole.subscriber_id, 'staff', detectedRole.tier || 'tier_1', detectedRole.staff_id, detectedRole.staff_name);
+      
+      if (onLogin) {
+        onLogin(detectedRole.subscriber_id);
       }
       
     } catch (err: any) {
-      setError(err.message || 'Authentication failed.');
+      setError(err.message || 'PIN verification failed.');
     } finally {
       setLoading(false);
     }
@@ -202,68 +207,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     }
   };
 
-  // Step 2: Handle Staff PIN Login
-  const handleStaffLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!staffUid) {
-      setError('Please enter your Designated UID.');
-      return;
-    }
-    if (!pin) {
-      setError('Please enter your PIN.');
-      return;
-    }
-
-    setLoading(true);
+  const handleCancel = () => {
+    setStep(1);
+    setUidInput('');
+    setPin('');
+    setDetectedRole(null);
     setError('');
-
-    try {
-      if (!subscriberId) throw new Error('Company context lost. Please restart login.');
-
-      const { data: staffMember, error: staffError } = await supabase
-        .from('staff_members')
-        .select('*')
-        .eq('subscriber_id', subscriberId)
-        .eq('designated_uid', staffUid.toLowerCase().trim())
-        .single();
-      
-      if (staffError || !staffMember) {
-        throw new Error('Staff member not found with this UID.');
-      }
-
-      if (staffMember.pin_hash) {
-        const hashedInputPin = await hashPin(pin);
-        if (hashedInputPin !== staffMember.pin_hash) {
-          throw new Error('Incorrect PIN.');
-        }
-      }
-
-      // Fetch company subscription tier
-      let tier: 'tier_1' | 'tier_2' | 'tier_3' = 'tier_1'; // Default
-      
-      const { data: companyData, error: companyError } = await supabase
-        .from('companies')
-        .select('tier')
-        .eq('id', subscriberId)
-        .single();
-        
-      if (!companyError && companyData && companyData.tier) {
-        tier = companyData.tier as 'tier_1' | 'tier_2' | 'tier_3';
-      }
-
-      // Log in via Context
-      // Staff members always have 'staff' role as per requirements
-      login(subscriberId, 'staff', tier, staffMember.id, staffMember.name);
-      
-      if (onLogin) {
-        onLogin(subscriberId);
-      }
-      
-    } catch (err: any) {
-      setError(err.message || 'PIN verification failed.');
-    } finally {
-      setLoading(false);
-    }
   };
 
   return (
@@ -281,25 +230,25 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           </div>
           <h1 className="text-2xl font-black text-slate-900 mb-2">Welcome to EcaFleet</h1>
           <p className="text-slate-500 font-medium">
-            {step === 1 ? 'Please enter your Access Code to continue.' : 
-             step === 2 ? 'Enter your Designated UID and PIN.' : 
+            {step === 1 ? 'Please enter your UID to continue.' : 
+             step === 2 ? `Welcome, ${detectedRole?.staff_name || 'Staff'}. Enter your PIN.` : 
              'Enter Master Admin PIN.'}
           </p>
         </div>
 
         {step === 1 ? (
-          <form onSubmit={handleCompanyLogin} className="space-y-4">
+          <form onSubmit={handleVerifyUid} className="space-y-4">
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Company ID (UID)</label>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">User ID (UID)</label>
               <input 
                 type="text"
-                value={accessCode}
+                value={uidInput}
                 onChange={(e) => {
-                  setAccessCode(e.target.value);
+                  setUidInput(e.target.value);
                   setError('');
                 }}
                 className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-bold text-slate-800 placeholder-slate-300 text-center text-lg tracking-wider"
-                placeholder="Enter Access Code"
+                placeholder="Enter UID"
                 autoFocus
               />
             </div>
@@ -316,26 +265,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold uppercase text-xs tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/20 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-              Verify Company
+              Verify
             </button>
           </form>
         ) : step === 2 ? (
           <form onSubmit={handleStaffLogin} className="space-y-4">
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Designated UID</label>
-              <input 
-                type="text"
-                value={staffUid}
-                onChange={(e) => {
-                  setStaffUid(e.target.value);
-                  setError('');
-                }}
-                className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-bold text-slate-800 placeholder-slate-300 text-center text-lg tracking-wider font-mono"
-                placeholder="e.g. idmahira"
-                autoFocus
-              />
-            </div>
-
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Staff PIN</label>
               <input 
@@ -348,6 +282,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-bold text-slate-800 placeholder-slate-300 text-center text-lg tracking-wider"
                 placeholder="****"
                 maxLength={4}
+                autoFocus
               />
             </div>
 
@@ -368,10 +303,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             
             <button
               type="button"
-              onClick={() => setStep(1)}
+              onClick={handleCancel}
               className="w-full py-3 text-slate-500 font-medium text-sm hover:text-slate-800 transition-colors"
             >
-              Back to Company Login
+              Cancel
             </button>
           </form>
         ) : (
@@ -409,10 +344,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             
             <button
               type="button"
-              onClick={() => {
-                setStep(1);
-                setPin('');
-              }}
+              onClick={handleCancel}
               className="w-full py-3 text-slate-500 font-medium text-sm hover:text-slate-800 transition-colors"
             >
               Cancel

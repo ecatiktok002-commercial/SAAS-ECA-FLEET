@@ -941,6 +941,20 @@ export const apiService = {
     });
   },
 
+  async getSaasRevenueStats(): Promise<any[]> {
+    return withRetry(async () => {
+      const { data, error } = await supabase
+        .from('saas_revenue_stats')
+        .select('*');
+      
+      if (error) {
+        logSupabaseError('getSaasRevenueStats', error);
+        return [];
+      }
+      return data || [];
+    });
+  },
+
   // Companies (Superadmin)
   async getCompanies(): Promise<Company[]> {
     return withRetry(async () => {
