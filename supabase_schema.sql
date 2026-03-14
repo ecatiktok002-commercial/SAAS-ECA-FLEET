@@ -457,7 +457,7 @@ CREATE POLICY "Public read agreements" ON agreements
 
 DROP POLICY IF EXISTS "Public sign pending agreements" ON agreements;
 CREATE POLICY "Public sign pending agreements" ON agreements
-  FOR UPDATE USING (status = 'pending');
+  FOR UPDATE USING (status = 'pending') WITH CHECK (status IN ('pending', 'signed'));
 
 -- 7. Digital Forms
 -- Subscriber can see all. Agent can only see their own forms.
@@ -475,7 +475,7 @@ CREATE POLICY "Public read digital forms" ON digital_forms
 
 DROP POLICY IF EXISTS "Public sign pending digital forms" ON digital_forms;
 CREATE POLICY "Public sign pending digital forms" ON digital_forms
-  FOR UPDATE USING (status = 'pending');
+  FOR UPDATE USING (status = 'pending') WITH CHECK (status IN ('pending', 'signed'));
 
 -- 8. Expenses
 -- Subscriber can see all. Agent can see expenses for cars they are managing? 
