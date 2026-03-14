@@ -15,7 +15,9 @@ import {
   XCircle,
   Loader2,
   DollarSign,
-  Activity
+  Activity,
+  Trash2,
+  TrendingUp
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -29,6 +31,8 @@ const SubscriberManager: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyTier, setNewCompanyTier] = useState<Company['tier']>('tier_1');
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     if (subscriberId === 'superadmin') {
@@ -41,27 +45,18 @@ const SubscriberManager: React.FC = () => {
       setLoading(true);
       const [subsData, statsData] = await Promise.all([
         apiService.getCompanies(),
-        apiService.getSaasRevenueStats().catch(() => []) // Fallback if view doesn't exist yet
+        apiService.getSaasRevenueStats().catch(() => []) 
       ]);
       setSubscribers(subsData);
       
-      // Aggregate stats by month in case the SQL grouped by exact date
-      const aggregatedStats = statsData.reduce((acc: any, curr: any) => {
-        const existing = acc.find((item: any) => item.month === curr.month);
-        if (existing) {
-          existing.monthly_revenue += Number(curr.monthly_revenue || 0);
-          existing.total_subscribers += Number(curr.total_subscribers || 0);
-        } else {
-          acc.push({
-            month: curr.month,
-            monthly_revenue: Number(curr.monthly_revenue || 0),
-            total_subscribers: Number(curr.total_subscribers || 0)
-          });
-        }
-        return acc;
-      }, []);
+      // Map stats from the new view: month, current_mrr, active_count
+      const aggregatedStats = statsData.map((curr: any) => ({
+        month: curr.month,
+        monthly_revenue: Number(curr.current_mrr || 0),
+        total_subscribers: Number(curr.active_count || 0)
+      }));
       
-      setRevenueStats(aggregatedStats.reverse()); // Chronological order for chart
+      setRevenueStats(aggregatedStats.reverse()); 
     } catch (err) {
       setError('Failed to load dashboard data');
       console.error(err);
@@ -139,20 +134,32 @@ const SubscriberManager: React.FC = () => {
     }
   };
 
-  const toggleStatus = async (id: string, currentStatus: boolean) => {
+  const handleDelete = async () => {
+    if (!deleteId) return;
     try {
-      setSavingId(id);
-      await apiService.updateCompany(id, { is_active: !currentStatus });
+      setLoading(true);
+      await apiService.deleteCompany(deleteId);
+      setShowDeleteModal(false);
+      setDeleteId(null);
       await fetchData();
     } catch (err) {
-      setError('Failed to toggle status');
+      setError('Failed to delete subscriber');
     } finally {
-      setSavingId(null);
+      setLoading(false);
     }
   };
 
   // Calculate Metrics
   const metrics = useMemo(() => {
+    // Use the latest data from the view if available, otherwise fallback to manual calculation
+    if (revenueStats.length > 0) {
+      const latest = revenueStats[revenueStats.length - 1];
+      return { 
+        mrr: latest.monthly_revenue, 
+        activeSubs: latest.total_subscribers 
+      };
+    }
+
     let mrr = 0;
     let activeSubs = 0;
 
@@ -169,7 +176,7 @@ const SubscriberManager: React.FC = () => {
     });
 
     return { mrr, activeSubs };
-  }, [subscribers]);
+  }, [subscribers, revenueStats]);
 
   if (subscriberId !== 'superadmin') {
     return (
@@ -197,7 +204,7 @@ const SubscriberManager: React.FC = () => {
               <div className="bg-navy-900 p-2 rounded-lg bg-[#0F172A]">
                 <Shield className="w-6 h-6 text-white" />
               </div>
-              <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Subscriber Manager</h1>
+              <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Welcome to the Global Fleet Command</h1>
             </div>
             <p className="text-slate-500">Manage platform subscriptions, tiers, and access control.</p>
           </div>
@@ -226,34 +233,40 @@ const SubscriberManager: React.FC = () => {
         {/* SaaS Analytics Section */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
+            <div className="p-3 bg-slate-50 text-slate-900 rounded-lg">
               <DollarSign className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-slate-500">Total MRR</p>
-              <h3 className="text-2xl font-bold text-slate-900">${metrics.mrr.toLocaleString()}</h3>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Monthly Recurring Revenue (MRR)</p>
+              <h3 className="text-3xl font-bold text-slate-900">RM {metrics.mrr.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
             </div>
           </div>
           
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
+            <div className="p-3 bg-slate-50 text-slate-900 rounded-lg">
               <Users className="w-6 h-6" />
             </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Active Subs</p>
-              <h3 className="text-2xl font-bold text-slate-900">{metrics.activeSubs}</h3>
+            <div className="flex-1">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Subscriber Growth</p>
+              <div className="flex items-center gap-3">
+                <h3 className="text-3xl font-bold text-slate-900">{metrics.activeSubs}</h3>
+                <div className="flex items-center text-emerald-600 text-sm font-bold bg-emerald-50 px-2 py-0.5 rounded-md">
+                  <TrendingUp className="w-3.5 h-3.5 mr-1" />
+                  Live
+                </div>
+              </div>
             </div>
           </div>
 
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
-            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg">
+            <div className="p-3 bg-slate-50 text-slate-900 rounded-lg">
               <Activity className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-slate-500">Platform Health</p>
-              <h3 className="text-2xl font-bold text-emerald-600 flex items-center gap-2">
-                <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                Stable
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">System Health</p>
+              <h3 className="text-3xl font-bold text-emerald-600 flex items-center gap-2">
+                <span className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+                Live
               </h3>
             </div>
           </div>
@@ -266,7 +279,6 @@ const SubscriberManager: React.FC = () => {
             {revenueStats.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={revenueStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                   <XAxis 
                     dataKey="month" 
                     axisLine={false} 
@@ -278,18 +290,18 @@ const SubscriberManager: React.FC = () => {
                     axisLine={false} 
                     tickLine={false} 
                     tick={{ fill: '#64748B', fontSize: 12 }}
-                    tickFormatter={(value) => `$${value}`}
+                    tickFormatter={(value) => `RM ${value}`}
                   />
                   <Tooltip 
                     cursor={{ fill: '#F8FAFC' }}
-                    contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0', boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)' }}
-                    formatter={(value: any) => [`$${value}`, 'Revenue']}
+                    contentStyle={{ borderRadius: '12px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    formatter={(value: any) => [`RM ${Number(value).toLocaleString()}`, 'Revenue']}
                   />
                   <Bar 
                     dataKey="monthly_revenue" 
                     fill="#0F172A" 
                     radius={[4, 4, 0, 0]}
-                    activeBar={{ fill: '#8B5CF6' }} // Soft purple hover
+                    activeBar={{ fill: '#1E293B' }}
                   />
                 </BarChart>
               </ResponsiveContainer>
@@ -302,8 +314,8 @@ const SubscriberManager: React.FC = () => {
         </div>
 
         {/* Table Container */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-          <div className="w-full overflow-x-auto overflow-y-hidden">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden h-auto">
+          <div className="w-full overflow-x-auto">
             <table className="w-full text-left border-collapse whitespace-nowrap">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
@@ -373,7 +385,7 @@ const SubscriberManager: React.FC = () => {
                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
                             isActive 
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                              : 'bg-red-50 text-red-700 border-red-200'
+                              : 'bg-slate-50 text-slate-600 border-slate-200'
                           }`}>
                             {isActive ? (
                               <><CheckCircle2 className="w-3.5 h-3.5" /> Active</>
@@ -422,15 +434,14 @@ const SubscriberManager: React.FC = () => {
                             </button>
 
                             <button 
-                              onClick={() => toggleStatus(sub.id, sub.is_active)}
-                              className={`p-2 rounded-lg transition-all border ${
-                                sub.is_active 
-                                  ? 'bg-white text-red-600 border-slate-200 hover:bg-red-50 hover:border-red-200' 
-                                  : 'bg-white text-emerald-600 border-slate-200 hover:bg-emerald-50 hover:border-emerald-200'
-                              }`}
-                              title={sub.is_active ? 'Deactivate' : 'Activate'}
+                              onClick={() => {
+                                setDeleteId(sub.id);
+                                setShowDeleteModal(true);
+                              }}
+                              className="p-2 rounded-lg transition-all border bg-white text-slate-400 border-slate-200 hover:text-red-600 hover:bg-red-50 hover:border-red-200"
+                              title="Delete Subscriber"
                             >
-                              <Power className="w-4 h-4" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         </td>
@@ -442,6 +453,36 @@ const SubscriberManager: React.FC = () => {
             </table>
           </div>
         </div>
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteModal && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white border border-slate-200 w-full max-w-md rounded-2xl p-6 shadow-xl animate-in fade-in zoom-in duration-200">
+              <div className="flex items-center gap-3 text-red-600 mb-4">
+                <AlertCircle className="w-6 h-6" />
+                <h2 className="text-xl font-bold tracking-tight">Confirm Deletion</h2>
+              </div>
+              <p className="text-slate-600 mb-6 leading-relaxed">
+                Are you sure you want to delete this subscriber? This action is irreversible and will immediately remove all associated revenue from your dashboard.
+              </p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setShowDeleteModal(false)}
+                  className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleDelete}
+                  disabled={loading}
+                  className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-all shadow-sm active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Delete Permanently'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Add Subscriber Modal */}
         {showAddModal && (

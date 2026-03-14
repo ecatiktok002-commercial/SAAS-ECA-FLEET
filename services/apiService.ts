@@ -955,7 +955,7 @@ export const apiService = {
   async getSaasRevenueStats(): Promise<any[]> {
     return withRetry(async () => {
       const { data, error } = await supabase
-        .from('saas_revenue_stats')
+        .from('saas_revenue_dashboard')
         .select('*');
       
       if (error) {
@@ -1008,6 +1008,20 @@ export const apiService = {
       if (error) {
         logSupabaseError('updateCompany', error);
         throw new Error(error.message || 'Failed to update company');
+      }
+    });
+  },
+
+  async deleteCompany(id: string): Promise<void> {
+    return withRetry(async () => {
+      const { error } = await supabase
+        .from('companies')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        logSupabaseError('deleteCompany', error);
+        throw new Error(error.message || 'Failed to delete company');
       }
     });
   },
