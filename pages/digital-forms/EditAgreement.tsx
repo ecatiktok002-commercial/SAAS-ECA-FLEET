@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 
 export default function EditAgreement() {
   const { id } = useParams();
-  const { subscriberId, userId, staffRole } = useAuth();
+  const { subscriberId, staffRole, userId, userUid } = useAuth();
   const navigate = useNavigate();
   const isAdmin = staffRole === 'admin';
   const [formData, setFormData] = useState({
@@ -79,6 +79,12 @@ export default function EditAgreement() {
         if (!data) {
           throw new Error('Agreement not found');
         }
+
+        // Access Control: Staff can only edit their own agreements
+        if (staffRole === 'staff' && data.created_by !== userUid) {
+          throw new Error('You do not have permission to edit this agreement.');
+        }
+
         setFormData({
           customer_name: data.customer_name || '',
           identity_number: data.identity_number || '',
@@ -106,7 +112,7 @@ export default function EditAgreement() {
     };
 
     fetchAgreement();
-  }, [id]);
+  }, [id, subscriberId, staffRole, userUid]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;

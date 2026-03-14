@@ -41,7 +41,13 @@ const AgreementDashboard: React.FC = () => {
       
       // Agents only see their own forms, Subscribers see everything
       if (staffRole === 'staff') {
-        createdBy = userUid || undefined;
+        // CRITICAL: If we are staff but don't have a UID yet, don't fetch or fetch with a dummy ID
+        if (!userUid) {
+          setAgreements([]);
+          setLoading(false);
+          return;
+        }
+        createdBy = userUid;
       }
 
       const data = await apiService.getAgreements(subscriberId!, createdBy);
@@ -77,13 +83,15 @@ const AgreementDashboard: React.FC = () => {
           <p className="text-slate-500 mt-1">Create and manage legally binding rental agreements.</p>
         </div>
         <div className="flex items-center gap-3">
-          <button 
-            onClick={() => navigate('branding')}
-            className="bg-white hover:bg-slate-50 text-slate-700 px-6 py-3 rounded-xl font-bold border border-slate-200 flex items-center gap-2 transition-all shadow-sm active:scale-95"
-          >
-            <ImageIcon className="w-5 h-5" />
-            Branding
-          </button>
+          {staffRole === 'admin' && (
+            <button 
+              onClick={() => navigate('branding')}
+              className="bg-white hover:bg-slate-50 text-slate-700 px-6 py-3 rounded-xl font-bold border border-slate-200 flex items-center gap-2 transition-all shadow-sm active:scale-95"
+            >
+              <ImageIcon className="w-5 h-5" />
+              Branding
+            </button>
+          )}
           <button 
             onClick={() => navigate('create')}
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-emerald-900/20 active:scale-95"
