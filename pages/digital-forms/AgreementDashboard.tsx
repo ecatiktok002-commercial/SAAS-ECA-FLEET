@@ -23,8 +23,6 @@ const AgreementDashboard: React.FC = () => {
   const { subscriberId, staffRole, userId, userUid } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const queryParams = new URLSearchParams(location.search);
-  const isPersonalView = queryParams.get('view') === 'personal';
   
   const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,21 +32,18 @@ const AgreementDashboard: React.FC = () => {
     if (subscriberId) {
       fetchAgreements();
     }
-  }, [subscriberId, staffRole, userId, isPersonalView]);
+  }, [subscriberId, staffRole, userId]);
 
   const fetchAgreements = async () => {
     try {
       setLoading(true);
       let agentId: string | undefined = undefined;
-      let createdBy: string | undefined = undefined;
       
       if (staffRole === 'staff') {
         agentId = userId || undefined;
-      } else if (isPersonalView) {
-        createdBy = userUid || userId || undefined;
       }
 
-      const data = await apiService.getAgreements(subscriberId!, agentId, createdBy);
+      const data = await apiService.getAgreements(subscriberId!, agentId);
       setAgreements(data);
     } catch (err) {
       console.error(err);

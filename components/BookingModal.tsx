@@ -21,14 +21,13 @@ interface BookingModalProps {
   members: Member[];
   preselectedCarId?: string;
   subscriberId: string | null;
-  staffMembers?: StaffMember[];
   currentStaff?: StaffMember | null;
   currentUserId?: string | null;
   staffRole?: string | null;
 }
 
 const BookingModal: React.FC<BookingModalProps> = ({ 
-  isOpen, onClose, initialDate, editingBooking, onSave, onDelete, existingBookings, cars, members, preselectedCarId, subscriberId, staffMembers = [], currentStaff, currentUserId, staffRole
+  isOpen, onClose, initialDate, editingBooking, onSave, onDelete, existingBookings, cars, members, preselectedCarId, subscriberId, currentStaff, currentUserId, staffRole
 }) => {
   // Modes: 'category' (Auto-assign based on model) or 'specific' (Manual plate selection)
   const [bookingMode, setBookingMode] = useState<'category' | 'specific'>('category');
@@ -37,7 +36,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
   const [selectedModel, setSelectedModel] = useState(''); // Used for 'category' mode
   
   const [memberId, setMemberId] = useState('');
-  const [staffName, setStaffName] = useState('');
   
   const [duration, setDuration] = useState(1);
   const [selectedDateTimeStr, setSelectedDateTimeStr] = useState('');
@@ -58,13 +56,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ type: 'save' | 'delete', data?: any } | null>(null);
   const [selectedStaffMember, setSelectedStaffMember] = useState<StaffMember | null>(null);
-
-  // Initialize staff name from currentStaff
-  useEffect(() => {
-    if (isOpen && currentStaff) {
-      setStaffName(currentStaff.name);
-    }
-  }, [isOpen, currentStaff]);
 
   // Fetch signed URLs when viewing a record
   useEffect(() => {
@@ -312,6 +303,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
     const selectedMember = members.find(m => m.id === memberId);
     if (!selectedMember) return setError('Invalid member selected');
+    
+    const finalStaffName = selectedMember.name;
 
     const bookingData = {
       carId: finalCarId,
@@ -331,52 +324,56 @@ const BookingModal: React.FC<BookingModalProps> = ({
       }
     }
 
-    if (!staffName) return setError('Please select Staff In-charge');
-    localStorage.setItem('last_staff_name', staffName);
+    localStorage.setItem('last_staff_name', finalStaffName);
 
     // PIN CHECK LOGIC
     if (editingBooking && subscriberId) {
-      // For updates, we require PIN
-      // Fetch fresh staff data from DB to ensure PIN is current
-      try {
-        const staff = await apiService.getStaffMemberByName(staffName, subscriberId);
-        if (staff && staff.pin_hash) {
-          setSelectedStaffMember(staff);
-          setPendingAction({ type: 'save', data: bookingData });
-          setIsPinModalOpen(true);
-          return;
+      // For updates, we require PIN if it's a staff member
+      // Subscribers (is_subscriber: true) might not have a PIN in staff_members table
+      if (!selectedMember.is_subscriber) {
+        try {
+          const staff = await apiService.getStaffMemberByName(finalStaffName, subscriberId);
+          if (staff && staff.pin_hash) {
+            setSelectedStaffMember(staff);
+            setPendingAction({ type: 'save', data: bookingData });
+            setIsPinModalOpen(true);
+            return;
+          }
+        } catch (err) {
+          console.error('Failed to verify staff PIN status', err);
         }
-      } catch (err) {
-        console.error('Failed to verify staff PIN status', err);
-        // Fallback to prop if fetch fails, or proceed without PIN if not found (though risky)
       }
     }
 
-    onSave(bookingData, staffName);
+    onSave(bookingData, finalStaffName);
     onClose();
   };
 
   const handleDeleteClick = async () => {
-    if (!staffName) {
-      setError('Please select Staff In-charge to delete');
+    const selectedMember = members.find(m => m.id === memberId);
+    if (!selectedMember) {
+      setError('Please select a fleet member to delete');
       return;
     }
-    localStorage.setItem('last_staff_name', staffName);
+    const finalStaffName = selectedMember.name;
+    localStorage.setItem('last_staff_name', finalStaffName);
 
     if (editingBooking && onDelete && subscriberId) {
-      try {
-        // Fetch fresh staff data from DB to ensure PIN is current
-        const staff = await apiService.getStaffMemberByName(staffName, subscriberId);
-        if (staff && staff.pin_hash) {
-          setSelectedStaffMember(staff);
-          setPendingAction({ type: 'delete', data: editingBooking.id });
-          setIsPinModalOpen(true);
-          return;
+      if (!selectedMember.is_subscriber) {
+        try {
+          // Fetch fresh staff data from DB to ensure PIN is current
+          const staff = await apiService.getStaffMemberByName(finalStaffName, subscriberId);
+          if (staff && staff.pin_hash) {
+            setSelectedStaffMember(staff);
+            setPendingAction({ type: 'delete', data: editingBooking.id });
+            setIsPinModalOpen(true);
+            return;
+          }
+        } catch (err) {
+          console.error('Failed to verify staff PIN status', err);
         }
-      } catch (err) {
-        console.error('Failed to verify staff PIN status', err);
       }
-      onDelete(editingBooking.id, staffName);
+      onDelete(editingBooking.id, finalStaffName);
     }
   };
 
@@ -521,29 +518,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
           )}
 
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2 tracking-wider">Staff In-charge</label>
-            <div className="relative flex gap-2">
-              <div className="relative flex-1">
-                <select 
-                  value={staffName} 
-                  onChange={(e) => setStaffName(e.target.value)}
-                  disabled={!isEditable}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all appearance-none font-semibold text-slate-700 text-sm disabled:opacity-60"
-                >
-                  <option value="">-- Select Staff --</option>
-                  {staffMembers.map(staff => (
-                    <option key={staff.id} value={staff.name}>{staff.name}</option>
-                  ))}
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"/></svg>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2 tracking-wider">Fleet Member</label>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2 tracking-wider">Fleet Member (Staff / Owner)</label>
             <div className="relative">
               <select 
                 value={memberId} 
@@ -553,7 +528,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
               >
                 <option value="">-- Select Member --</option>
                 {members.map(member => (
-                  <option key={member.id} value={member.id}>{member.name}</option>
+                  <option key={member.id} value={member.id}>
+                    {member.name} {member.is_subscriber ? '(Owner)' : ''}
+                  </option>
                 ))}
               </select>
               <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">

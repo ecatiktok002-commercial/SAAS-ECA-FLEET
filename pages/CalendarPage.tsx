@@ -15,8 +15,6 @@ import { AlertTriangle } from 'lucide-react';
 const CalendarPage: React.FC = () => {
   const { subscriberId: currentSubscriberId, userId: currentUserId, userUid, staffRole } = useAuth();
   const location = useLocation();
-  const queryParams = new URLSearchParams(location.search);
-  const isPersonalView = queryParams.get('view') === 'personal';
   
   const [currentStaff, setCurrentStaff] = useState<StaffMember | null>(null);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
@@ -54,24 +52,43 @@ const CalendarPage: React.FC = () => {
       end.setDate(0);
 
       let agentIdToFetch: string | undefined = undefined;
-      let createdByToFetch: string | undefined = undefined;
 
       if (staffRole === 'staff') {
         agentIdToFetch = currentUserId || undefined;
-      } else if (isPersonalView) {
-        createdByToFetch = userUid || currentUserId || undefined;
       }
 
       const [fetchedCars, fetchedMembers, fetchedBookings, fetchedExpenses, fetchedStaff] = await Promise.all([
         apiService.getCars(currentSubscriberId),
         apiService.getMembers(currentSubscriberId),
-        apiService.getBookings(currentSubscriberId, start.toISOString(), end.toISOString(), agentIdToFetch, createdByToFetch),
-        apiService.getExpenses(currentSubscriberId, createdByToFetch),
+        apiService.getBookings(currentSubscriberId, start.toISOString(), end.toISOString(), agentIdToFetch),
+        apiService.getExpenses(currentSubscriberId),
         apiService.getStaffMembers(currentSubscriberId)
       ]);
       
-      // Filter members to only include those that are staff
-      const staffOnlyMembers = fetchedMembers.filter(m => m.staff_id);
+      // Filter members to only include those that are staff OR the subscriber
+      let staffOnlyMembers = fetchedMembers.filter(m => m.staff_id);
+      
+      // Identify or create subscriber member
+      const subscriberMember = fetchedMembers.find(m => !m.staff_id && (m.name === userUid || m.subscriber_id === currentSubscriberId));
+      
+      if (subscriberMember) {
+        subscriberMember.is_subscriber = true;
+        // Ensure it's at the top
+        staffOnlyMembers = [subscriberMember, ...staffOnlyMembers.filter(m => m.id !== subscriberMember.id)];
+      } else if (staffRole === 'admin') {
+        // Auto-create member for subscriber if missing
+        try {
+          const newSubMember = await apiService.addMember({
+            name: userUid || 'Owner',
+            color: 'bg-slate-900',
+            subscriber_id: currentSubscriberId
+          }, currentSubscriberId);
+          newSubMember.is_subscriber = true;
+          staffOnlyMembers = [newSubMember, ...staffOnlyMembers];
+        } catch (e) {
+          console.error('Failed to auto-sync subscriber to member', e);
+        }
+      }
       
       setCars(fetchedCars);
       setMembers(staffOnlyMembers);
@@ -116,7 +133,7 @@ const CalendarPage: React.FC = () => {
     if (currentUserId && currentSubscriberId) {
       fetchData();
     }
-  }, [currentUserId, currentSubscriberId, currentMonth, isPersonalView]);
+  }, [currentUserId, currentSubscriberId, currentMonth]);
 
   useEffect(() => {
     if (!currentUserId || !currentSubscriberId) return;
@@ -126,7 +143,6 @@ const CalendarPage: React.FC = () => {
         if (payload.eventType === 'INSERT') {
           const newBooking = payload.new as Booking;
           if (staffRole === 'staff' && newBooking.agent_id !== currentUserId) return;
-          if (isPersonalView && newBooking.created_by !== userUid && newBooking.created_by !== currentUserId) return;
           
           setBookings((prev) => {
             if (prev.some(b => b.id === payload.new.id)) return prev;
@@ -137,7 +153,6 @@ const CalendarPage: React.FC = () => {
         else if (payload.eventType === 'UPDATE') {
           const updatedBooking = payload.new as Booking;
           if (staffRole === 'staff' && updatedBooking.agent_id !== currentUserId) return;
-          if (isPersonalView && updatedBooking.created_by !== userUid && updatedBooking.created_by !== currentUserId) return;
           
           setBookings((prev) => prev.map((b) => (b.id === payload.new.id ? updatedBooking : b)));
         }
@@ -165,7 +180,6 @@ const CalendarPage: React.FC = () => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `subscriber_id=eq.${currentSubscriberId}` }, (payload) => {
         if (payload.eventType === 'INSERT') {
           const newExpense = payload.new as Expense;
-          if (isPersonalView && newExpense.created_by !== userUid && newExpense.created_by !== currentUserId) return;
           
           setExpenses((prev) => {
             if (prev.some(e => e.id === payload.new.id)) return prev;
@@ -175,7 +189,6 @@ const CalendarPage: React.FC = () => {
         else if (payload.eventType === 'DELETE') setExpenses((prev) => prev.filter((e) => e.id !== payload.old.id));
         else if (payload.eventType === 'UPDATE') {
           const updatedExpense = payload.new as Expense;
-          if (isPersonalView && updatedExpense.created_by !== userUid && updatedExpense.created_by !== currentUserId) return;
           
           setExpenses((prev) => prev.map((e) => (e.id === payload.new.id ? updatedExpense : e)));
         }
@@ -211,7 +224,11 @@ const CalendarPage: React.FC = () => {
     if (!currentSubscriberId) return;
     try {
       setIsLoading(true);
-      const actualAgentId = staffRole === 'admin' ? currentSubscriberId : currentUserId;
+      
+      // Find the member to determine agent_id
+      const selectedMember = members.find(m => m.id === bookingData.memberId);
+      const actualAgentId = selectedMember?.staff_id || currentSubscriberId;
+      
       const bookingWithAgent = {
         ...bookingData,
         agent_id: actualAgentId || '',
@@ -623,7 +640,6 @@ const CalendarPage: React.FC = () => {
         cars={cars}
         members={members}
         subscriberId={currentSubscriberId}
-        staffMembers={staffMembers}
         currentStaff={currentStaff}
         currentUserId={currentUserId}
         staffRole={staffRole}

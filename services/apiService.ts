@@ -464,7 +464,7 @@ export const apiService = {
   },
 
   // Bookings
-  async getBookings(subscriberId: string, startDate?: string, endDate?: string, agentId?: string, createdBy?: string): Promise<Booking[]> {
+  async getBookings(subscriberId: string, startDate?: string, endDate?: string, agentId?: string): Promise<Booking[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let query = supabase.from('bookings').select('*');
@@ -472,9 +472,6 @@ export const apiService = {
 
       if (agentId) {
         query = query.eq('agent_id', agentId);
-      }
-      if (createdBy) {
-        query = query.eq('created_by', createdBy);
       }
       
       if (startDate && endDate) {
@@ -641,15 +638,11 @@ export const apiService = {
   },
 
   // Expenses
-  async getExpenses(subscriberId: string, createdBy?: string): Promise<Expense[]> {
+  async getExpenses(subscriberId: string): Promise<Expense[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let query = supabase.from('expenses').select('*');
       query = query.eq('subscriber_id', subscriberId);
-
-      if (createdBy) {
-        query = query.eq('created_by', createdBy);
-      }
 
       const { data, error } = await query.order('date', { ascending: false });
       
@@ -1096,7 +1089,7 @@ export const apiService = {
   },
 
   // Agreements
-  async getAgreements(subscriberId: string, agentId?: string, createdBy?: string): Promise<Agreement[]> {
+  async getAgreements(subscriberId: string, agentId?: string): Promise<Agreement[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let query = supabase.from('agreements').select('*');
@@ -1104,9 +1097,6 @@ export const apiService = {
 
       if (agentId) {
         query = query.eq('agent_id', agentId);
-      }
-      if (createdBy) {
-        query = query.eq('created_by', createdBy);
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
@@ -1202,7 +1192,7 @@ export const apiService = {
   },
 
   // Digital Forms
-  async getDigitalForms(subscriberId: string, agentId?: string, createdBy?: string): Promise<DigitalForm[]> {
+  async getDigitalForms(subscriberId: string, agentId?: string): Promise<DigitalForm[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let query = supabase.from('digital_forms').select('*');
@@ -1210,9 +1200,6 @@ export const apiService = {
 
       if (agentId) {
         query = query.eq('agent_id', agentId);
-      }
-      if (createdBy) {
-        query = query.eq('created_by', createdBy);
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });

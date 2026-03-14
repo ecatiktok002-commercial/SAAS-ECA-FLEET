@@ -39,6 +39,8 @@ export interface Member {
   emergency_contact_name?: string;
   emergency_contact_relation?: string;
   staff_id?: string;
+  subscriber_id?: string;
+  is_subscriber?: boolean;
 }
 
 export interface Booking {

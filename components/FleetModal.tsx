@@ -207,37 +207,45 @@ const FleetModal: React.FC<FleetModalProps> = ({
             </>
           )}
 
-          {activeTab === 'members' && (() => {
-            const staffOnlyMembers = members.filter(m => m.staff_id);
-            return (
-              <div className="space-y-6">
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                  <h4 className="text-sm font-semibold text-slate-900 mb-1">Registered Members</h4>
-                  <p className="text-xs text-slate-500">
-                    Members are automatically synced from Staff Management. You can only edit your own display color.
-                  </p>
-                </div>
+          {activeTab === 'members' && (
+            <div className="space-y-6">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <h4 className="text-sm font-semibold text-slate-900 mb-1">Registered Members</h4>
+                <p className="text-xs text-slate-500">
+                  Members are automatically synced from Staff Management. You can only edit your own display color.
+                </p>
+              </div>
 
-                <div className="space-y-3">
-                  {staffOnlyMembers.map((member) => {
+              <div className="space-y-3">
+                  {members.map((member) => {
                     const isOwnMember = currentStaff && member.staff_id === currentStaff.id;
+                    const isSubscriber = member.is_subscriber;
+                    
                     return (
-                      <div key={member.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+                      <div key={member.id} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${isSubscriber ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'}`}>
                       <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full ${member.color} flex items-center justify-center text-white text-xs font-bold shadow-sm`}>
+                        <div className={`w-8 h-8 rounded-full ${member.color} flex items-center justify-center text-white text-xs font-bold shadow-sm border border-white/20`}>
                           {member.name.substring(0,2).toUpperCase()}
                         </div>
                         <div className="flex flex-col">
-                          <span className="font-medium text-slate-900">{member.name}</span>
-                          {isOwnMember && (
-                            <span className="text-[10px] text-blue-600 font-bold uppercase tracking-wider">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold">{member.name}</span>
+                            {isSubscriber && (
+                              <div className="flex items-center gap-1 bg-amber-400 text-slate-900 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter">
+                                <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                                Owner
+                              </div>
+                            )}
+                          </div>
+                          {(isOwnMember || (isSubscriber && !currentStaff)) && (
+                            <span className={`text-[10px] font-bold uppercase tracking-wider ${isSubscriber ? 'text-slate-400' : 'text-blue-600'}`}>
                               You
                             </span>
                           )}
                         </div>
                       </div>
                       
-                      {isOwnMember && (
+                      {(isOwnMember || (isSubscriber && !currentStaff)) && (
                         <div className="flex items-center gap-2">
                           {isEditingColor ? (
                             <div className="flex flex-wrap gap-1 max-w-[200px] justify-end">
@@ -248,13 +256,13 @@ const FleetModal: React.FC<FleetModalProps> = ({
                                     onUpdateMember(member.id, { color: c.value });
                                     setIsEditingColor(false);
                                   }}
-                                  className={`w-6 h-6 rounded-full ${c.value} border-2 ${member.color === c.value ? 'border-slate-900' : 'border-transparent'} hover:scale-110 transition-transform`}
+                                  className={`w-6 h-6 rounded-full ${c.value} border-2 ${member.color === c.value ? (isSubscriber ? 'border-white' : 'border-slate-900') : 'border-transparent'} hover:scale-110 transition-transform`}
                                   title={c.name}
                                 />
                               ))}
                               <button
                                 onClick={() => setIsEditingColor(false)}
-                                className="text-[10px] text-slate-500 hover:text-slate-700 ml-2"
+                                className={`text-[10px] ml-2 ${isSubscriber ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}
                               >
                                 Cancel
                               </button>
@@ -262,7 +270,7 @@ const FleetModal: React.FC<FleetModalProps> = ({
                           ) : (
                             <button
                               onClick={() => setIsEditingColor(true)}
-                              className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                              className={`text-xs font-medium ${isSubscriber ? 'text-amber-400 hover:text-amber-300' : 'text-blue-600 hover:text-blue-700'}`}
                             >
                               Edit Color
                             </button>
@@ -272,11 +280,10 @@ const FleetModal: React.FC<FleetModalProps> = ({
                     </div>
                   );
                 })}
-                {staffOnlyMembers.length === 0 && <div className="text-center py-4 text-slate-400 text-sm">No members registered.</div>}
+                {members.length === 0 && <div className="text-center py-4 text-slate-400 text-sm">No members registered.</div>}
               </div>
             </div>
-          );
-        })()}
+          )}
 
           {activeTab === 'expenses' && (
             <>
