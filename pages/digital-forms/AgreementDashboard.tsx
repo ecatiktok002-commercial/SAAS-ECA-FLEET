@@ -49,11 +49,17 @@ const AgreementDashboard: React.FC = () => {
           setLoading(false);
           return;
         }
+        
+        // userId is the UUID for staff, userUid is the string UID
+        const agentId = userId || undefined;
         createdBy = ids;
+        
+        const data = await apiService.getAgreements(subscriberId!, agentId, createdBy);
+        setAgreements(data);
+      } else {
+        const data = await apiService.getAgreements(subscriberId!);
+        setAgreements(data);
       }
-
-      const data = await apiService.getAgreements(subscriberId!, createdBy);
-      setAgreements(data);
     } catch (err) {
       console.error(err);
     } finally {

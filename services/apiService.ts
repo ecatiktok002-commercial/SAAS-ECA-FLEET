@@ -1078,17 +1078,34 @@ export const apiService = {
   },
 
   // Agreements
-  async getAgreements(subscriberId: string, createdBy?: string | string[]): Promise<Agreement[]> {
+  async getAgreements(subscriberId: string, agentId?: string, createdBy?: string | string[]): Promise<Agreement[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let query = supabase.from('agreements').select('*');
       query = query.eq('subscriber_id', subscriberId);
 
-      if (createdBy) {
-        if (Array.isArray(createdBy)) {
-          query = query.in('created_by', createdBy);
-        } else {
-          query = query.eq('created_by', createdBy);
+      if (agentId || createdBy) {
+        const filters: string[] = [];
+        
+        // Only add agent_id filter if it looks like a UUID to avoid Supabase errors
+        const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        
+        if (agentId && isUuid(agentId)) {
+          filters.push(`agent_id.eq.${agentId}`);
+        }
+        
+        if (createdBy) {
+          if (Array.isArray(createdBy)) {
+            createdBy.forEach(id => {
+              filters.push(`created_by.eq.${id}`);
+            });
+          } else {
+            filters.push(`created_by.eq.${createdBy}`);
+          }
+        }
+        
+        if (filters.length > 0) {
+          query = query.or(filters.join(','));
         }
       }
 
@@ -1185,14 +1202,35 @@ export const apiService = {
   },
 
   // Digital Forms
-  async getDigitalForms(subscriberId: string, agentId?: string): Promise<DigitalForm[]> {
+  async getDigitalForms(subscriberId: string, agentId?: string, createdBy?: string | string[]): Promise<DigitalForm[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let query = supabase.from('digital_forms').select('*');
       query = query.eq('subscriber_id', subscriberId);
 
-      if (agentId) {
-        query = query.eq('agent_id', agentId);
+      if (agentId || createdBy) {
+        const filters: string[] = [];
+        
+        // Only add agent_id filter if it looks like a UUID to avoid Supabase errors
+        const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        
+        if (agentId && isUuid(agentId)) {
+          filters.push(`agent_id.eq.${agentId}`);
+        }
+        
+        if (createdBy) {
+          if (Array.isArray(createdBy)) {
+            createdBy.forEach(id => {
+              filters.push(`created_by.eq.${id}`);
+            });
+          } else {
+            filters.push(`created_by.eq.${createdBy}`);
+          }
+        }
+        
+        if (filters.length > 0) {
+          query = query.or(filters.join(','));
+        }
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });

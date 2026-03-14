@@ -30,7 +30,7 @@ interface OverdueReturn {
 }
 
 const AdminDashboard: React.FC = () => {
-  const { subscriberId, staffRole, userUid } = useAuth();
+  const { subscriberId, staffRole, userUid, userId } = useAuth();
   
   const [stats, setStats] = useState({
     salesToday: 0,
@@ -62,12 +62,13 @@ const AdminDashboard: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const agentId = staffRole === 'staff' ? userUid || undefined : undefined;
+      const agentId = staffRole === 'staff' ? userId || undefined : undefined;
+      const createdBy = staffRole === 'staff' ? ([userUid, userId].filter(Boolean) as string[]) : undefined;
 
       const [bookings, cars, agreements, marketingEvents, members, staffMembers] = await Promise.all([
         apiService.getBookings(subscriberId!),
         apiService.getCars(subscriberId!),
-        apiService.getAgreements(subscriberId!, agentId),
+        apiService.getAgreements(subscriberId!, agentId, createdBy),
         apiService.getMarketingEvents(subscriberId!),
         apiService.getMembers(subscriberId!),
         apiService.getStaffMembers(subscriberId!)
