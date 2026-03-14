@@ -604,7 +604,7 @@ EXECUTE FUNCTION sync_agreement_to_customer();
 
 -- CRM View with Data Isolation Guardrail
 -- Updated to only include customers with at least one "Completed" booking
--- "Completed" is defined as status='completed' OR (status='signed' AND payment_receipt IS NOT NULL)
+-- "Completed" is defined as status='completed' OR (status='signed' AND payment_receipt IS NOT NULL AND payment_receipt != '')
 DROP VIEW IF EXISTS customer_crm_view;
 CREATE OR REPLACE VIEW customer_crm_view AS
 WITH completed_records AS (
@@ -619,7 +619,7 @@ WITH completed_records AS (
         status,
         payment_receipt
     FROM agreements 
-    WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL))
+    WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL AND payment_receipt != ''))
     UNION ALL
     SELECT 
         id,
@@ -632,7 +632,7 @@ WITH completed_records AS (
         status,
         payment_receipt
     FROM digital_forms 
-    WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL))
+    WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL AND payment_receipt != ''))
 ),
 customer_stats AS (
     SELECT 
@@ -845,10 +845,10 @@ SELECT DISTINCT ON (subscriber_id, identity_number)
     subscriber_id, customer_name, customer_phone, identity_number, agent_name
 FROM (
     SELECT subscriber_id, customer_name, customer_phone, identity_number, agent_name, created_at FROM agreements
-    WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL))
+    WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL AND payment_receipt != ''))
     UNION ALL
     SELECT subscriber_id, customer_name, customer_phone, identity_number, agent_name, created_at FROM digital_forms
-    WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL))
+    WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL AND payment_receipt != ''))
 ) combined_data
 WHERE identity_number IS NOT NULL
 ORDER BY subscriber_id, identity_number, created_at ASC
