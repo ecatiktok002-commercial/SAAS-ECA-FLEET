@@ -193,8 +193,20 @@ export default function EditAgreement() {
         receiptData = null;
       }
 
+      // 1. Upsert customer to CRM first
+      const customerId = await apiService.upsertCustomer({
+        full_name: formData.customer_name,
+        phone_number: formData.customer_phone,
+        ic_passport: formData.identity_number,
+        subscriber_id: subscriberId,
+        billing_address: formData.billing_address,
+        emergency_contact_name: formData.emergency_contact_name,
+        emergency_contact_relation: formData.emergency_contact_relation
+      });
+
       const updates: any = {
         ...formData,
+        customer_id: customerId, // Attach the customer_id
         total_price: parseFloat(formData.total_price),
         deposit: formData.deposit ? parseFloat(formData.deposit) : 0,
         duration_days: parseInt(formData.duration_days, 10),

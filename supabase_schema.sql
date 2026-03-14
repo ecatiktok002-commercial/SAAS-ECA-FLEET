@@ -312,9 +312,17 @@ CREATE TABLE IF NOT EXISTS customers (
   full_name TEXT NOT NULL,
   phone_number TEXT,
   ic_passport TEXT,
+  billing_address TEXT,
+  emergency_contact_name TEXT,
+  emergency_contact_relation TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(subscriber_id, ic_passport)
 );
+
+-- Ensure columns exist if table was already created
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS billing_address TEXT;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS emergency_contact_name TEXT;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS emergency_contact_relation TEXT;
 
 -- Add customer_id to agreements and digital_forms
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS customer_id UUID REFERENCES customers(id) ON DELETE SET NULL;
@@ -596,6 +604,9 @@ SELECT
     c.full_name,
     c.phone_number,
     c.ic_passport,
+    c.billing_address,
+    c.emergency_contact_name,
+    c.emergency_contact_relation,
     (
         SELECT COUNT(*) 
         FROM agreements a 

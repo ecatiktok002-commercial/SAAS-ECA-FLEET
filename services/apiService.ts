@@ -1078,14 +1078,14 @@ export const apiService = {
   },
 
   // Agreements
-  async getAgreements(subscriberId: string, agentId?: string): Promise<Agreement[]> {
+  async getAgreements(subscriberId: string, createdBy?: string): Promise<Agreement[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let query = supabase.from('agreements').select('*');
       query = query.eq('subscriber_id', subscriberId);
 
-      if (agentId) {
-        query = query.eq('agent_id', agentId);
+      if (createdBy) {
+        query = query.eq('created_by', createdBy);
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
@@ -1202,6 +1202,61 @@ export const apiService = {
   },
 
   // Customers (CRM)
+  async upsertCustomer(customer: { 
+    full_name: string, 
+    phone_number: string, 
+    ic_passport: string, 
+    subscriber_id: string,
+    billing_address?: string,
+    emergency_contact_name?: string,
+    emergency_contact_relation?: string
+  }): Promise<string> {
+    validateSubscriber(customer.subscriber_id);
+    return withRetry(async () => {
+      // Use ic_passport as unique identifier within the subscriber's scope
+      const { data, error } = await supabase
+        .from('customers')
+        .upsert(
+          { 
+            full_name: customer.full_name, 
+            phone_number: customer.phone_number, 
+            ic_passport: customer.ic_passport, 
+            subscriber_id: customer.subscriber_id,
+            billing_address: customer.billing_address,
+            emergency_contact_name: customer.emergency_contact_name,
+            emergency_contact_relation: customer.emergency_contact_relation
+          }, 
+          { onConflict: 'subscriber_id,ic_passport' }
+        )
+        .select('id')
+        .single();
+
+      if (error) {
+        logSupabaseError('upsertCustomer', error);
+        throw new Error('Failed to sync customer data to CRM');
+      }
+      return data.id;
+    });
+  },
+
+  async getCustomerByIC(subscriberId: string, ic: string): Promise<any | null> {
+    validateSubscriber(subscriberId);
+    return withRetry(async () => {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('subscriber_id', subscriberId)
+        .eq('ic_passport', ic)
+        .maybeSingle();
+      
+      if (error) {
+        logSupabaseError('getCustomerByIC', error);
+        return null;
+      }
+      return data;
+    });
+  },
+
   async getCustomersCRM(subscriberId: string): Promise<any[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {

@@ -77,19 +77,19 @@ export default function CreateAgreement() {
     if (!formData.identity_number || formData.identity_number.length < 5 || !subscriberId) return;
     
     try {
-      const member = await apiService.searchMemberByIdentity(formData.identity_number, subscriberId);
+      const customer = await apiService.getCustomerByIC(subscriberId, formData.identity_number);
 
-      if (member) {
+      if (customer) {
         setFormData(prev => ({
           ...prev,
-          customer_name: member.name || prev.customer_name,
-          customer_phone: member.phone || prev.customer_phone,
-          billing_address: member.billing_address || prev.billing_address,
-          emergency_contact_name: member.emergency_contact_name || prev.emergency_contact_name,
-          emergency_contact_relation: member.emergency_contact_relation || prev.emergency_contact_relation,
+          customer_name: customer.full_name || prev.customer_name,
+          customer_phone: customer.phone_number || prev.customer_phone,
+          billing_address: customer.billing_address || prev.billing_address,
+          emergency_contact_name: customer.emergency_contact_name || prev.emergency_contact_name,
+          emergency_contact_relation: customer.emergency_contact_relation || prev.emergency_contact_relation,
         }));
         setCustomerFound(true);
-        setTimeout(() => setCustomerFound(false), 4000);
+        setTimeout(() => setCustomerFound(false), 5000);
       }
     } catch (err) {
       console.error('Error fetching customer:', err);
@@ -183,8 +183,20 @@ export default function CreateAgreement() {
       const staffName = userName || 'Agent';
       const actualAgentId = staffRole === 'admin' ? subscriberId : userId;
 
+      // 1. Upsert customer to CRM first
+      const customerId = await apiService.upsertCustomer({
+        full_name: formData.customer_name,
+        phone_number: formData.customer_phone,
+        ic_passport: formData.identity_number,
+        subscriber_id: subscriberId,
+        billing_address: formData.billing_address,
+        emergency_contact_name: formData.emergency_contact_name,
+        emergency_contact_relation: formData.emergency_contact_relation
+      });
+
       const agreementData: any = {
         subscriber_id: subscriberId,
+        customer_id: customerId, // Attach the customer_id
         agent_id: actualAgentId || '', // Use subscriberId for admins to avoid UUID syntax error
         agent_name: staffName,
         created_by: userUid || userId || '', // Track the actual string UID
@@ -250,7 +262,15 @@ export default function CreateAgreement() {
 
             {currentStep === 1 && (
               <>
-                <div className="bg-slate-50 p-3 rounded-lg font-medium text-slate-900 mb-4">Customer Details</div>
+                <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg mb-4">
+                  <div className="font-medium text-slate-900">Customer Details</div>
+                  {customerFound && (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 animate-bounce">
+                      <CheckCircle2 className="w-3 h-3" />
+                      ✨ Repeat Customer Found - Details Loaded
+                    </div>
+                  )}
+                </div>
                 <div className="grid grid-cols-1 gap-y-4 gap-x-6 sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Identity Number (IC/Passport)</label>

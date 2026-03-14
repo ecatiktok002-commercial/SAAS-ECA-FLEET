@@ -172,5 +172,8 @@ export interface Company {
   status: string;
   is_trial: boolean;
   expiry_date: string | null;
+  logo_url?: string;
+  address?: string;
+  contact?: string;
   created_at: string;
 }

@@ -5,6 +5,7 @@ import { CheckCircle, Download, AlertCircle, ShieldAlert, Car, Clock, Fuel, Aler
 import { format } from 'date-fns';
 import { apiService } from '../../services/apiService';
 import html2pdf from 'html2pdf.js';
+import MalayPrintableAgreementTemplate from '../../components/MalayPrintableAgreementTemplate';
 
 export default function SignAgreement() {
   const { id } = useParams<{ id: string }>();
@@ -83,18 +84,24 @@ export default function SignAgreement() {
   };
 
   const handlePrint = () => {
-    const element = document.getElementById('agreement-content');
+    const element = document.getElementById('printable-agreement');
     if (!element) {
-      alert('Agreement content not found');
+      alert('Printable agreement content not found');
       return;
     }
 
     const opt = {
-      margin:       0.5,
-      filename:     `EcaFleet_Agreement_${agreement?.customer_name?.replace(/\s+/g, '_') || 'Customer'}.pdf`,
+      margin:       0,
+      filename:     `Agreement_${agreement?.customer_name?.replace(/\s+/g, '_') || 'Customer'}.pdf`,
       image:        { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true, logging: true, letterRendering: true },
-      jsPDF:        { unit: 'in', format: 'a4' as const, orientation: 'portrait' as const }
+      html2canvas:  { 
+        scale: 2, 
+        useCORS: true, 
+        logging: false, 
+        letterRendering: true,
+        windowWidth: 794
+      },
+      jsPDF:        { unit: 'px', format: 'a4' as const, orientation: 'portrait' as const }
     };
 
     html2pdf().set(opt).from(element).save();
@@ -130,37 +137,55 @@ export default function SignAgreement() {
 
   return (
     <div className="min-h-screen bg-slate-50 py-4 sm:py-12 px-4 sm:px-6 lg:px-8 font-sans text-base leading-relaxed">
-      <div id="agreement-content" className="max-w-3xl mx-auto bg-white shadow-sm rounded-xl border border-slate-200 overflow-hidden mb-24">
+      <div id="agreement-content" className="max-w-4xl mx-auto bg-white shadow-xl min-h-screen flex flex-col print:shadow-none print:max-w-none">
         
-        {/* Success Message for newly signed agreements */}
-        {success && (
-          <div className="bg-emerald-600 text-white p-6 text-center print:hidden">
-            <CheckCircle className="h-12 w-12 mx-auto mb-3" />
-            <h2 className="text-2xl font-bold mb-1">Agreement Signed Successfully!</h2>
-            <p className="opacity-90">Thank you for signing. You can now download the PDF below.</p>
-            <button
-              onClick={handlePrint}
-              className="mt-4 inline-flex items-center px-6 py-2 bg-white text-emerald-700 rounded-lg font-bold hover:bg-emerald-50 transition-colors"
-            >
-              <Printer className="w-5 h-5 mr-2" />
-              Download PDF Now
-            </button>
-          </div>
+        {/* Printable Template (Hidden from screen) */}
+        {agreement && (
+          <MalayPrintableAgreementTemplate
+            agreementId={agreement.booking_reference}
+            customer={{
+              name: agreement.customer_name,
+              ic: agreement.identity_number,
+              phone: agreement.customer_phone,
+              address: agreement.billing_address,
+              emergencyContactName: agreement.emergency_contact_name,
+              emergencyContactPhone: agreement.emergency_contact_relation
+            }}
+            vehicle={{
+              model: agreement.car_model,
+              plate: agreement.car_plate_number,
+              pickupDate: agreement.start_date,
+              returnDate: agreement.end_date,
+              duration: agreement.duration_days
+            }}
+            payment={{
+              rentalPrice: agreement.total_price,
+              deposit: agreement.deposit
+            }}
+            brandSettings={{
+              logoUrl: company?.logo_url,
+              companyName: company?.name,
+              address: company?.address,
+              contact: company?.contact
+            }}
+            signatureImg={agreement.signature_data}
+            beforePhotos={agreement.photos_url}
+          />
         )}
 
-        {/* Print Button for Signed Agreements */}
+        {/* Action Bar for Signed Agreements */}
         {agreement?.signature_data && (
-          <div className="bg-emerald-50 border-b border-emerald-200 p-4 flex justify-between items-center print:hidden">
-            <div className="flex items-center text-emerald-700">
+          <div className="sticky top-0 z-50 bg-white border-b border-slate-200 p-4 flex justify-between items-center shadow-sm print:hidden">
+            <div className="flex items-center text-emerald-600">
               <CheckCircle className="w-5 h-5 mr-2" />
-              <span className="font-medium">This agreement has been signed.</span>
+              <span className="font-semibold">Agreement Signed Successfully</span>
             </div>
             <button
               onClick={handlePrint}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+              className="inline-flex items-center px-6 py-2.5 border border-transparent text-sm font-bold rounded-lg shadow-sm text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 transition-all"
             >
-              <Printer className="h-4 w-4 mr-2" />
-              Download PDF
+              <Download className="h-4 w-4 mr-2" />
+              Download Official PDF
             </button>
           </div>
         )}

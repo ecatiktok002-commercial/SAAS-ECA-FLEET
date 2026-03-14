@@ -37,13 +37,14 @@ const AgreementDashboard: React.FC = () => {
   const fetchAgreements = async () => {
     try {
       setLoading(true);
-      let agentId: string | undefined = undefined;
+      let createdBy: string | undefined = undefined;
       
+      // Agents only see their own forms, Subscribers see everything
       if (staffRole === 'staff') {
-        agentId = userUid || undefined;
+        createdBy = userUid || undefined;
       }
 
-      const data = await apiService.getAgreements(subscriberId!, agentId);
+      const data = await apiService.getAgreements(subscriberId!, createdBy);
       setAgreements(data);
     } catch (err) {
       console.error(err);
@@ -149,7 +150,7 @@ const AgreementDashboard: React.FC = () => {
               <tr className="bg-slate-50/50 text-slate-500 text-xs font-bold uppercase tracking-wider">
                 <th className="px-6 py-4">Customer</th>
                 <th className="px-6 py-4">IC / Phone</th>
-                <th className="px-6 py-4">Agent</th>
+                <th className="px-6 py-4">Handled By</th>
                 <th className="px-6 py-4">Amount</th>
                 <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4 text-right">Actions</th>
@@ -166,7 +167,14 @@ const AgreementDashboard: React.FC = () => {
               ) : filteredAgreements.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
-                    No agreements found.
+                    {staffRole === 'staff' ? (
+                      <div className="space-y-2">
+                        <p className="text-slate-600 font-medium">You have no active agreements.</p>
+                        <p className="text-sm">Create a new reservation to get started.</p>
+                      </div>
+                    ) : (
+                      "No agreements found across the fleet."
+                    )}
                   </td>
                 </tr>
               ) : (
