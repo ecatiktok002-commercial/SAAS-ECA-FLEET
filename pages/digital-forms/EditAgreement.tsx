@@ -81,7 +81,7 @@ export default function EditAgreement() {
         }
 
         // Access Control: Staff can only edit their own agreements
-        if (staffRole === 'staff' && data.created_by !== userUid) {
+        if (staffRole === 'staff' && data.created_by !== userUid && data.created_by !== userId) {
           throw new Error('You do not have permission to edit this agreement.');
         }
 

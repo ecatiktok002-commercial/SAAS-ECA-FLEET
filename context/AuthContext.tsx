@@ -85,7 +85,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (storedTier) setSubscriptionTier(normalizeTier(storedTier));
           if (storedName) setUserName(storedName);
           if (storedUserId) setUserId(storedUserId);
-          if (storedUserUid) setUserUid(storedUserUid);
+          
+          if (storedUserUid) {
+            setUserUid(storedUserUid);
+          } else if (storedRole === 'staff' && storedUserId) {
+            // Fallback: Fetch designated_uid if missing from storage
+            const { data: staffData } = await supabase
+              .from('staff_members')
+              .select('designated_uid')
+              .eq('id', storedUserId)
+              .single();
+            
+            if (staffData?.designated_uid) {
+              setUserUid(staffData.designated_uid);
+              localStorage.setItem('userUid', staffData.designated_uid);
+            }
+          }
         } else if (isSuperAdmin) {
           setStaffRole('admin');
         }

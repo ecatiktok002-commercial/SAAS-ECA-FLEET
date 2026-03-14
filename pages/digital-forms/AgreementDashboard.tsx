@@ -37,17 +37,19 @@ const AgreementDashboard: React.FC = () => {
   const fetchAgreements = async () => {
     try {
       setLoading(true);
-      let createdBy: string | undefined = undefined;
+      let createdBy: string | string[] | undefined = undefined;
       
       // Agents only see their own forms, Subscribers see everything
       if (staffRole === 'staff') {
-        // CRITICAL: If we are staff but don't have a UID yet, don't fetch or fetch with a dummy ID
-        if (!userUid) {
+        const ids = [userUid, userId].filter(Boolean) as string[];
+        
+        // CRITICAL: If we are staff but don't have any ID yet, don't fetch
+        if (ids.length === 0) {
           setAgreements([]);
           setLoading(false);
           return;
         }
-        createdBy = userUid;
+        createdBy = ids;
       }
 
       const data = await apiService.getAgreements(subscriberId!, createdBy);

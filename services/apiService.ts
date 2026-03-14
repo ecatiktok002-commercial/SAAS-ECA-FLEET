@@ -1078,14 +1078,18 @@ export const apiService = {
   },
 
   // Agreements
-  async getAgreements(subscriberId: string, createdBy?: string): Promise<Agreement[]> {
+  async getAgreements(subscriberId: string, createdBy?: string | string[]): Promise<Agreement[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let query = supabase.from('agreements').select('*');
       query = query.eq('subscriber_id', subscriberId);
 
       if (createdBy) {
-        query = query.eq('created_by', createdBy);
+        if (Array.isArray(createdBy)) {
+          query = query.in('created_by', createdBy);
+        } else {
+          query = query.eq('created_by', createdBy);
+        }
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
