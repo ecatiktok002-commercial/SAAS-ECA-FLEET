@@ -32,10 +32,6 @@ const Layout: React.FC = () => {
     // Layer 1: Tier Gate (Feature Access)
     // Tier 1: Only /forms
     if (subscriptionTier === 'tier_1') {
-      if (path === '/' && isStaff) {
-        navigate('/forms', { replace: true });
-        return;
-      }
       const allowedPaths = ['/', '/forms', '/customers'];
       const isAllowed = allowedPaths.some(p => path === p || path.startsWith(p + '/'));
       if (!isAllowed && path !== '/staff') { // Staff is handled by Role Gate
@@ -45,10 +41,6 @@ const Layout: React.FC = () => {
 
     // Tier 2: /calendar and /forms
     if (subscriptionTier === 'tier_2') {
-      if (path === '/' && isStaff) {
-        navigate('/calendar', { replace: true });
-        return;
-      }
       const allowedPaths = ['/', '/calendar', '/forms', '/customers'];
       const isAllowed = allowedPaths.some(p => path === p || path.startsWith(p + '/'));
       if (!isAllowed && path !== '/staff') {
@@ -58,10 +50,7 @@ const Layout: React.FC = () => {
 
     // Tier 3: All (Forms, Calendar, Fleet)
     if (subscriptionTier === 'tier_3') {
-      if (path === '/' && isStaff) {
-        navigate('/calendar', { replace: true });
-        return;
-      }
+      // No redirect for staff on dashboard
     }
   }, [location.pathname, subscriberId, staffRole, subscriptionTier, isLoading, navigate]);
 

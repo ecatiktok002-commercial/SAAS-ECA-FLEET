@@ -32,7 +32,7 @@ const AgreementDashboard: React.FC = () => {
     if (subscriberId) {
       fetchAgreements();
     }
-  }, [subscriberId, staffRole, userId]);
+  }, [subscriberId, staffRole, userUid]);
 
   const fetchAgreements = async () => {
     try {
@@ -40,7 +40,7 @@ const AgreementDashboard: React.FC = () => {
       let agentId: string | undefined = undefined;
       
       if (staffRole === 'staff') {
-        agentId = userId || undefined;
+        agentId = userUid || undefined;
       }
 
       const data = await apiService.getAgreements(subscriberId!, agentId);

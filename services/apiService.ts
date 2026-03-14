@@ -1,5 +1,5 @@
 
-import { Booking, Car, Member, LogEntry, Expense, StaffMember, Agreement, DigitalForm, Company } from '../types';
+import { Booking, Car, Member, LogEntry, Expense, StaffMember, Agreement, DigitalForm, Company, MarketingEvent } from '../types';
 import { supabase } from './supabase';
 
 // Service for managing fleet data
@@ -226,7 +226,8 @@ const mapStaffFromDB = (dbStaff: any): StaffMember => ({
   designated_uid: dbStaff.designated_uid,
   pin_hash: dbStaff.pin_hash,
   role: dbStaff.role,
-  created_at: dbStaff.created_at
+  created_at: dbStaff.created_at,
+  commission_tier_override: dbStaff.commission_tier_override
 });
 
 const mapStaffToDB = (staff: any) => {
@@ -235,6 +236,7 @@ const mapStaffToDB = (staff: any) => {
   if (staff.designated_uid !== undefined) db.designated_uid = staff.designated_uid;
   if (staff.pin_hash !== undefined) db.pin_hash = staff.pin_hash;
   if (staff.role !== undefined) db.role = staff.role;
+  if (staff.commission_tier_override !== undefined) db.commission_tier_override = staff.commission_tier_override;
   return db;
 };
 
@@ -866,7 +868,7 @@ export const apiService = {
     });
   },
 
-  async addStaffMember(name: string, subscriberId: string, role: 'admin' | 'staff' = 'staff', pinHash?: string, designatedUid?: string): Promise<StaffMember> {
+  async addStaffMember(name: string, subscriberId: string, role: 'admin' | 'staff' = 'staff', pinHash?: string, designatedUid?: string, commissionTierOverride: 'auto' | 'premium' | 'prestige' | 'privilege' = 'auto'): Promise<StaffMember> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let targetSubscriberId = subscriberId;
@@ -882,7 +884,8 @@ export const apiService = {
           subscriber_id: targetSubscriberId, 
           role, 
           pin_hash: pinHash,
-          designated_uid: designatedUid || name.toLowerCase().replace(/\s+/g, '')
+          designated_uid: designatedUid || name.toLowerCase().replace(/\s+/g, ''),
+          commission_tier_override: commissionTierOverride
         }])
         .select()
         .single();
@@ -1212,6 +1215,57 @@ export const apiService = {
         return [];
       }
       return data || [];
+    });
+  },
+
+  // Marketing Events
+  async getMarketingEvents(subscriberId: string): Promise<MarketingEvent[]> {
+    validateSubscriber(subscriberId);
+    return withRetry(async () => {
+      const { data, error } = await supabase
+        .from('marketing_events')
+        .select('*')
+        .eq('subscriber_id', subscriberId)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        logSupabaseError('getMarketingEvents', error);
+        return [];
+      }
+      return data || [];
+    });
+  },
+
+  async addMarketingEvent(event: Omit<MarketingEvent, 'id' | 'created_at' | 'subscriber_id'>, subscriberId: string): Promise<MarketingEvent> {
+    validateSubscriber(subscriberId);
+    return withRetry(async () => {
+      const { data, error } = await supabase
+        .from('marketing_events')
+        .insert([{ ...event, subscriber_id: subscriberId }])
+        .select()
+        .single();
+      
+      if (error) {
+        logSupabaseError('addMarketingEvent', error);
+        throw new Error('Failed to add marketing event');
+      }
+      return data;
+    });
+  },
+
+  async deleteMarketingEvent(id: string, subscriberId: string): Promise<void> {
+    validateSubscriber(subscriberId);
+    return withRetry(async () => {
+      const { error } = await supabase
+        .from('marketing_events')
+        .delete()
+        .eq('id', id)
+        .eq('subscriber_id', subscriberId);
+      
+      if (error) {
+        logSupabaseError('deleteMarketingEvent', error);
+        throw new Error('Failed to delete marketing event');
+      }
     });
   }
 };

@@ -42,8 +42,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
     
     // Dashboard Access
     // Subscriber always gets Business Dashboard (except Tier 2 which is Calendar ONLY)
-    // Agent only gets Personal Stats if Tier 3
-    if ((isAdmin && subscriptionTier !== 'tier_2') || (isStaff && subscriptionTier === 'tier_3')) {
+    // Agent gets Personal Stats if Tier 1 (Forms) or Tier 3 (All)
+    if ((isAdmin && subscriptionTier !== 'tier_2') || (isStaff && subscriptionTier !== 'tier_2')) {
       items.push({ 
         name: isAdmin ? 'Business Dashboard' : 'Personal Stats', 
         path: '/', 

@@ -13,7 +13,7 @@ const StaffManagementPage: React.FC = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
-  const [formData, setFormData] = useState({ name: '', designated_uid: '', pin: '' });
+  const [formData, setFormData] = useState({ name: '', designated_uid: '', pin: '', commission_tier_override: 'auto' as 'auto' | 'premium' | 'prestige' | 'privilege' });
 
   useEffect(() => {
     if (subscriberId) {
@@ -43,19 +43,23 @@ const StaffManagementPage: React.FC = () => {
       
       if (editingStaff) {
         // Update existing
-        const updates: Partial<StaffMember> = { name: formData.name, designated_uid: formData.designated_uid };
+        const updates: Partial<StaffMember> = { 
+          name: formData.name, 
+          designated_uid: formData.designated_uid,
+          commission_tier_override: formData.commission_tier_override
+        };
         if (hashedPin) {
           updates.pin_hash = hashedPin; 
         }
         await apiService.updateStaffMember(editingStaff.id, subscriberId, updates);
       } else {
         // Create new
-        await apiService.addStaffMember(formData.name, subscriberId, 'staff', hashedPin, formData.designated_uid);
+        await apiService.addStaffMember(formData.name, subscriberId, 'staff', hashedPin, formData.designated_uid, formData.commission_tier_override);
       }
       await loadStaff();
       setIsModalOpen(false);
       setEditingStaff(null);
-      setFormData({ name: '', designated_uid: '', pin: '' });
+      setFormData({ name: '', designated_uid: '', pin: '', commission_tier_override: 'auto' });
     } catch (err: any) {
       alert(`Error saving staff: ${err.message}`);
     } finally {
@@ -78,7 +82,12 @@ const StaffManagementPage: React.FC = () => {
 
   const openEditModal = (member: StaffMember) => {
     setEditingStaff(member);
-    setFormData({ name: member.name, designated_uid: member.designated_uid || '', pin: '' });
+    setFormData({ 
+      name: member.name, 
+      designated_uid: member.designated_uid || '', 
+      pin: '',
+      commission_tier_override: member.commission_tier_override || 'auto'
+    });
     setIsModalOpen(true);
   };
 
@@ -102,7 +111,7 @@ const StaffManagementPage: React.FC = () => {
         <button
           onClick={() => {
             setEditingStaff(null);
-            setFormData({ name: '', designated_uid: '', pin: '' });
+            setFormData({ name: '', designated_uid: '', pin: '', commission_tier_override: 'auto' });
             setIsModalOpen(true);
           }}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-medium flex items-center gap-2 transition-colors"
@@ -124,17 +133,18 @@ const StaffManagementPage: React.FC = () => {
             <tr>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Name</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Designated UID</th>
+              <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Commission Tier</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {isLoading && staff.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-6 py-8 text-center text-slate-500">Loading...</td>
+                <td colSpan={4} className="px-6 py-8 text-center text-slate-500">Loading...</td>
               </tr>
             ) : staff.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-6 py-8 text-center text-slate-500">No staff members found.</td>
+                <td colSpan={4} className="px-6 py-8 text-center text-slate-500">No staff members found.</td>
               </tr>
             ) : (
               staff.map((member) => (
@@ -145,6 +155,19 @@ const StaffManagementPage: React.FC = () => {
                   <td className="px-6 py-4">
                     <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">
                       {member.designated_uid}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                      member.commission_tier_override === 'premium' ? 'bg-slate-100 text-slate-700' :
+                      member.commission_tier_override === 'prestige' ? 'bg-blue-100 text-blue-700' :
+                      member.commission_tier_override === 'privilege' ? 'bg-amber-100 text-amber-700' :
+                      'bg-emerald-100 text-emerald-700'
+                    }`}>
+                      {member.commission_tier_override === 'premium' ? 'Premium (20%)' :
+                       member.commission_tier_override === 'prestige' ? 'Prestige (25%)' :
+                       member.commission_tier_override === 'privilege' ? 'Privilege (30%)' :
+                       'Auto-Calculate'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
@@ -233,6 +256,21 @@ const StaffManagementPage: React.FC = () => {
                   />
                 </div>
                 <p className="text-xs text-slate-500 mt-1">Used for quick login. Numbers only.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Commission Tier</label>
+                <select
+                  value={formData.commission_tier_override}
+                  onChange={e => setFormData({ ...formData, commission_tier_override: e.target.value as any })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                >
+                  <option value="auto">Auto-Calculate</option>
+                  <option value="premium">Premium Base (20%)</option>
+                  <option value="prestige">Prestige Base (25%)</option>
+                  <option value="privilege">Privilege Base (30%)</option>
+                </select>
+                <p className="text-[10px] text-slate-500 mt-1">Select 'Auto-Calculate' to use RM threshold logic based on current month sales.</p>
               </div>
 
               <div className="pt-4 flex justify-end gap-3">

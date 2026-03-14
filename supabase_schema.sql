@@ -24,6 +24,7 @@
 -- ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS designated_uid TEXT;
 -- ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'staff';
 -- ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS pin_hash TEXT;
+-- ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS commission_tier_override TEXT DEFAULT 'auto';
 --
 -- ALTER TABLE agreements ADD COLUMN IF NOT EXISTS total_price NUMERIC DEFAULT 0;
 -- ALTER TABLE agreements ADD COLUMN IF NOT EXISTS deposit NUMERIC DEFAULT 0;
@@ -144,9 +145,13 @@ CREATE TABLE IF NOT EXISTS staff_members (
   designated_uid TEXT NOT NULL,
   role TEXT DEFAULT 'staff',
   pin_hash TEXT,
+  commission_tier_override TEXT DEFAULT 'auto',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(subscriber_id, designated_uid)
 );
+
+-- Ensure columns exist if table was already created
+ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS commission_tier_override TEXT DEFAULT 'auto';
 
 -- 3. Cars Table
 CREATE TABLE IF NOT EXISTS cars (
@@ -313,6 +318,17 @@ CREATE TABLE IF NOT EXISTS customers (
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS customer_id UUID REFERENCES customers(id) ON DELETE SET NULL;
 ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS customer_id UUID REFERENCES customers(id) ON DELETE SET NULL;
 
+-- 12. Marketing Events
+CREATE TABLE IF NOT EXISTS marketing_events (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  subscriber_id UUID NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  target_goal NUMERIC NOT NULL DEFAULT 0,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- ===============================================================
 -- RLS POLICIES
 -- ===============================================================
@@ -328,6 +344,7 @@ ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE handover_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE marketing_events ENABLE ROW LEVEL SECURITY;
 
 -- Helper to check if user is a Subscriber (Company Owner)
 -- In this system, the company ID matches the Auth UID of the owner
@@ -495,6 +512,15 @@ CREATE POLICY "Handover records access" ON handover_records
 -- 11. Customers (CRM)
 DROP POLICY IF EXISTS "Customers access" ON customers;
 CREATE POLICY "Customers access" ON customers 
+  FOR ALL USING (
+    auth.uid() = subscriber_id -- Subscriber
+    OR 
+    subscriber_id = current_subscriber_id() -- Agent
+  );
+
+-- 12. Marketing Events
+DROP POLICY IF EXISTS "Marketing events access" ON marketing_events;
+CREATE POLICY "Marketing events access" ON marketing_events 
   FOR ALL USING (
     auth.uid() = subscriber_id -- Subscriber
     OR 

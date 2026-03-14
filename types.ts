@@ -90,6 +90,7 @@ export interface StaffMember {
   pin_hash?: string; // Hashed PIN
   role?: 'admin' | 'staff';
   created_at?: string;
+  commission_tier_override?: 'auto' | 'premium' | 'prestige' | 'privilege';
 }
 
 export interface Agreement {
@@ -148,6 +149,16 @@ export interface DigitalForm {
   status: 'pending' | 'signed' | 'completed';
   signed_at?: string;
   created_by?: string;
+  created_at: string;
+}
+
+export interface MarketingEvent {
+  id: string;
+  subscriber_id: string;
+  name: string;
+  target_goal: number;
+  start_date: string;
+  end_date: string;
   created_at: string;
 }
 
