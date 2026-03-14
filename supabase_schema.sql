@@ -597,6 +597,7 @@ FOR EACH ROW
 EXECUTE FUNCTION sync_agreement_to_customer();
 
 -- CRM View with Data Isolation Guardrail
+-- Updated to include both agreements and digital_forms
 CREATE OR REPLACE VIEW customer_crm_view AS
 SELECT 
     c.id,
@@ -612,10 +613,19 @@ SELECT
         FROM agreements a 
         WHERE a.customer_id = c.id 
         AND a.subscriber_id = c.subscriber_id
+    ) + (
+        SELECT COUNT(*) 
+        FROM digital_forms f 
+        WHERE f.customer_id = c.id 
+        AND f.subscriber_id = c.subscriber_id
     ) as total_bookings,
     (
-        SELECT MAX(a.end_date) 
-        FROM agreements a 
+        SELECT GREATEST(
+            MAX(a.end_date),
+            MAX(f.end_date)
+        )
+        FROM (SELECT id, customer_id, subscriber_id, end_date FROM agreements) a
+        LEFT JOIN (SELECT id, customer_id, subscriber_id, end_date FROM digital_forms) f ON f.customer_id = a.customer_id
         WHERE a.customer_id = c.id 
         AND a.subscriber_id = c.subscriber_id
     ) as last_rental_date,
@@ -624,14 +634,25 @@ SELECT
             SELECT 1 
             FROM agreements a 
             WHERE a.customer_id = c.id 
-            AND a.status = 'Ongoing' 
+            AND (a.status = 'Ongoing' OR a.status = 'signed')
             AND a.subscriber_id = c.subscriber_id
+        ) OR EXISTS (
+            SELECT 1 
+            FROM digital_forms f 
+            WHERE f.customer_id = c.id 
+            AND (f.status = 'Ongoing' OR f.status = 'signed')
+            AND f.subscriber_id = c.subscriber_id
         ) THEN 'Active'
         WHEN (
             SELECT COUNT(*) 
             FROM agreements a 
             WHERE a.customer_id = c.id 
             AND a.subscriber_id = c.subscriber_id
+        ) + (
+            SELECT COUNT(*) 
+            FROM digital_forms f 
+            WHERE f.customer_id = c.id 
+            AND f.subscriber_id = c.subscriber_id
         ) > 1 THEN 'Repeat'
         ELSE 'New'
     END as status
@@ -810,11 +831,15 @@ FROM subscribers
 WHERE is_trial = FALSE AND expiry_date IS NOT NULL
 ON CONFLICT DO NOTHING;
 
--- 13. Initial Migration: Populate customers from existing agreements
+-- 13. Initial Migration: Populate customers from existing agreements and digital forms
 INSERT INTO customers (subscriber_id, full_name, phone_number, ic_passport)
 SELECT DISTINCT ON (subscriber_id, identity_number) 
     subscriber_id, customer_name, customer_phone, identity_number
-FROM agreements
+FROM (
+    SELECT subscriber_id, customer_name, customer_phone, identity_number FROM agreements
+    UNION ALL
+    SELECT subscriber_id, customer_name, customer_phone, identity_number FROM digital_forms
+) combined_data
 WHERE identity_number IS NOT NULL
 ON CONFLICT (subscriber_id, ic_passport) DO NOTHING;
 
@@ -823,11 +848,13 @@ UPDATE agreements a
 SET customer_id = c.id
 FROM customers c
 WHERE a.identity_number = c.ic_passport 
-AND a.subscriber_id = c.subscriber_id;
+AND a.subscriber_id = c.subscriber_id
+AND a.customer_id IS NULL;
 
 -- Update existing digital forms with customer_id
 UPDATE digital_forms f
 SET customer_id = c.id
 FROM customers c
 WHERE f.identity_number = c.ic_passport 
-AND f.subscriber_id = c.subscriber_id;
+AND f.subscriber_id = c.subscriber_id
+AND f.customer_id IS NULL;

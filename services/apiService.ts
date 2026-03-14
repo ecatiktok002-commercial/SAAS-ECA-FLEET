@@ -1309,7 +1309,33 @@ export const apiService = {
       
       if (error) {
         logSupabaseError('getCustomersCRM', error);
-        return [];
+        
+        // Fallback to raw customers table if view is missing or failing
+        // This ensures the CRM list is not empty even if the view has issues
+        const { data: rawData, error: rawError } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('subscriber_id', subscriberId);
+          
+        if (rawError) {
+          logSupabaseError('getCustomersCRM_fallback', rawError);
+          return [];
+        }
+        
+        // Map raw data to match the view's expected structure
+        return (rawData || []).map(c => ({
+          id: c.id,
+          subscriber_id: c.subscriber_id,
+          full_name: c.full_name,
+          phone_number: c.phone_number,
+          ic_passport: c.ic_passport,
+          billing_address: c.billing_address,
+          emergency_contact_name: c.emergency_contact_name,
+          emergency_contact_relation: c.emergency_contact_relation,
+          total_bookings: 0, // Fallback default
+          last_rental_date: null, // Fallback default
+          status: 'New' // Fallback default
+        }));
       }
       return data || [];
     });
