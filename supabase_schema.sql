@@ -315,6 +315,7 @@ CREATE TABLE IF NOT EXISTS customers (
   billing_address TEXT,
   emergency_contact_name TEXT,
   emergency_contact_relation TEXT,
+  acquired_by_agent TEXT, -- The agent who first brought in this customer
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(subscriber_id, ic_passport)
 );
@@ -323,6 +324,7 @@ CREATE TABLE IF NOT EXISTS customers (
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS billing_address TEXT;
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS emergency_contact_name TEXT;
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS emergency_contact_relation TEXT;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS acquired_by_agent TEXT;
 
 -- Add customer_id to agreements and digital_forms
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS customer_id UUID REFERENCES customers(id) ON DELETE SET NULL;
@@ -571,9 +573,13 @@ BEGIN
 
     -- If not found, create new customer
     IF v_customer_id IS NULL AND NEW.identity_number IS NOT NULL THEN
-        INSERT INTO customers (subscriber_id, full_name, phone_number, ic_passport)
-        VALUES (NEW.subscriber_id, NEW.customer_name, NEW.customer_phone, NEW.identity_number)
+        INSERT INTO customers (subscriber_id, full_name, phone_number, ic_passport, acquired_by_agent)
+        VALUES (NEW.subscriber_id, NEW.customer_name, NEW.customer_phone, NEW.identity_number, NEW.agent_name)
         RETURNING id INTO v_customer_id;
+    ELSE
+        -- If found but acquired_by_agent is null, update it
+        UPDATE customers SET acquired_by_agent = NEW.agent_name 
+        WHERE id = v_customer_id AND acquired_by_agent IS NULL;
     END IF;
 
     -- Update the agreement with the customer_id
@@ -597,8 +603,48 @@ FOR EACH ROW
 EXECUTE FUNCTION sync_agreement_to_customer();
 
 -- CRM View with Data Isolation Guardrail
--- Updated to include both agreements and digital_forms
+-- Updated to only include customers with at least one "Completed" booking
+-- "Completed" is defined as status='completed' OR (status='signed' AND payment_receipt IS NOT NULL)
+DROP VIEW IF EXISTS customer_crm_view;
 CREATE OR REPLACE VIEW customer_crm_view AS
+WITH completed_records AS (
+    SELECT 
+        id,
+        customer_id, 
+        subscriber_id, 
+        agent_name, 
+        start_date,
+        end_date,
+        created_at,
+        status,
+        payment_receipt
+    FROM agreements 
+    WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL))
+    UNION ALL
+    SELECT 
+        id,
+        customer_id, 
+        subscriber_id, 
+        agent_name, 
+        start_date,
+        end_date,
+        created_at,
+        status,
+        payment_receipt
+    FROM digital_forms 
+    WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL))
+),
+customer_stats AS (
+    SELECT 
+        customer_id,
+        subscriber_id,
+        COUNT(*) as total_bookings,
+        MAX(end_date) as last_rental_date,
+        (ARRAY_AGG(agent_name ORDER BY created_at ASC))[1] as acquired_by_agent,
+        BOOL_OR(CURRENT_DATE >= start_date AND CURRENT_DATE <= end_date) as is_currently_active
+    FROM completed_records
+    GROUP BY customer_id, subscriber_id
+)
 SELECT 
     c.id,
     c.subscriber_id,
@@ -608,55 +654,16 @@ SELECT
     c.billing_address,
     c.emergency_contact_name,
     c.emergency_contact_relation,
-    (
-        SELECT COUNT(*) 
-        FROM agreements a 
-        WHERE a.customer_id = c.id 
-        AND a.subscriber_id = c.subscriber_id
-    ) + (
-        SELECT COUNT(*) 
-        FROM digital_forms f 
-        WHERE f.customer_id = c.id 
-        AND f.subscriber_id = c.subscriber_id
-    ) as total_bookings,
-    (
-        SELECT GREATEST(
-            MAX(a.end_date),
-            MAX(f.end_date)
-        )
-        FROM (SELECT id, customer_id, subscriber_id, end_date FROM agreements) a
-        LEFT JOIN (SELECT id, customer_id, subscriber_id, end_date FROM digital_forms) f ON f.customer_id = a.customer_id
-        WHERE a.customer_id = c.id 
-        AND a.subscriber_id = c.subscriber_id
-    ) as last_rental_date,
+    s.total_bookings,
+    s.last_rental_date,
+    COALESCE(c.acquired_by_agent, s.acquired_by_agent) as acquired_by_agent,
     CASE 
-        WHEN EXISTS (
-            SELECT 1 
-            FROM agreements a 
-            WHERE a.customer_id = c.id 
-            AND (a.status = 'Ongoing' OR a.status = 'signed')
-            AND a.subscriber_id = c.subscriber_id
-        ) OR EXISTS (
-            SELECT 1 
-            FROM digital_forms f 
-            WHERE f.customer_id = c.id 
-            AND (f.status = 'Ongoing' OR f.status = 'signed')
-            AND f.subscriber_id = c.subscriber_id
-        ) THEN 'Active'
-        WHEN (
-            SELECT COUNT(*) 
-            FROM agreements a 
-            WHERE a.customer_id = c.id 
-            AND a.subscriber_id = c.subscriber_id
-        ) + (
-            SELECT COUNT(*) 
-            FROM digital_forms f 
-            WHERE f.customer_id = c.id 
-            AND f.subscriber_id = c.subscriber_id
-        ) > 1 THEN 'Repeat'
+        WHEN s.is_currently_active THEN 'Active'
+        WHEN s.total_bookings > 1 THEN 'Repeat'
         ELSE 'New'
     END as status
-FROM customers c;
+FROM customers c
+JOIN customer_stats s ON c.id = s.customer_id AND c.subscriber_id = s.subscriber_id;
 
 -- ===============================================================
 -- SMART LOGIN DETECTION RPC
@@ -832,15 +839,19 @@ WHERE is_trial = FALSE AND expiry_date IS NOT NULL
 ON CONFLICT DO NOTHING;
 
 -- 13. Initial Migration: Populate customers from existing agreements and digital forms
-INSERT INTO customers (subscriber_id, full_name, phone_number, ic_passport)
+-- Only consider "Completed" records for initial CRM population
+INSERT INTO customers (subscriber_id, full_name, phone_number, ic_passport, acquired_by_agent)
 SELECT DISTINCT ON (subscriber_id, identity_number) 
-    subscriber_id, customer_name, customer_phone, identity_number
+    subscriber_id, customer_name, customer_phone, identity_number, agent_name
 FROM (
-    SELECT subscriber_id, customer_name, customer_phone, identity_number FROM agreements
+    SELECT subscriber_id, customer_name, customer_phone, identity_number, agent_name, created_at FROM agreements
+    WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL))
     UNION ALL
-    SELECT subscriber_id, customer_name, customer_phone, identity_number FROM digital_forms
+    SELECT subscriber_id, customer_name, customer_phone, identity_number, agent_name, created_at FROM digital_forms
+    WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL))
 ) combined_data
 WHERE identity_number IS NOT NULL
+ORDER BY subscriber_id, identity_number, created_at ASC
 ON CONFLICT (subscriber_id, ic_passport) DO NOTHING;
 
 -- Update existing agreements with customer_id

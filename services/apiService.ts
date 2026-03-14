@@ -1332,6 +1332,7 @@ export const apiService = {
           billing_address: c.billing_address,
           emergency_contact_name: c.emergency_contact_name,
           emergency_contact_relation: c.emergency_contact_relation,
+          acquired_by_agent: c.acquired_by_agent,
           total_bookings: 0, // Fallback default
           last_rental_date: null, // Fallback default
           status: 'New' // Fallback default

@@ -11,6 +11,7 @@ interface CustomerCRM {
   ic_passport: string;
   total_bookings: number;
   last_rental_date: string | null;
+  acquired_by_agent: string | null;
   status: 'Active' | 'Repeat' | 'New';
 }
 
@@ -66,6 +67,7 @@ const CustomersPage: React.FC = () => {
       'IC/Passport': c.ic_passport || 'N/A',
       'Phone Number': c.phone_number || 'N/A',
       'Total Bookings': c.total_bookings,
+      'Agent': c.acquired_by_agent || 'N/A',
       'Status': c.status,
       'Last Rental Date': c.last_rental_date ? new Date(c.last_rental_date).toLocaleDateString() : 'N/A'
     }));
@@ -154,6 +156,7 @@ const CustomersPage: React.FC = () => {
                   <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">IC / Passport</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Phone Number</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Total Bookings</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Agent</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Last Rental</th>
                 </tr>
@@ -214,6 +217,9 @@ const CustomersPage: React.FC = () => {
                         <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg font-bold ${customer.total_bookings > 0 ? 'bg-blue-50 text-blue-700' : 'text-slate-300'}`}>
                           {customer.total_bookings || 0}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600 font-medium">
+                        {customer.acquired_by_agent || '-'}
                       </td>
                       <td className="px-6 py-4">
                         {customer.full_name ? getStatusBadge(customer.status) : '-'}
