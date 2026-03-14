@@ -51,16 +51,10 @@ const CalendarPage: React.FC = () => {
       end.setMonth(end.getMonth() + 3);
       end.setDate(0);
 
-      let agentIdToFetch: string | undefined = undefined;
-
-      if (staffRole === 'staff') {
-        agentIdToFetch = currentUserId || undefined;
-      }
-
       const [fetchedCars, fetchedMembers, fetchedBookings, fetchedExpenses, fetchedStaff] = await Promise.all([
         apiService.getCars(currentSubscriberId),
         apiService.getMembers(currentSubscriberId),
-        apiService.getBookings(currentSubscriberId, start.toISOString(), end.toISOString(), agentIdToFetch),
+        apiService.getBookings(currentSubscriberId, start.toISOString(), end.toISOString()),
         apiService.getExpenses(currentSubscriberId),
         apiService.getStaffMembers(currentSubscriberId)
       ]);
@@ -142,7 +136,6 @@ const CalendarPage: React.FC = () => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `subscriber_id=eq.${currentSubscriberId}` }, (payload) => {
         if (payload.eventType === 'INSERT') {
           const newBooking = payload.new as Booking;
-          if (staffRole === 'staff' && newBooking.agent_id !== currentUserId) return;
           
           setBookings((prev) => {
             if (prev.some(b => b.id === payload.new.id)) return prev;
@@ -152,7 +145,6 @@ const CalendarPage: React.FC = () => {
         else if (payload.eventType === 'DELETE') setBookings((prev) => prev.filter((b) => b.id !== payload.old.id));
         else if (payload.eventType === 'UPDATE') {
           const updatedBooking = payload.new as Booking;
-          if (staffRole === 'staff' && updatedBooking.agent_id !== currentUserId) return;
           
           setBookings((prev) => prev.map((b) => (b.id === payload.new.id ? updatedBooking : b)));
         }

@@ -917,20 +917,6 @@ export const apiService = {
     });
   },
 
-  async updateStaffPin(staffId: string, pinHash: string): Promise<void> {
-    return withRetry(async () => {
-      const { error } = await supabase
-        .from('staff_members')
-        .update({ pin_hash: pinHash })
-        .eq('id', staffId);
-
-      if (error) {
-        logSupabaseError('updateStaffPin', error);
-        throw new Error('Failed to update PIN');
-      }
-    });
-  },
-
   async deleteStaffMember(staffId: string, subscriberId: string): Promise<void> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {

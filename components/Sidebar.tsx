@@ -68,7 +68,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
 
     // Customers (Available if they have access to Forms or Tier 3 Calendar)
     // For Tier 2 (Calendar ONLY), we exclude Customers to keep it strictly Calendar
-    if (subscriptionTier === 'tier_1' || subscriptionTier === 'tier_3') {
+    // Exclusive access to Subscribers (Admins) only
+    if (isAdmin && (subscriptionTier === 'tier_1' || subscriptionTier === 'tier_3')) {
       items.push({ name: 'Customers', path: '/customers', icon: <Users className="w-5 h-5" /> });
     }
 

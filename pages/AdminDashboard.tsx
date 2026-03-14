@@ -49,7 +49,7 @@ const AdminDashboard: React.FC = () => {
       const agentId = staffRole === 'staff' ? userId || undefined : undefined;
 
       const [bookings, cars, agreements, forms] = await Promise.all([
-        apiService.getBookings(subscriberId!, undefined, undefined, agentId),
+        apiService.getBookings(subscriberId!, undefined, undefined, undefined), // Fetch all bookings for the team
         apiService.getCars(subscriberId!),
         apiService.getAgreements(subscriberId!, agentId),
         apiService.getDigitalForms(subscriberId!, agentId)
