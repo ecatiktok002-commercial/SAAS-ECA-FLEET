@@ -225,6 +225,7 @@ CREATE TABLE IF NOT EXISTS agreements (
   need_einvoice BOOLEAN DEFAULT FALSE,
   payment_receipt TEXT,
   signature_data TEXT,
+  photos_url TEXT[],
   status TEXT DEFAULT 'pending',
   signed_at TIMESTAMP WITH TIME ZONE,
   created_by TEXT,
@@ -235,6 +236,7 @@ CREATE TABLE IF NOT EXISTS agreements (
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS created_by TEXT;
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES subscribers(id) ON DELETE CASCADE;
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+ALTER TABLE agreements ADD COLUMN IF NOT EXISTS photos_url TEXT[];
 
 -- 7. Digital Forms
 CREATE TABLE IF NOT EXISTS digital_forms (

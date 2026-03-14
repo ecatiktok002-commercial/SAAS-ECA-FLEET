@@ -4,6 +4,8 @@ import SignatureCanvas from 'react-signature-canvas';
 import { CheckCircle, Download, AlertCircle, ShieldAlert, Car, Clock, Fuel, AlertTriangle, Printer } from 'lucide-react';
 import { format } from 'date-fns';
 import { apiService } from '../../services/apiService';
+import html2pdf from 'html2pdf.js';
+import PrintableAgreementTemplate from '../../components/PrintableAgreementTemplate';
 
 export default function SignAgreement() {
   const { id } = useParams<{ id: string }>();
@@ -82,7 +84,21 @@ export default function SignAgreement() {
   };
 
   const handlePrint = () => {
-    window.print();
+    const element = document.getElementById('printable-agreement-template');
+    if (!element) {
+      alert('Template not found');
+      return;
+    }
+
+    const opt = {
+      margin:       0,
+      filename:     `EcaFleet_Agreement_${agreement?.customer_name?.replace(/\s+/g, '_') || 'Customer'}.pdf`,
+      image:        { type: 'jpeg' as const, quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true },
+      jsPDF:        { unit: 'in', format: 'a4' as const, orientation: 'portrait' as const }
+    };
+
+    html2pdf().set(opt).from(element).save();
   };
 
   if (loading) {
@@ -131,12 +147,14 @@ export default function SignAgreement() {
             Print / Save as PDF
           </button>
         </div>
+        <PrintableAgreementTemplate agreement={agreement} company={company} />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-slate-50 py-4 sm:py-12 px-4 sm:px-6 lg:px-8 font-sans text-base leading-relaxed">
+      <PrintableAgreementTemplate agreement={agreement} company={company} />
       <div className="max-w-3xl mx-auto bg-white shadow-sm rounded-xl border border-slate-200 overflow-hidden mb-24">
         
         {/* Print Button for Signed Agreements */}
@@ -352,6 +370,31 @@ export default function SignAgreement() {
               </div>
             </div>
           </section>
+
+          {/* Car Photos Section */}
+          {agreement?.photos_url && agreement.photos_url.length > 0 && (
+            <section className="py-8 print:py-4 border-t border-slate-200 print:border-slate-800 print:page-break-before-always">
+              <div className="flex items-center mb-6 print:mb-2">
+                <div className="bg-slate-900 p-2 rounded-lg mr-3 print:mr-1 print:p-1">
+                  <Car className="h-5 w-5 print:h-3 print:w-3 text-white" />
+                </div>
+                <h2 className="text-xl print:text-[9pt] font-bold text-slate-900 uppercase tracking-tight">Lampiran: Gambar Kenderaan (Sebelum)</h2>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:gap-2">
+                {agreement.photos_url.map((url: string, index: number) => (
+                  <div key={index} className="rounded-xl overflow-hidden border border-slate-200 print:border-slate-300 shadow-sm print:shadow-none">
+                    <img 
+                      src={url} 
+                      alt={`Vehicle condition ${index + 1}`} 
+                      className="w-full h-auto object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* 4. Section D: Ruangan Tandatangan & Footer */}
           <section className="pt-8 print:pt-2 border-t border-slate-200 print:border-slate-800 print:page-break-inside-avoid">

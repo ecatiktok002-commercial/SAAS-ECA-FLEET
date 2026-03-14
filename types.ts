@@ -116,6 +116,7 @@ export interface Agreement {
   need_einvoice?: boolean;
   payment_receipt?: string;
   signature_data?: string;
+  photos_url?: string[];
   status: 'pending' | 'signed' | 'completed';
   signed_at?: string;
   details?: string;
@@ -146,6 +147,7 @@ export interface DigitalForm {
   need_einvoice?: boolean;
   payment_receipt?: string;
   signature_data?: string;
+  photos_url?: string[];
   status: 'pending' | 'signed' | 'completed';
   signed_at?: string;
   created_by?: string;
