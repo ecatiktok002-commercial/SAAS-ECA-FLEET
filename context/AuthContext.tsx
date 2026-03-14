@@ -9,12 +9,13 @@ interface AuthContextType {
   userId: string | null;
   user: string | null; // Alias for userId to match refined App.tsx
   userName: string | null;
+  userUid: string | null; // The actual string UID (e.g. 'michaelcar' or 'john_staff')
   staffRole: StaffRole | null;
   role: StaffRole | null; // Alias for staffRole to match refined App.tsx
   subscriptionTier: SubscriptionTier | null;
   subscriberTier: number; // Numeric representation for refined App.tsx
   isLoading: boolean;
-  login: (subscriberId: string, staffRole: StaffRole, subscriptionTier: SubscriptionTier, userId?: string, userName?: string) => void;
+  login: (subscriberId: string, staffRole: StaffRole, subscriptionTier: SubscriptionTier, userId?: string, userName?: string, userUid?: string) => void;
   logout: () => void;
 }
 
@@ -24,6 +25,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [subscriberId, setSubscriberId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
+  const [userUid, setUserUid] = useState<string | null>(null);
   const [staffRole, setStaffRole] = useState<StaffRole | null>(null);
   const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -66,11 +68,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const storedRole = localStorage.getItem('staffRole') as StaffRole;
         const storedName = localStorage.getItem('userName');
         const storedUserId = localStorage.getItem('userId');
+        const storedUserUid = localStorage.getItem('userUid');
         
         if (storedRole) {
           setStaffRole(storedRole);
           if (storedName) setUserName(storedName);
           if (storedUserId) setUserId(storedUserId);
+          if (storedUserUid) setUserUid(storedUserUid);
         } else if (isSuperAdmin) {
           setStaffRole('admin');
         }
@@ -97,7 +101,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkSession();
   }, []);
 
-  const login = (id: string, role: StaffRole, tier: SubscriptionTier, uId?: string, uName?: string) => {
+  const login = (id: string, role: StaffRole, tier: SubscriptionTier, uId?: string, uName?: string, uUid?: string) => {
     setSubscriberId(id);
     setStaffRole(role);
     setSubscriptionTier(tier);
@@ -109,6 +113,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUserName(uName);
       localStorage.setItem('userName', uName);
     }
+    if (uUid) {
+      setUserUid(uUid);
+      localStorage.setItem('userUid', uUid);
+    }
     localStorage.setItem('staffRole', role);
     localStorage.setItem('subscriptionTier', tier);
   };
@@ -118,12 +126,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSubscriberId(null);
     setUserId(null);
     setUserName(null);
+    setUserUid(null);
     setStaffRole(null);
     setSubscriptionTier(null);
     localStorage.removeItem('staffRole');
     localStorage.removeItem('subscriptionTier');
     localStorage.removeItem('userName');
     localStorage.removeItem('userId');
+    localStorage.removeItem('userUid');
   };
 
   const getTierNumber = (tier: SubscriptionTier | null): number => {
@@ -138,6 +148,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       userId, 
       user: userId,
       userName, 
+      userUid,
       staffRole, 
       role: staffRole,
       subscriptionTier, 

@@ -204,7 +204,7 @@ export default function EditAgreement() {
       await apiService.updateAgreement(id, subscriberId, updates);
 
       alert('Agreement updated successfully!');
-      navigate('/dashboard');
+      navigate('/forms');
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -224,7 +224,7 @@ export default function EditAgreement() {
     <div className="min-h-screen bg-slate-50 font-sans py-10 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
         <div className="mb-8 flex items-center">
-          <Link to="/dashboard" className="text-slate-400 hover:text-slate-900 mr-4 transition-colors">
+          <Link to="/forms" className="text-slate-400 hover:text-slate-900 mr-4 transition-colors">
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Edit Agreement</h1>

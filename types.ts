@@ -51,6 +51,7 @@ export interface Booking {
   track?: number; // assigned vertical slot
   status?: 'active' | 'completed' | 'cancelled';
   total_price?: number;
+  created_by?: string;
 }
 
 export interface Expense {
@@ -60,6 +61,7 @@ export interface Expense {
   amount: number;
   date: string;
   notes?: string;
+  created_by?: string;
 }
 
 export interface DayData {
@@ -114,6 +116,7 @@ export interface Agreement {
   status: 'pending' | 'signed' | 'completed';
   signed_at?: string;
   details?: string;
+  created_by?: string;
   created_at: string;
 }
 
@@ -142,6 +145,7 @@ export interface DigitalForm {
   signature_data?: string;
   status: 'pending' | 'signed' | 'completed';
   signed_at?: string;
+  created_by?: string;
   created_at: string;
 }
 

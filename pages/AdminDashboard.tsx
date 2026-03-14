@@ -22,8 +22,9 @@ interface AgentStat {
 }
 
 const AdminDashboard: React.FC = () => {
-  const { subscriberId, staffRole, userId } = useAuth();
+  const { subscriberId, staffRole, userId, userUid } = useAuth();
   
+  const [viewMode, setViewMode] = useState<'company' | 'personal'>('company');
   const [stats, setStats] = useState({
     totalSales: 0,
     todayOrders: 0,
@@ -86,14 +87,16 @@ const AdminDashboard: React.FC = () => {
       });
 
       // Leaderboard Logic
-      const agentMap = new Map<string, number>();
+      const agentMap = new Map<string, { name: string, total: number }>();
       agreements.forEach(a => {
-        const current = agentMap.get(a.agent_name) || 0;
-        agentMap.set(a.agent_name, current + a.total_price);
+        const key = a.created_by || a.agent_name || 'Unknown';
+        const current = agentMap.get(key) || { name: a.agent_name || 'Unknown', total: 0 };
+        current.total += a.total_price;
+        agentMap.set(key, current);
       });
 
-      const sortedAgents = Array.from(agentMap.entries())
-        .map(([name, total]) => ({
+      const sortedAgents = Array.from(agentMap.values())
+        .map(({ name, total }) => ({
           name,
           total,
           percentage: totalSales > 0 ? (total / totalSales) * 100 : 0
@@ -144,18 +147,67 @@ const AdminDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-semibold text-slate-900 tracking-tight">
-            {subscriberId === 'superadmin' ? 'Global Fleet Overview' : 
-             staffRole === 'admin' ? 'Executive Command Center' : 'Personal Performance Hub'}
-          </h1>
-          <p className="text-slate-500 mt-2 text-sm">
-            {subscriberId === 'superadmin' ? 'Monitoring all platform subscribers and fleet performance.' : 
-             staffRole === 'admin' ? 'Real-time fleet performance and sales analytics.' : 'Your personal sales and activity overview.'}
-          </p>
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-semibold text-slate-900 tracking-tight">
+              {subscriberId === 'superadmin' ? 'Global Fleet Overview' : 
+               staffRole === 'admin' ? 'Executive Command Center' : 'Personal Performance Hub'}
+            </h1>
+            <p className="text-slate-500 mt-2 text-sm">
+              {subscriberId === 'superadmin' ? 'Monitoring all platform subscribers and fleet performance.' : 
+               staffRole === 'admin' ? 'Real-time fleet performance and sales analytics.' : 'Your personal sales and activity overview.'}
+            </p>
+          </div>
+          
+          {staffRole === 'admin' && subscriberId !== 'superadmin' && (
+            <div className="flex bg-slate-200/50 p-1 rounded-lg">
+              <button
+                onClick={() => setViewMode('company')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'company' 
+                    ? 'bg-white text-slate-900 shadow-sm' 
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Company Stats
+              </button>
+              <button
+                onClick={() => setViewMode('personal')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'personal' 
+                    ? 'bg-white text-slate-900 shadow-sm' 
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                My Operations
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Top Row: The Daily Pulse */}
+        {viewMode === 'personal' ? (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center max-w-2xl mx-auto mt-12">
+            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <CalendarCheck className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-900 mb-3">My Operations</h2>
+            <p className="text-slate-500 mb-8 leading-relaxed">
+              Access your personal calendar, manage your bookings, and create digital forms directly from your personal hub.
+            </p>
+            <div className="flex flex-col sm:flex-row justify-center gap-4">
+              <Link to="/calendar?view=personal" className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 transition-colors">
+                <CalendarCheck className="w-5 h-5 mr-2" />
+                My Calendar
+              </Link>
+              <Link to="/forms?view=personal" className="inline-flex items-center justify-center px-6 py-3 border border-slate-200 text-sm font-medium rounded-lg text-slate-700 bg-white hover:bg-slate-50 transition-colors">
+                <FileText className="w-5 h-5 mr-2" />
+                My Forms
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Top Row: The Daily Pulse */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {/* Total Sales */}
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
@@ -362,6 +414,8 @@ const AdminDashboard: React.FC = () => {
             </div>
           </div>
         </div>
+          </>
+        )}
       </div>
     </div>
   );

@@ -134,7 +134,8 @@ const mapBookingFromDB = (dbBooking: any): Booking => ({
   start: dbBooking.start,
   duration: dbBooking.duration,
   status: dbBooking.status,
-  total_price: dbBooking.total_price
+  total_price: dbBooking.total_price,
+  created_by: dbBooking.created_by
 });
 
 const mapBookingToDB = (booking: any) => ({
@@ -144,7 +145,8 @@ const mapBookingToDB = (booking: any) => ({
   start: booking.start,
   duration: booking.duration,
   status: booking.status,
-  total_price: booking.total_price
+  total_price: booking.total_price,
+  created_by: booking.created_by
 });
 
 const mapMemberFromDB = (dbMember: any): Member => ({
@@ -195,7 +197,8 @@ const mapExpenseFromDB = (dbExpense: any): Expense => ({
   category: dbExpense.category,
   amount: dbExpense.amount,
   date: dbExpense.date,
-  notes: dbExpense.notes
+  notes: dbExpense.notes,
+  created_by: dbExpense.created_by
 });
 
 const mapExpenseToDB = (expense: any) => ({
@@ -203,7 +206,8 @@ const mapExpenseToDB = (expense: any) => ({
   category: expense.category,
   amount: expense.amount,
   date: expense.date,
-  notes: expense.notes
+  notes: expense.notes,
+  created_by: expense.created_by
 });
 
 const mapStaffFromDB = (dbStaff: any): StaffMember => ({
@@ -451,7 +455,7 @@ export const apiService = {
   },
 
   // Bookings
-  async getBookings(subscriberId: string, startDate?: string, endDate?: string, agentId?: string): Promise<Booking[]> {
+  async getBookings(subscriberId: string, startDate?: string, endDate?: string, agentId?: string, createdBy?: string): Promise<Booking[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let query = supabase.from('bookings').select('*');
@@ -459,6 +463,9 @@ export const apiService = {
 
       if (agentId) {
         query = query.eq('agent_id', agentId);
+      }
+      if (createdBy) {
+        query = query.eq('created_by', createdBy);
       }
       
       if (startDate && endDate) {
@@ -625,11 +632,15 @@ export const apiService = {
   },
 
   // Expenses
-  async getExpenses(subscriberId: string): Promise<Expense[]> {
+  async getExpenses(subscriberId: string, createdBy?: string): Promise<Expense[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let query = supabase.from('expenses').select('*');
       query = query.eq('subscriber_id', subscriberId);
+
+      if (createdBy) {
+        query = query.eq('created_by', createdBy);
+      }
 
       const { data, error } = await query.order('date', { ascending: false });
       
@@ -1054,7 +1065,7 @@ export const apiService = {
   },
 
   // Agreements
-  async getAgreements(subscriberId: string, agentId?: string): Promise<Agreement[]> {
+  async getAgreements(subscriberId: string, agentId?: string, createdBy?: string): Promise<Agreement[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let query = supabase.from('agreements').select('*');
@@ -1062,6 +1073,9 @@ export const apiService = {
 
       if (agentId) {
         query = query.eq('agent_id', agentId);
+      }
+      if (createdBy) {
+        query = query.eq('created_by', createdBy);
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
@@ -1157,7 +1171,7 @@ export const apiService = {
   },
 
   // Digital Forms
-  async getDigitalForms(subscriberId: string, agentId?: string): Promise<DigitalForm[]> {
+  async getDigitalForms(subscriberId: string, agentId?: string, createdBy?: string): Promise<DigitalForm[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let query = supabase.from('digital_forms').select('*');
@@ -1165,6 +1179,9 @@ export const apiService = {
 
       if (agentId) {
         query = query.eq('agent_id', agentId);
+      }
+      if (createdBy) {
+        query = query.eq('created_by', createdBy);
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });

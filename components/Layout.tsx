@@ -32,32 +32,37 @@ const Layout: React.FC = () => {
     // Layer 1: Tier Gate (Feature Access)
     // Tier 1: Only /forms
     if (subscriptionTier === 'tier_1') {
-      if (path === '/') {
+      if (path === '/' && isStaff) {
         navigate('/forms', { replace: true });
         return;
       }
-      const allowedPaths = ['/forms', '/customers'];
+      const allowedPaths = ['/', '/forms', '/customers'];
       const isAllowed = allowedPaths.some(p => path === p || path.startsWith(p + '/'));
       if (!isAllowed && path !== '/staff') { // Staff is handled by Role Gate
-        navigate('/forms', { replace: true });
+        navigate(isStaff ? '/forms' : '/', { replace: true });
       }
     }
 
-    // Tier 2: Only /calendar
+    // Tier 2: /calendar and /forms
     if (subscriptionTier === 'tier_2') {
-      if (path === '/') {
+      if (path === '/' && isStaff) {
         navigate('/calendar', { replace: true });
         return;
       }
-      const allowedPaths = ['/calendar', '/customers'];
+      const allowedPaths = ['/', '/calendar', '/forms', '/customers'];
       const isAllowed = allowedPaths.some(p => path === p || path.startsWith(p + '/'));
       if (!isAllowed && path !== '/staff') {
-        navigate('/calendar', { replace: true });
+        navigate(isStaff ? '/calendar' : '/', { replace: true });
       }
     }
 
     // Tier 3: All (Forms, Calendar, Fleet)
-    // No extra restrictions for Tier 3 other than Role Gate
+    if (subscriptionTier === 'tier_3') {
+      if (path === '/' && isStaff) {
+        navigate('/calendar', { replace: true });
+        return;
+      }
+    }
   }, [location.pathname, subscriberId, staffRole, subscriptionTier, isLoading, navigate]);
 
   if (isLoading) {

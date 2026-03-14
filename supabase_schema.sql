@@ -28,6 +28,14 @@
 -- ALTER TABLE agreements ADD COLUMN IF NOT EXISTS total_price NUMERIC DEFAULT 0;
 -- ALTER TABLE agreements ADD COLUMN IF NOT EXISTS deposit NUMERIC DEFAULT 0;
 -- ALTER TABLE agreements ADD COLUMN IF NOT EXISTS duration_days INTEGER DEFAULT 1;
+-- ALTER TABLE agreements ADD COLUMN IF NOT EXISTS signature_data TEXT;
+-- ALTER TABLE agreements ADD COLUMN IF NOT EXISTS signed_at TIMESTAMP WITH TIME ZONE;
+-- ALTER TABLE agreements ADD COLUMN IF NOT EXISTS created_by TEXT;
+-- ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS signature_data TEXT;
+-- ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS signed_at TIMESTAMP WITH TIME ZONE;
+-- ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS created_by TEXT;
+-- ALTER TABLE bookings ADD COLUMN IF NOT EXISTS created_by TEXT;
+-- ALTER TABLE expenses ADD COLUMN IF NOT EXISTS created_by TEXT;
 --
 -- ALTER TABLE companies ADD COLUMN IF NOT EXISTS tier TEXT DEFAULT 'tier_1';
 -- ALTER TABLE companies ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
@@ -124,6 +132,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   duration INTEGER NOT NULL,
   status TEXT DEFAULT 'active',
   total_price NUMERIC DEFAULT 0,
+  created_by TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -153,6 +162,7 @@ CREATE TABLE IF NOT EXISTS agreements (
   signature_data TEXT,
   status TEXT DEFAULT 'pending',
   signed_at TIMESTAMP WITH TIME ZONE,
+  created_by TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -182,6 +192,7 @@ CREATE TABLE IF NOT EXISTS digital_forms (
   signature_data TEXT,
   status TEXT DEFAULT 'pending',
   signed_at TIMESTAMP WITH TIME ZONE,
+  created_by TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -194,6 +205,7 @@ CREATE TABLE IF NOT EXISTS expenses (
   amount NUMERIC NOT NULL DEFAULT 0,
   date DATE NOT NULL,
   notes TEXT,
+  created_by TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -277,6 +289,10 @@ CREATE POLICY "Companies access" ON companies
     OR
     (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
   );
+
+DROP POLICY IF EXISTS "Public read companies" ON companies;
+CREATE POLICY "Public read companies" ON companies
+  FOR SELECT USING (true);
 
 -- 2. Staff Members
 -- Subscriber can see all. Agent can only see themselves.
@@ -450,6 +466,7 @@ BEGIN
       'company_code', v_company.name,
       'staff_id', v_staff.id, 
       'staff_name', v_staff.name, 
+      'designated_uid', v_staff.designated_uid,
       'pin_hash', v_staff.pin_hash,
       'tier', v_company.tier
     );

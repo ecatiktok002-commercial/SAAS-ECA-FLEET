@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiService } from '../../services/apiService';
 import { Agreement } from '../../types';
@@ -20,8 +20,12 @@ import {
 } from 'lucide-react';
 
 const AgreementDashboard: React.FC = () => {
-  const { subscriberId, staffRole, userId } = useAuth();
+  const { subscriberId, staffRole, userId, userUid } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const isPersonalView = queryParams.get('view') === 'personal';
+  
   const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -30,13 +34,21 @@ const AgreementDashboard: React.FC = () => {
     if (subscriberId) {
       fetchAgreements();
     }
-  }, [subscriberId, staffRole, userId]);
+  }, [subscriberId, staffRole, userId, isPersonalView]);
 
   const fetchAgreements = async () => {
     try {
       setLoading(true);
-      const agentId = staffRole === 'staff' ? userId || undefined : undefined;
-      const data = await apiService.getAgreements(subscriberId!, agentId);
+      let agentId: string | undefined = undefined;
+      let createdBy: string | undefined = undefined;
+      
+      if (staffRole === 'staff') {
+        agentId = userId || undefined;
+      } else if (isPersonalView) {
+        createdBy = userUid || userId || undefined;
+      }
+
+      const data = await apiService.getAgreements(subscriberId!, agentId, createdBy);
       setAgreements(data);
     } catch (err) {
       console.error(err);

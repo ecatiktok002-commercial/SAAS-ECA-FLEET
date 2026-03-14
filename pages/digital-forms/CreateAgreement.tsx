@@ -6,7 +6,7 @@ import { apiService } from '../../services/apiService';
 import { useAuth } from '../../context/AuthContext';
 
 export default function CreateAgreement() {
-  const { subscriberId, userId, userName, staffRole } = useAuth();
+  const { subscriberId, userId, userName, userUid, staffRole } = useAuth();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     customer_name: '',
@@ -181,11 +181,13 @@ export default function CreateAgreement() {
 
       // Get current staff name if available
       const staffName = userName || 'Agent';
+      const actualAgentId = staffRole === 'admin' ? subscriberId : userId;
 
       const agreementData: any = {
         subscriber_id: subscriberId,
-        agent_id: userId || '', // Or staff ID if we have it
+        agent_id: actualAgentId || '', // Use subscriberId for admins to avoid UUID syntax error
         agent_name: staffName,
+        created_by: userUid || userId || '', // Track the actual string UID
         customer_name: formData.customer_name,
         identity_number: formData.identity_number,
         customer_phone: formData.customer_phone,
@@ -220,7 +222,7 @@ export default function CreateAgreement() {
       }, subscriberId);
 
       alert(`Agreement created! ID: ${newAgreement.id}`);
-      navigate('/dashboard');
+      navigate('/forms');
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -243,7 +245,7 @@ export default function CreateAgreement() {
           </button>
         </div>
         <div className="mb-8 flex items-center">
-          <Link to="/dashboard" className="text-slate-400 hover:text-slate-900 mr-4 transition-colors">
+          <Link to="/forms" className="text-slate-400 hover:text-slate-900 mr-4 transition-colors">
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">New Agreement</h1>

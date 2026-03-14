@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import CalendarView from '../components/CalendarView';
 import BookingModal from '../components/BookingModal';
 import FleetModal from '../components/FleetModal';
@@ -12,7 +13,10 @@ import { useAuth } from '../context/AuthContext';
 import { AlertTriangle } from 'lucide-react';
 
 const CalendarPage: React.FC = () => {
-  const { subscriberId: currentSubscriberId, userId: currentUserId, staffRole } = useAuth();
+  const { subscriberId: currentSubscriberId, userId: currentUserId, userUid, staffRole } = useAuth();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const isPersonalView = queryParams.get('view') === 'personal';
   
   const [currentStaff, setCurrentStaff] = useState<StaffMember | null>(null);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
@@ -49,11 +53,20 @@ const CalendarPage: React.FC = () => {
       end.setMonth(end.getMonth() + 3);
       end.setDate(0);
 
+      let agentIdToFetch: string | undefined = undefined;
+      let createdByToFetch: string | undefined = undefined;
+
+      if (staffRole === 'staff') {
+        agentIdToFetch = currentUserId || undefined;
+      } else if (isPersonalView) {
+        createdByToFetch = userUid || currentUserId || undefined;
+      }
+
       const [fetchedCars, fetchedMembers, fetchedBookings, fetchedExpenses, fetchedStaff] = await Promise.all([
         apiService.getCars(currentSubscriberId),
         apiService.getMembers(currentSubscriberId),
-        apiService.getBookings(currentSubscriberId, start.toISOString(), end.toISOString()),
-        apiService.getExpenses(currentSubscriberId),
+        apiService.getBookings(currentSubscriberId, start.toISOString(), end.toISOString(), agentIdToFetch, createdByToFetch),
+        apiService.getExpenses(currentSubscriberId, createdByToFetch),
         apiService.getStaffMembers(currentSubscriberId)
       ]);
       setCars(fetchedCars);
@@ -99,7 +112,7 @@ const CalendarPage: React.FC = () => {
     if (currentUserId && currentSubscriberId) {
       fetchData();
     }
-  }, [currentUserId, currentSubscriberId, currentMonth]);
+  }, [currentUserId, currentSubscriberId, currentMonth, isPersonalView]);
 
   useEffect(() => {
     if (!currentUserId || !currentSubscriberId) return;
@@ -107,13 +120,23 @@ const CalendarPage: React.FC = () => {
     const channel = supabase.channel('fleet-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `subscriber_id=eq.${currentSubscriberId}` }, (payload) => {
         if (payload.eventType === 'INSERT') {
+          const newBooking = payload.new as Booking;
+          if (staffRole === 'staff' && newBooking.agent_id !== currentUserId) return;
+          if (isPersonalView && newBooking.created_by !== userUid && newBooking.created_by !== currentUserId) return;
+          
           setBookings((prev) => {
             if (prev.some(b => b.id === payload.new.id)) return prev;
-            return [...prev, payload.new as Booking];
+            return [...prev, newBooking];
           });
         }
         else if (payload.eventType === 'DELETE') setBookings((prev) => prev.filter((b) => b.id !== payload.old.id));
-        else if (payload.eventType === 'UPDATE') setBookings((prev) => prev.map((b) => (b.id === payload.new.id ? (payload.new as Booking) : b)));
+        else if (payload.eventType === 'UPDATE') {
+          const updatedBooking = payload.new as Booking;
+          if (staffRole === 'staff' && updatedBooking.agent_id !== currentUserId) return;
+          if (isPersonalView && updatedBooking.created_by !== userUid && updatedBooking.created_by !== currentUserId) return;
+          
+          setBookings((prev) => prev.map((b) => (b.id === payload.new.id ? updatedBooking : b)));
+        }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cars', filter: `subscriber_id=eq.${currentSubscriberId}` }, (payload) => {
         if (payload.eventType === 'INSERT') {
@@ -137,13 +160,21 @@ const CalendarPage: React.FC = () => {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `subscriber_id=eq.${currentSubscriberId}` }, (payload) => {
         if (payload.eventType === 'INSERT') {
+          const newExpense = payload.new as Expense;
+          if (isPersonalView && newExpense.created_by !== userUid && newExpense.created_by !== currentUserId) return;
+          
           setExpenses((prev) => {
             if (prev.some(e => e.id === payload.new.id)) return prev;
-            return [payload.new as Expense, ...prev];
+            return [newExpense, ...prev];
           });
         }
         else if (payload.eventType === 'DELETE') setExpenses((prev) => prev.filter((e) => e.id !== payload.old.id));
-        else if (payload.eventType === 'UPDATE') setExpenses((prev) => prev.map((e) => (e.id === payload.new.id ? (payload.new as Expense) : e)));
+        else if (payload.eventType === 'UPDATE') {
+          const updatedExpense = payload.new as Expense;
+          if (isPersonalView && updatedExpense.created_by !== userUid && updatedExpense.created_by !== currentUserId) return;
+          
+          setExpenses((prev) => prev.map((e) => (e.id === payload.new.id ? updatedExpense : e)));
+        }
       })
       .subscribe();
 
@@ -176,7 +207,13 @@ const CalendarPage: React.FC = () => {
     if (!currentSubscriberId) return;
     try {
       setIsLoading(true);
-      const savedBooking = await apiService.saveBooking(bookingData, currentSubscriberId, editingBooking?.id);
+      const actualAgentId = staffRole === 'admin' ? currentSubscriberId : currentUserId;
+      const bookingWithAgent = {
+        ...bookingData,
+        agent_id: actualAgentId || '',
+        created_by: userUid || currentUserId || ''
+      };
+      const savedBooking = await apiService.saveBooking(bookingWithAgent, currentSubscriberId, editingBooking?.id);
       
       setBookings(prev => {
         const exists = prev.find(b => b.id === savedBooking.id);
@@ -372,7 +409,11 @@ const CalendarPage: React.FC = () => {
     if (!currentSubscriberId) return;
     try {
       setIsLoading(true);
-      await apiService.addExpense(newExpense, currentSubscriberId);
+      const expenseWithUser = {
+        ...newExpense,
+        created_by: userUid || currentUserId || ''
+      };
+      await apiService.addExpense(expenseWithUser, currentSubscriberId);
     } catch (err: any) {
       if (err.message === 'DATABASE_TABLES_MISSING') setIsTablesMissing(true);
       else alert(`Error adding expense: ${err.message}`);

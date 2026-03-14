@@ -107,7 +107,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
       if (authError) throw authError;
 
-      login(roleData.id, 'admin', roleData.tier, roleData.company_code, roleData.company_code);
+      login(roleData.id, 'admin', roleData.tier, roleData.company_code, roleData.company_code, roleData.company_code);
       if (onLogin) onLogin(roleData.id);
     } catch (err: any) {
       setError('Failed to login as Subscriber: ' + err.message);
@@ -149,7 +149,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       }
 
       // Log in via Context
-      login(detectedRole.subscriber_id, 'staff', detectedRole.tier || 'tier_1', detectedRole.staff_id, detectedRole.staff_name);
+      login(detectedRole.subscriber_id, 'staff', detectedRole.tier || 'tier_1', detectedRole.staff_id, detectedRole.staff_name, detectedRole.designated_uid);
       
       if (onLogin) {
         onLogin(detectedRole.subscriber_id);
@@ -189,7 +189,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       }
 
       if (authData.user) {
-        login('superadmin', 'admin', 'tier_3', 'Master Admin');
+        login('superadmin', 'admin', 'tier_3', 'Master Admin', 'Master Admin', 'superadmin');
         if (onLogin) onLogin('superadmin');
       }
     } catch (err: any) {
@@ -217,22 +217,33 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
   return (
     <div className="fixed inset-0 z-[5000] bg-slate-900 flex items-center justify-center p-4">
+      {/* Subtle geometric grid pattern */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff0a_1px,transparent_1px),linear-gradient(to_bottom,#ffffff0a_1px,transparent_1px)] bg-[size:24px_24px]"></div>
+      
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-1/2 -left-1/2 w-[1000px] h-[1000px] bg-blue-500/20 rounded-full blur-3xl opacity-30"></div>
         <div className="absolute top-1/2 -right-1/2 w-[800px] h-[800px] bg-emerald-500/10 rounded-full blur-3xl opacity-30"></div>
       </div>
 
-      <div className="relative bg-white w-full max-w-md p-8 rounded-[2rem] shadow-2xl animate-in zoom-in-95 duration-500">
+      <div className="relative bg-white/95 backdrop-blur-xl w-full max-w-md p-8 rounded-[2rem] shadow-2xl animate-in zoom-in-95 duration-500 border border-white/20">
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-slate-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-slate-900/20">
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
           </div>
-          <h1 className="text-2xl font-black text-slate-900 mb-2">Welcome to EcaFleet</h1>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight mb-2">
+            {detectedRole?.role === 'subscriber' ? 'Business Command Center' :
+             step === 1 ? 'Welcome to the Car Rental Digitalization Era' :
+             step === 2 ? 'Agent Operations Portal' :
+             step === 3 ? 'System Core Access' :
+             'Welcome to the Car Rental Digitalization Era'}
+          </h1>
           <p className="text-slate-500 font-medium">
-            {step === 1 ? 'Please enter your UID to continue.' : 
-             step === 2 ? `Welcome, ${detectedRole?.staff_name || 'Staff'}. Enter your PIN.` : 
-             'Enter Master Admin PIN.'}
+            {detectedRole?.role === 'subscriber' ? 'Welcome back, Owner. Preparing your dashboard...' :
+             step === 1 ? 'Powering the future of fleet management. Enter your UID.' : 
+             step === 2 ? 'Enter your Staff PIN to access your shift.' : 
+             step === 3 ? 'Master PIN authentication required.' :
+             'Powering the future of fleet management. Enter your UID.'}
           </p>
         </div>
 
@@ -246,6 +257,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 onChange={(e) => {
                   setUidInput(e.target.value);
                   setError('');
+                  setDetectedRole(null);
                 }}
                 className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-bold text-slate-800 placeholder-slate-300 text-center text-lg tracking-wider"
                 placeholder="Enter UID"
