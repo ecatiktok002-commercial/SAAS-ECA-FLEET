@@ -23,11 +23,12 @@ interface BookingModalProps {
   subscriberId: string | null;
   currentStaff?: StaffMember | null;
   currentUserId?: string | null;
+  userUid?: string | null;
   staffRole?: string | null;
 }
 
 const BookingModal: React.FC<BookingModalProps> = ({ 
-  isOpen, onClose, initialDate, editingBooking, onSave, onDelete, existingBookings, cars, members, preselectedCarId, subscriberId, currentStaff, currentUserId, staffRole
+  isOpen, onClose, initialDate, editingBooking, onSave, onDelete, existingBookings, cars, members, preselectedCarId, subscriberId, currentStaff, currentUserId, userUid, staffRole
 }) => {
   // Modes: 'category' (Auto-assign based on model) or 'specific' (Manual plate selection)
   const [bookingMode, setBookingMode] = useState<'category' | 'specific'>('category');
@@ -250,8 +251,15 @@ const BookingModal: React.FC<BookingModalProps> = ({
   const isEditable = useMemo(() => {
     if (!editingBooking) return true; // New bookings are always editable
     if (staffRole === 'admin') return true; // Subscriber has full access
-    return editingBooking.agent_id === currentUserId; // Agents can only edit their own
-  }, [editingBooking, staffRole, currentUserId]);
+    
+    // Agents can edit if they created the booking
+    if (editingBooking.created_by) {
+      return editingBooking.created_by === currentUserId || editingBooking.created_by === userUid;
+    }
+    
+    // Fallback for legacy bookings without created_by
+    return editingBooking.agent_id === currentUserId;
+  }, [editingBooking, staffRole, currentUserId, userUid]);
 
   if (!isOpen) return null;
 

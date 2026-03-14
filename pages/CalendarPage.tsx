@@ -224,7 +224,7 @@ const CalendarPage: React.FC = () => {
       const bookingWithAgent = {
         ...bookingData,
         agent_id: actualAgentId || '',
-        created_by: userUid || currentUserId || ''
+        created_by: (editingBooking && editingBooking.created_by) ? editingBooking.created_by : (userUid || currentUserId || '')
       };
       const savedBooking = await apiService.saveBooking(bookingWithAgent, currentSubscriberId, editingBooking?.id);
       
@@ -634,6 +634,7 @@ const CalendarPage: React.FC = () => {
         subscriberId={currentSubscriberId}
         currentStaff={currentStaff}
         currentUserId={currentUserId}
+        userUid={userUid}
         staffRole={staffRole}
       />
 
