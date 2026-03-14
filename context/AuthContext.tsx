@@ -82,7 +82,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Always fetch latest tier from DB for non-superadmins
         if (!isSuperAdmin) {
           const { data: companyData } = await supabase
-            .from('companies')
+            .from('subscribers')
             .select('tier')
             .eq('id', finalSubscriberId)
             .single();

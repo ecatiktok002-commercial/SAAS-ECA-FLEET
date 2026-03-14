@@ -42,6 +42,15 @@ ADD COLUMN IF NOT EXISTS model TEXT,
 ADD COLUMN IF NOT EXISTS roadtax_expiry DATE,
 ADD COLUMN IF NOT EXISTS insurance_expiry DATE,
 ADD COLUMN IF NOT EXISTS inspection_expiry DATE;`;
+      } else if (table === 'subscribers') {
+        sql = `ALTER TABLE subscribers 
+ADD COLUMN IF NOT EXISTS name TEXT,
+ADD COLUMN IF NOT EXISTS tier TEXT DEFAULT 'Tier 1',
+ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE,
+ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'ACTIVE',
+ADD COLUMN IF NOT EXISTS is_trial BOOLEAN DEFAULT FALSE,
+ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMP WITH TIME ZONE,
+ADD COLUMN IF NOT EXISTS subscription_start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW();`;
       }
       
       console.error(sql);
@@ -970,13 +979,13 @@ export const apiService = {
   async getCompanies(): Promise<Company[]> {
     return withRetry(async () => {
       const { data, error } = await supabase
-        .from('companies')
+        .from('subscribers')
         .select('*')
         .order('name', { ascending: true });
       
       if (error) {
         logSupabaseError('getCompanies', error);
-        throw new Error(error.message || 'Failed to fetch companies');
+        throw new Error(error.message || 'Failed to fetch subscribers');
       }
       return data || [];
     });
@@ -985,7 +994,7 @@ export const apiService = {
   async getCompanyById(id: string): Promise<Company | null> {
     return withRetry(async () => {
       const { data, error } = await supabase
-        .from('companies')
+        .from('subscribers')
         .select('*')
         .eq('id', id)
         .single();
@@ -1001,7 +1010,7 @@ export const apiService = {
   async updateCompany(id: string, updates: any): Promise<void> {
     return withRetry(async () => {
       const { error } = await supabase
-        .from('companies')
+        .from('subscribers')
         .update(updates)
         .eq('id', id);
       
@@ -1015,7 +1024,7 @@ export const apiService = {
   async deleteCompany(id: string): Promise<void> {
     return withRetry(async () => {
       const { error } = await supabase
-        .from('companies')
+        .from('subscribers')
         .delete()
         .eq('id', id);
       
@@ -1029,7 +1038,7 @@ export const apiService = {
   async getCompanySettings(subscriberId: string): Promise<any> {
     return withRetry(async () => {
       const { data, error } = await supabase
-        .from('companies')
+        .from('subscribers')
         .select('name, address, logo_url, ssm_logo_url, spdp_logo_url')
         .eq('id', subscriberId)
         .single();
@@ -1045,7 +1054,7 @@ export const apiService = {
   async updateCompanySettings(subscriberId: string, settings: any): Promise<void> {
     return withRetry(async () => {
       const { error } = await supabase
-        .from('companies')
+        .from('subscribers')
         .update({
           name: settings.company_name,
           address: settings.company_address,
@@ -1062,11 +1071,19 @@ export const apiService = {
     });
   },
 
-  async addCompany(name: string, tier: string): Promise<Company> {
+  async addCompany(name: string, tier: string, isTrial: boolean = false, expiryDate: string | null = null): Promise<Company> {
     return withRetry(async () => {
       const { data, error } = await supabase
-        .from('companies')
-        .insert([{ name, tier, is_active: true }])
+        .from('subscribers')
+        .insert([{ 
+          name, 
+          tier, 
+          is_active: true, 
+          status: 'ACTIVE', 
+          is_trial: isTrial,
+          expiry_date: expiryDate,
+          subscription_start_date: new Date().toISOString()
+        }])
         .select()
         .single();
       

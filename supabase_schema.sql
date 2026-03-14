@@ -66,20 +66,80 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. Companies Table
-CREATE TABLE IF NOT EXISTS companies (
+-- 1. Subscribers Table
+-- Check if 'companies' exists and migrate/rename to 'subscribers'
+DO $$ 
+DECLARE
+    col_exists_tier boolean;
+    col_exists_active boolean;
+    col_exists_trial boolean;
+    col_exists_status boolean;
+    col_exists_start boolean;
+BEGIN 
+  -- Case 1: companies exists, subscribers does not -> Rename
+  IF EXISTS (SELECT FROM pg_tables WHERE tablename = 'companies') AND NOT EXISTS (SELECT FROM pg_tables WHERE tablename = 'subscribers') THEN
+    ALTER TABLE companies RENAME TO subscribers;
+  
+  -- Case 2: both exist, subscribers is empty, companies is not -> Migrate data
+  ELSIF EXISTS (SELECT FROM pg_tables WHERE tablename = 'companies') AND EXISTS (SELECT FROM pg_tables WHERE tablename = 'subscribers') THEN
+    IF (SELECT count(*) FROM subscribers) = 0 AND (SELECT count(*) FROM companies) > 0 THEN
+      
+      -- Check which columns exist in the old 'companies' table
+      SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='tier') INTO col_exists_tier;
+      SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='is_active') INTO col_exists_active;
+      SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='is_trial') INTO col_exists_trial;
+      SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='status') INTO col_exists_status;
+      SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='subscription_start_date') INTO col_exists_start;
+
+      -- Use dynamic SQL to build the insert based on existing columns
+      EXECUTE format('
+        INSERT INTO subscribers (id, name, tier, is_active, status, is_trial, expiry_date, subscription_start_date, created_at)
+        SELECT 
+          id, 
+          name, 
+          %s, -- tier
+          %s, -- is_active
+          %s, -- status
+          %s, -- is_trial
+          expiry_date, 
+          %s, -- subscription_start_date
+          created_at
+        FROM companies',
+        CASE WHEN col_exists_tier THEN 'tier' ELSE '''Tier 1''' END,
+        CASE WHEN col_exists_active THEN 'is_active' ELSE 'TRUE' END,
+        CASE WHEN col_exists_status THEN 'status' ELSE '''ACTIVE''' END,
+        CASE WHEN col_exists_trial THEN 'is_trial' ELSE 'FALSE' END,
+        CASE WHEN col_exists_start THEN 'subscription_start_date' ELSE 'NOW()' END
+      );
+    END IF;
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS subscribers (
   id UUID PRIMARY KEY, -- Matches Auth UID
   name TEXT NOT NULL,
-  tier TEXT DEFAULT 'tier_1',
+  tier TEXT DEFAULT 'Tier 1',
   is_active BOOLEAN DEFAULT TRUE,
+  status TEXT DEFAULT 'ACTIVE',
+  is_trial BOOLEAN DEFAULT FALSE,
   expiry_date TIMESTAMP WITH TIME ZONE,
+  subscription_start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Ensure columns exist if table was already created
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS tier TEXT DEFAULT 'Tier 1';
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'ACTIVE';
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS is_trial BOOLEAN DEFAULT FALSE;
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMP WITH TIME ZONE;
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS subscription_start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW();
 
 -- 2. Staff Members
 CREATE TABLE IF NOT EXISTS staff_members (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  subscriber_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  subscriber_id UUID NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   designated_uid TEXT NOT NULL,
   role TEXT DEFAULT 'staff',
@@ -91,7 +151,7 @@ CREATE TABLE IF NOT EXISTS staff_members (
 -- 3. Cars Table
 CREATE TABLE IF NOT EXISTS cars (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  subscriber_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  subscriber_id UUID NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   plate TEXT NOT NULL,
   type TEXT DEFAULT 'Economy',
@@ -108,7 +168,7 @@ CREATE TABLE IF NOT EXISTS cars (
 -- 4. Members (Customers)
 CREATE TABLE IF NOT EXISTS members (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  subscriber_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  subscriber_id UUID NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   email TEXT,
   phone TEXT,
@@ -124,7 +184,7 @@ CREATE TABLE IF NOT EXISTS members (
 -- 5. Bookings
 CREATE TABLE IF NOT EXISTS bookings (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  subscriber_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  subscriber_id UUID NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
   car_id UUID NOT NULL REFERENCES cars(id) ON DELETE CASCADE,
   member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   agent_id UUID, -- The staff member who created it
@@ -139,7 +199,7 @@ CREATE TABLE IF NOT EXISTS bookings (
 -- 6. Agreements (Sales)
 CREATE TABLE IF NOT EXISTS agreements (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  subscriber_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  subscriber_id UUID NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
   agent_id UUID NOT NULL,
   agent_name TEXT NOT NULL,
   customer_name TEXT NOT NULL,
@@ -169,7 +229,7 @@ CREATE TABLE IF NOT EXISTS agreements (
 -- 7. Digital Forms
 CREATE TABLE IF NOT EXISTS digital_forms (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  subscriber_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  subscriber_id UUID NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
   agent_id UUID, -- The staff member who created it
   agent_name TEXT,
   customer_name TEXT NOT NULL,
@@ -199,7 +259,7 @@ CREATE TABLE IF NOT EXISTS digital_forms (
 -- 8. Expenses
 CREATE TABLE IF NOT EXISTS expenses (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  subscriber_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  subscriber_id UUID NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
   car_id UUID REFERENCES cars(id) ON DELETE SET NULL,
   category TEXT NOT NULL,
   amount NUMERIC NOT NULL DEFAULT 0,
@@ -212,7 +272,7 @@ CREATE TABLE IF NOT EXISTS expenses (
 -- 9. Logs
 CREATE TABLE IF NOT EXISTS logs (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  subscriber_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  subscriber_id UUID NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
   user_id UUID,
   staff_name TEXT,
   action TEXT NOT NULL,
@@ -223,7 +283,7 @@ CREATE TABLE IF NOT EXISTS logs (
 -- 10. Handover Records
 CREATE TABLE IF NOT EXISTS handover_records (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  subscriber_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  subscriber_id UUID NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
   booking_id UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
   type TEXT NOT NULL,
   mileage INTEGER,
@@ -237,7 +297,7 @@ CREATE TABLE IF NOT EXISTS handover_records (
 -- RLS POLICIES
 -- ===============================================================
 
-ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE subscribers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE staff_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cars ENABLE ROW LEVEL SECURITY;
 ALTER TABLE members ENABLE ROW LEVEL SECURITY;
@@ -253,7 +313,7 @@ ALTER TABLE handover_records ENABLE ROW LEVEL SECURITY;
 CREATE OR REPLACE FUNCTION is_subscriber(check_id UUID)
 RETURNS BOOLEAN AS $$
 BEGIN
-  -- A user is a subscriber if their auth.uid() matches the company id
+  -- A user is a subscriber if their auth.uid() matches the subscriber id
   -- and they are NOT an agent (not in staff_members with a different role)
   -- Actually, the simplest check is if auth.uid() = check_id
   RETURN auth.uid() = check_id;
@@ -266,8 +326,8 @@ RETURNS UUID AS $$
 DECLARE
   comp_id UUID;
 BEGIN
-  -- 1. Check if user is a subscriber (their UID is a company ID)
-  SELECT id INTO comp_id FROM companies WHERE id = auth.uid();
+  -- 1. Check if user is a subscriber (their UID is a subscriber ID)
+  SELECT id INTO comp_id FROM subscribers WHERE id = auth.uid();
   IF comp_id IS NOT NULL THEN
     RETURN comp_id;
   END IF;
@@ -279,9 +339,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 1. Companies
-DROP POLICY IF EXISTS "Companies access" ON companies;
-CREATE POLICY "Companies access" ON companies 
+-- 1. Subscribers
+DROP POLICY IF EXISTS "Subscribers access" ON subscribers;
+CREATE POLICY "Subscribers access" ON subscribers 
   FOR ALL USING (
     auth.uid() = id -- Subscriber
     OR 
@@ -290,8 +350,8 @@ CREATE POLICY "Companies access" ON companies
     (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
   );
 
-DROP POLICY IF EXISTS "Public read companies" ON companies;
-CREATE POLICY "Public read companies" ON companies
+DROP POLICY IF EXISTS "Public read subscribers" ON subscribers;
+CREATE POLICY "Public read subscribers" ON subscribers
   FOR SELECT USING (true);
 
 -- 2. Staff Members
@@ -436,7 +496,7 @@ EXECUTE FUNCTION sync_staff_to_member();
 CREATE OR REPLACE FUNCTION verify_login_uid(p_uid TEXT)
 RETURNS JSON AS $$
 DECLARE
-  v_company companies%ROWTYPE;
+  v_company subscribers%ROWTYPE;
   v_staff staff_members%ROWTYPE;
 BEGIN
   IF p_uid = 'superadmin' THEN
@@ -445,7 +505,7 @@ BEGIN
 
   -- Check if it's a company (Subscriber)
   -- We assume the company name/code is used as the UID
-  SELECT * INTO v_company FROM companies WHERE name ILIKE p_uid LIMIT 1;
+  SELECT * INTO v_company FROM subscribers WHERE name ILIKE p_uid LIMIT 1;
   IF FOUND THEN
     RETURN json_build_object(
       'role', 'subscriber', 
@@ -459,7 +519,7 @@ BEGIN
   SELECT * INTO v_staff FROM staff_members WHERE designated_uid ILIKE p_uid LIMIT 1;
   IF FOUND THEN
     -- Get the company code to allow Supabase Auth login behind the scenes
-    SELECT * INTO v_company FROM companies WHERE id = v_staff.subscriber_id LIMIT 1;
+    SELECT * INTO v_company FROM subscribers WHERE id = v_staff.subscriber_id LIMIT 1;
     RETURN json_build_object(
       'role', 'staff', 
       'subscriber_id', v_staff.subscriber_id, 
@@ -475,3 +535,30 @@ BEGIN
   RETURN json_build_object('role', 'unknown');
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 11. SaaS Revenue Dashboard View
+DROP VIEW IF EXISTS saas_revenue_dashboard;
+CREATE OR REPLACE VIEW saas_revenue_dashboard AS
+WITH RECURSIVE months(date) AS (
+  SELECT DATE_TRUNC('month', CURRENT_DATE - INTERVAL '2 months') -- Show past 2 months for context
+  UNION ALL
+  SELECT date + INTERVAL '1 month' FROM months WHERE date < DATE_TRUNC('month', CURRENT_DATE + INTERVAL '10 months')
+)
+SELECT 
+    TO_CHAR(m.date, 'Mon YYYY') as month,
+    COALESCE(SUM(CASE 
+        -- Rule: Active, not a trial, and currently within the subscription window
+        WHEN s.status = 'ACTIVE' AND s.is_trial = FALSE AND (s.expiry_date >= m.date OR s.expiry_date IS NULL) THEN
+          CASE 
+            WHEN s.tier = 'Tier 1' THEN 150 
+            WHEN s.tier = 'Tier 2' THEN 200 
+            WHEN s.tier = 'Tier 3' THEN 399 
+            ELSE 0 
+          END
+        ELSE 0 
+    END), 0) as distributed_revenue,
+    COUNT(CASE WHEN s.status = 'ACTIVE' AND (s.expiry_date >= m.date OR s.expiry_date IS NULL) THEN 1 END) as active_subscribers
+FROM months m
+LEFT JOIN subscribers s ON DATE_TRUNC('month', s.subscription_start_date) <= m.date
+GROUP BY m.date, m.date
+ORDER BY m.date ASC;

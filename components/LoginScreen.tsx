@@ -64,7 +64,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
         // It's a company (Subscriber)
         const { data: companyData } = await supabase
-          .from('companies')
+          .from('subscribers')
           .select('tier')
           .eq('id', authData.user.id)
           .single();

@@ -152,8 +152,10 @@ export interface DigitalForm {
 export interface Company {
   id: string;
   name: string;
-  tier: 'tier_1' | 'tier_2' | 'tier_3';
+  tier: 'Tier 1' | 'Tier 2' | 'Tier 3';
   is_active: boolean;
+  status: string;
+  is_trial: boolean;
   expiry_date: string | null;
   created_at: string;
 }
