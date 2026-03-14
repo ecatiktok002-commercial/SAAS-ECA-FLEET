@@ -5,7 +5,6 @@ import { CheckCircle, Download, AlertCircle, ShieldAlert, Car, Clock, Fuel, Aler
 import { format } from 'date-fns';
 import { apiService } from '../../services/apiService';
 import html2pdf from 'html2pdf.js';
-import PrintableAgreementTemplate from '../../components/PrintableAgreementTemplate';
 
 export default function SignAgreement() {
   const { id } = useParams<{ id: string }>();
@@ -84,17 +83,17 @@ export default function SignAgreement() {
   };
 
   const handlePrint = () => {
-    const element = document.getElementById('printable-agreement-template');
+    const element = document.getElementById('agreement-content');
     if (!element) {
-      alert('Template not found');
+      alert('Agreement content not found');
       return;
     }
 
     const opt = {
-      margin:       0,
+      margin:       0.5,
       filename:     `EcaFleet_Agreement_${agreement?.customer_name?.replace(/\s+/g, '_') || 'Customer'}.pdf`,
       image:        { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true },
+      html2canvas:  { scale: 2, useCORS: true, logging: true, letterRendering: true },
       jsPDF:        { unit: 'in', format: 'a4' as const, orientation: 'portrait' as const }
     };
 
@@ -121,42 +120,34 @@ export default function SignAgreement() {
     );
   }
 
-  if (success) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans">
-        <div className="bg-white p-10 rounded-2xl shadow-xl border border-slate-200 max-w-md w-full text-center">
-          <CheckCircle className="h-20 w-20 text-emerald-500 mx-auto mb-6" />
-          <h2 className="text-3xl font-bold text-slate-900 mb-3 tracking-tight">Agreement Signed!</h2>
-          <p className="text-slate-600 mb-8 text-lg">
-            Thank you, <span className="font-semibold text-slate-900">{agreement.customer_name}</span>. Your rental agreement has been successfully signed and saved.
-          </p>
-          {agreement?.signed_at && (
-            <p className="text-xs text-slate-400 mb-6 italic">
-              Digitally Signed on {new Intl.DateTimeFormat('en-GB', { 
-                dateStyle: 'short', 
-                timeStyle: 'short', 
-                timeZone: 'Asia/Kuala_Lumpur' 
-              }).format(new Date(agreement.signed_at)).replace(',', '')}
-            </p>
-          )}
-          <button
-            onClick={handlePrint}
-            className="w-full inline-flex justify-center items-center py-4 px-6 border border-transparent shadow-lg text-lg font-medium rounded-xl text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 transition-all transform hover:-translate-y-0.5"
-          >
-            <Printer className="h-6 w-6 mr-2" />
-            Print / Save as PDF
-          </button>
-        </div>
-        <PrintableAgreementTemplate agreement={agreement} company={company} />
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-slate-900 border-t-transparent"></div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-slate-50 py-4 sm:py-12 px-4 sm:px-6 lg:px-8 font-sans text-base leading-relaxed">
-      <PrintableAgreementTemplate agreement={agreement} company={company} />
-      <div className="max-w-3xl mx-auto bg-white shadow-sm rounded-xl border border-slate-200 overflow-hidden mb-24">
+      <div id="agreement-content" className="max-w-3xl mx-auto bg-white shadow-sm rounded-xl border border-slate-200 overflow-hidden mb-24">
         
+        {/* Success Message for newly signed agreements */}
+        {success && (
+          <div className="bg-emerald-600 text-white p-6 text-center print:hidden">
+            <CheckCircle className="h-12 w-12 mx-auto mb-3" />
+            <h2 className="text-2xl font-bold mb-1">Agreement Signed Successfully!</h2>
+            <p className="opacity-90">Thank you for signing. You can now download the PDF below.</p>
+            <button
+              onClick={handlePrint}
+              className="mt-4 inline-flex items-center px-6 py-2 bg-white text-emerald-700 rounded-lg font-bold hover:bg-emerald-50 transition-colors"
+            >
+              <Printer className="w-5 h-5 mr-2" />
+              Download PDF Now
+            </button>
+          </div>
+        )}
+
         {/* Print Button for Signed Agreements */}
         {agreement?.signature_data && (
           <div className="bg-emerald-50 border-b border-emerald-200 p-4 flex justify-between items-center print:hidden">
@@ -370,31 +361,6 @@ export default function SignAgreement() {
               </div>
             </div>
           </section>
-
-          {/* Car Photos Section */}
-          {agreement?.photos_url && agreement.photos_url.length > 0 && (
-            <section className="py-8 print:py-4 border-t border-slate-200 print:border-slate-800 print:page-break-before-always">
-              <div className="flex items-center mb-6 print:mb-2">
-                <div className="bg-slate-900 p-2 rounded-lg mr-3 print:mr-1 print:p-1">
-                  <Car className="h-5 w-5 print:h-3 print:w-3 text-white" />
-                </div>
-                <h2 className="text-xl print:text-[9pt] font-bold text-slate-900 uppercase tracking-tight">Lampiran: Gambar Kenderaan (Sebelum)</h2>
-              </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:gap-2">
-                {agreement.photos_url.map((url: string, index: number) => (
-                  <div key={index} className="rounded-xl overflow-hidden border border-slate-200 print:border-slate-300 shadow-sm print:shadow-none">
-                    <img 
-                      src={url} 
-                      alt={`Vehicle condition ${index + 1}`} 
-                      className="w-full h-auto object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
 
           {/* 4. Section D: Ruangan Tandatangan & Footer */}
           <section className="pt-8 print:pt-2 border-t border-slate-200 print:border-slate-800 print:page-break-inside-avoid">

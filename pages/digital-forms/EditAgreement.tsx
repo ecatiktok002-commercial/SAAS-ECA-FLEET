@@ -30,8 +30,6 @@ export default function EditAgreement() {
   });
   const [paymentReceipt, setPaymentReceipt] = useState<File | null>(null);
   const [existingReceipt, setExistingReceipt] = useState<string | null>(null);
-  const [carPhotos, setCarPhotos] = useState<File[]>([]);
-  const [existingPhotos, setExistingPhotos] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState('');
@@ -100,7 +98,6 @@ export default function EditAgreement() {
           need_einvoice: data.need_einvoice || false,
         });
         setExistingReceipt(data.payment_receipt || null);
-        setExistingPhotos(data.photos_url || []);
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -178,21 +175,6 @@ export default function EditAgreement() {
     }
   };
 
-  const handleCarPhotosChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const filesArray = Array.from(e.target.files);
-      setCarPhotos(prev => [...prev, ...filesArray]);
-    }
-  };
-
-  const removeNewCarPhoto = (index: number) => {
-    setCarPhotos(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const removeExistingCarPhoto = (index: number) => {
-    setExistingPhotos(prev => prev.filter((_, i) => i !== index));
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subscriberId || !id) return;
@@ -211,25 +193,12 @@ export default function EditAgreement() {
         receiptData = null;
       }
 
-      const newCarPhotosData: string[] = [...existingPhotos];
-      if (carPhotos.length > 0) {
-        for (const file of carPhotos) {
-          const reader = new FileReader();
-          const base64 = await new Promise<string>((resolve) => {
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(file);
-          });
-          newCarPhotosData.push(base64);
-        }
-      }
-
       const updates: any = {
         ...formData,
         total_price: parseFloat(formData.total_price),
         deposit: formData.deposit ? parseFloat(formData.deposit) : 0,
         duration_days: parseInt(formData.duration_days, 10),
         ...(receiptData !== undefined && { payment_receipt: receiptData }),
-        photos_url: newCarPhotosData,
       };
 
       await apiService.updateAgreement(id, subscriberId, updates);
@@ -420,66 +389,6 @@ export default function EditAgreement() {
                   onChange={handleChange}
                   className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
                 />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Car Photos (Before)</label>
-                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-lg hover:bg-slate-50 transition-colors">
-                  <div className="space-y-1 text-center">
-                    <Upload className="mx-auto h-12 w-12 text-slate-400" />
-                    <div className="flex text-sm text-slate-600 justify-center">
-                      <label
-                        htmlFor="car-photos-upload"
-                        className="relative cursor-pointer bg-white rounded-lg font-medium text-slate-900 hover:text-slate-700 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-slate-900"
-                      >
-                        <span>Upload photos</span>
-                        <input id="car-photos-upload" name="car-photos-upload" type="file" className="sr-only" onChange={handleCarPhotosChange} accept="image/*" multiple />
-                      </label>
-                      <p className="pl-1">or drag and drop</p>
-                    </div>
-                    <p className="text-xs text-slate-500">PNG, JPG up to 10MB (Multiple allowed)</p>
-                  </div>
-                </div>
-                
-                {(existingPhotos.length > 0 || carPhotos.length > 0) && (
-                  <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
-                    {existingPhotos.map((url, index) => (
-                      <div key={`existing-${index}`} className="relative group aspect-video rounded-lg overflow-hidden border border-slate-200">
-                        <img 
-                          src={url} 
-                          alt={`Existing car photo ${index + 1}`} 
-                          className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeExistingCarPhoto(index)}
-                          className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                    {carPhotos.map((file, index) => (
-                      <div key={`new-${index}`} className="relative group aspect-video rounded-lg overflow-hidden border border-emerald-200">
-                        <img 
-                          src={URL.createObjectURL(file)} 
-                          alt={`New car photo ${index + 1}`} 
-                          className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                        <div className="absolute top-1 left-1 bg-emerald-500 text-white text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">New</div>
-                        <button
-                          type="button"
-                          onClick={() => removeNewCarPhoto(index)}
-                          className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
 
               <div>
