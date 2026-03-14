@@ -226,6 +226,11 @@ CREATE TABLE IF NOT EXISTS agreements (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Ensure columns exist if table was already created
+ALTER TABLE agreements ADD COLUMN IF NOT EXISTS created_by TEXT;
+ALTER TABLE agreements ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES subscribers(id) ON DELETE CASCADE;
+ALTER TABLE agreements ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+
 -- 7. Digital Forms
 CREATE TABLE IF NOT EXISTS digital_forms (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -293,6 +298,21 @@ CREATE TABLE IF NOT EXISTS handover_records (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 11. Customers Table (CRM)
+CREATE TABLE IF NOT EXISTS customers (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  subscriber_id UUID NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
+  full_name TEXT NOT NULL,
+  phone_number TEXT,
+  ic_passport TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(subscriber_id, ic_passport)
+);
+
+-- Add customer_id to agreements and digital_forms
+ALTER TABLE agreements ADD COLUMN IF NOT EXISTS customer_id UUID REFERENCES customers(id) ON DELETE SET NULL;
+ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS customer_id UUID REFERENCES customers(id) ON DELETE SET NULL;
+
 -- ===============================================================
 -- RLS POLICIES
 -- ===============================================================
@@ -307,6 +327,7 @@ ALTER TABLE digital_forms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE handover_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
 
 -- Helper to check if user is a Subscriber (Company Owner)
 -- In this system, the company ID matches the Auth UID of the owner
@@ -471,6 +492,15 @@ CREATE POLICY "Handover records access" ON handover_records
     ) -- Agent
   );
 
+-- 11. Customers (CRM)
+DROP POLICY IF EXISTS "Customers access" ON customers;
+CREATE POLICY "Customers access" ON customers 
+  FOR ALL USING (
+    auth.uid() = subscriber_id -- Subscriber
+    OR 
+    subscriber_id = current_subscriber_id() -- Agent
+  );
+
 -- Trigger to sync staff_members to members (Calendar Fleet Members)
 CREATE OR REPLACE FUNCTION sync_staff_to_member()
 RETURNS TRIGGER AS $$
@@ -489,6 +519,84 @@ CREATE TRIGGER tr_sync_staff_to_member
 AFTER INSERT ON staff_members
 FOR EACH ROW
 EXECUTE FUNCTION sync_staff_to_member();
+
+-- Trigger to automatically create/link customer on agreement insert
+CREATE OR REPLACE FUNCTION sync_agreement_to_customer()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_customer_id UUID;
+BEGIN
+    -- Try to find existing customer by IC/Passport within the same subscriber
+    SELECT id INTO v_customer_id 
+    FROM customers 
+    WHERE ic_passport = NEW.identity_number 
+    AND subscriber_id = NEW.subscriber_id 
+    LIMIT 1;
+
+    -- If not found, create new customer
+    IF v_customer_id IS NULL AND NEW.identity_number IS NOT NULL THEN
+        INSERT INTO customers (subscriber_id, full_name, phone_number, ic_passport)
+        VALUES (NEW.subscriber_id, NEW.customer_name, NEW.customer_phone, NEW.identity_number)
+        RETURNING id INTO v_customer_id;
+    END IF;
+
+    -- Update the agreement with the customer_id
+    NEW.customer_id := v_customer_id;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS tr_sync_agreement_to_customer ON agreements;
+CREATE TRIGGER tr_sync_agreement_to_customer
+BEFORE INSERT OR UPDATE OF identity_number ON agreements
+FOR EACH ROW
+EXECUTE FUNCTION sync_agreement_to_customer();
+
+-- Same for digital forms
+DROP TRIGGER IF EXISTS tr_sync_digital_form_to_customer ON digital_forms;
+CREATE TRIGGER tr_sync_digital_form_to_customer
+BEFORE INSERT OR UPDATE OF identity_number ON digital_forms
+FOR EACH ROW
+EXECUTE FUNCTION sync_agreement_to_customer();
+
+-- CRM View with Data Isolation Guardrail
+CREATE OR REPLACE VIEW customer_crm_view AS
+SELECT 
+    c.id,
+    c.subscriber_id,
+    c.full_name,
+    c.phone_number,
+    c.ic_passport,
+    (
+        SELECT COUNT(*) 
+        FROM agreements a 
+        WHERE a.customer_id = c.id 
+        AND a.subscriber_id = c.subscriber_id
+    ) as total_bookings,
+    (
+        SELECT MAX(a.end_date) 
+        FROM agreements a 
+        WHERE a.customer_id = c.id 
+        AND a.subscriber_id = c.subscriber_id
+    ) as last_rental_date,
+    CASE 
+        WHEN EXISTS (
+            SELECT 1 
+            FROM agreements a 
+            WHERE a.customer_id = c.id 
+            AND a.status = 'Ongoing' 
+            AND a.subscriber_id = c.subscriber_id
+        ) THEN 'Active'
+        WHEN (
+            SELECT COUNT(*) 
+            FROM agreements a 
+            WHERE a.customer_id = c.id 
+            AND a.subscriber_id = c.subscriber_id
+        ) > 1 THEN 'Repeat'
+        ELSE 'New'
+    END as status
+FROM customers c;
 
 -- ===============================================================
 -- SMART LOGIN DETECTION RPC
@@ -536,29 +644,151 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 11. SaaS Revenue Dashboard View
+-- 11. Subscriber Payments (for Cash-Basis Revenue Tracking)
+CREATE TABLE IF NOT EXISTS subscriber_payments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  subscriber_id UUID REFERENCES subscribers(id) ON DELETE CASCADE,
+  amount DECIMAL(10, 2) NOT NULL,
+  payment_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  tier TEXT NOT NULL,
+  months_added INTEGER NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Trigger to record payments automatically
+CREATE OR REPLACE FUNCTION record_subscriber_payment()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_tier_price DECIMAL(10, 2);
+  v_months_diff INTEGER;
+  v_base_date TIMESTAMP WITH TIME ZONE;
+BEGIN
+  -- Determine tier price
+  IF NEW.tier = 'Tier 1' THEN v_tier_price := 150;
+  ELSIF NEW.tier = 'Tier 2' THEN v_tier_price := 200;
+  ELSIF NEW.tier = 'Tier 3' THEN v_tier_price := 399;
+  ELSE v_tier_price := 0;
+  END IF;
+
+  -- If it's a trial or no expiry, no revenue contribution
+  IF NEW.is_trial = TRUE OR NEW.expiry_date IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- Calculate months added
+  IF (TG_OP = 'INSERT') THEN
+    -- For new subscribers, months is difference between start and expiry
+    -- We use a simple month difference calculation
+    v_months_diff := (EXTRACT(YEAR FROM NEW.expiry_date) - EXTRACT(YEAR FROM NEW.subscription_start_date)) * 12 +
+                     (EXTRACT(MONTH FROM NEW.expiry_date) - EXTRACT(MONTH FROM NEW.subscription_start_date));
+    
+    -- If the day of month is greater, it counts as another month
+    IF EXTRACT(DAY FROM NEW.expiry_date) > EXTRACT(DAY FROM NEW.subscription_start_date) THEN
+        v_months_diff := v_months_diff + 1;
+    END IF;
+    
+    -- Ensure at least 1 month if expiry is set
+    IF v_months_diff <= 0 AND NEW.expiry_date > NEW.subscription_start_date THEN
+        v_months_diff := 1;
+    END IF;
+
+    IF v_months_diff > 0 THEN
+      INSERT INTO subscriber_payments (subscriber_id, amount, tier, months_added, payment_date)
+      VALUES (NEW.id, v_months_diff * v_tier_price, NEW.tier, v_months_diff, NEW.subscription_start_date);
+    END IF;
+  ELSIF (TG_OP = 'UPDATE') THEN
+    -- Only record if expiry_date was increased
+    IF NEW.expiry_date > OLD.expiry_date OR (OLD.expiry_date IS NULL AND NEW.expiry_date IS NOT NULL) THEN
+      v_base_date := COALESCE(OLD.expiry_date, NOW());
+      
+      v_months_diff := (EXTRACT(YEAR FROM NEW.expiry_date) - EXTRACT(YEAR FROM v_base_date)) * 12 +
+                       (EXTRACT(MONTH FROM NEW.expiry_date) - EXTRACT(MONTH FROM v_base_date));
+      
+      IF EXTRACT(DAY FROM NEW.expiry_date) > EXTRACT(DAY FROM v_base_date) THEN
+          v_months_diff := v_months_diff + 1;
+      END IF;
+
+      IF v_months_diff <= 0 AND NEW.expiry_date > v_base_date THEN
+          v_months_diff := 1;
+      END IF;
+
+      IF v_months_diff > 0 THEN
+        INSERT INTO subscriber_payments (subscriber_id, amount, tier, months_added, payment_date)
+        VALUES (NEW.id, v_months_diff * v_tier_price, NEW.tier, v_months_diff, NOW());
+      END IF;
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Drop trigger if exists to avoid errors on re-run
+DROP TRIGGER IF EXISTS trg_record_subscriber_payment ON subscribers;
+CREATE TRIGGER trg_record_subscriber_payment
+AFTER INSERT OR UPDATE OF expiry_date, tier, is_trial ON subscribers
+FOR EACH ROW EXECUTE FUNCTION record_subscriber_payment();
+
+-- 12. SaaS Revenue Dashboard View (Cash-Basis)
 DROP VIEW IF EXISTS saas_revenue_dashboard;
 CREATE OR REPLACE VIEW saas_revenue_dashboard AS
 WITH RECURSIVE months(date) AS (
-  SELECT DATE_TRUNC('month', CURRENT_DATE - INTERVAL '2 months') -- Show past 2 months for context
+  SELECT DATE_TRUNC('month', CURRENT_DATE - INTERVAL '2 months')
   UNION ALL
   SELECT date + INTERVAL '1 month' FROM months WHERE date < DATE_TRUNC('month', CURRENT_DATE + INTERVAL '10 months')
 )
 SELECT 
     TO_CHAR(m.date, 'Mon YYYY') as month,
-    COALESCE(SUM(CASE 
-        -- Rule: Active, not a trial, and currently within the subscription window
-        WHEN s.status = 'ACTIVE' AND s.is_trial = FALSE AND (s.expiry_date >= m.date OR s.expiry_date IS NULL) THEN
-          CASE 
-            WHEN s.tier = 'Tier 1' THEN 150 
-            WHEN s.tier = 'Tier 2' THEN 200 
-            WHEN s.tier = 'Tier 3' THEN 399 
-            ELSE 0 
-          END
-        ELSE 0 
-    END), 0) as distributed_revenue,
-    COUNT(CASE WHEN s.status = 'ACTIVE' AND (s.expiry_date >= m.date OR s.expiry_date IS NULL) THEN 1 END) as active_subscribers
+    COALESCE((
+      SELECT SUM(p.amount) 
+      FROM subscriber_payments p 
+      WHERE DATE_TRUNC('month', p.payment_date) = m.date
+    ), 0) as distributed_revenue,
+    (
+      SELECT COUNT(*) 
+      FROM subscribers s 
+      WHERE s.status = 'ACTIVE' 
+      AND (s.expiry_date >= m.date OR s.expiry_date IS NULL)
+      AND DATE_TRUNC('month', s.subscription_start_date) <= m.date
+    ) as active_subscribers
 FROM months m
-LEFT JOIN subscribers s ON DATE_TRUNC('month', s.subscription_start_date) <= m.date
-GROUP BY m.date, m.date
 ORDER BY m.date ASC;
+
+-- Initial Migration: Populate payments for existing subscribers
+INSERT INTO subscriber_payments (subscriber_id, amount, tier, months_added, payment_date)
+SELECT 
+  id, 
+  CASE 
+    WHEN tier = 'Tier 1' THEN 150 
+    WHEN tier = 'Tier 2' THEN 200 
+    WHEN tier = 'Tier 3' THEN 399 
+    ELSE 0 
+  END * GREATEST(1, (EXTRACT(YEAR FROM expiry_date) - EXTRACT(YEAR FROM subscription_start_date)) * 12 + (EXTRACT(MONTH FROM expiry_date) - EXTRACT(MONTH FROM subscription_start_date))),
+  tier,
+  GREATEST(1, (EXTRACT(YEAR FROM expiry_date) - EXTRACT(YEAR FROM subscription_start_date)) * 12 + (EXTRACT(MONTH FROM expiry_date) - EXTRACT(MONTH FROM subscription_start_date))),
+  subscription_start_date
+FROM subscribers
+WHERE is_trial = FALSE AND expiry_date IS NOT NULL
+ON CONFLICT DO NOTHING;
+
+-- 13. Initial Migration: Populate customers from existing agreements
+INSERT INTO customers (subscriber_id, full_name, phone_number, ic_passport)
+SELECT DISTINCT ON (subscriber_id, identity_number) 
+    subscriber_id, customer_name, customer_phone, identity_number
+FROM agreements
+WHERE identity_number IS NOT NULL
+ON CONFLICT (subscriber_id, ic_passport) DO NOTHING;
+
+-- Update existing agreements with customer_id
+UPDATE agreements a
+SET customer_id = c.id
+FROM customers c
+WHERE a.identity_number = c.ic_passport 
+AND a.subscriber_id = c.subscriber_id;
+
+-- Update existing digital forms with customer_id
+UPDATE digital_forms f
+SET customer_id = c.id
+FROM customers c
+WHERE f.identity_number = c.ic_passport 
+AND f.subscriber_id = c.subscriber_id;

@@ -107,7 +107,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
             <div className="overflow-hidden">
               <h1 className="text-2xl font-bold tracking-tight truncate">EcaFleet</h1>
               <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider font-bold truncate">
-                {subscriberId === 'superadmin' ? 'Master Admin' : `${subscriptionTier?.replace('_', ' ')}`}
+                {subscriberId === 'superadmin' ? 'Master Admin' : `${subscriptionTier?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}`}
               </p>
             </div>
           ) : (

@@ -1223,5 +1223,22 @@ export const apiService = {
       }
       return data || [];
     });
+  },
+
+  // Customers (CRM)
+  async getCustomersCRM(subscriberId: string): Promise<any[]> {
+    validateSubscriber(subscriberId);
+    return withRetry(async () => {
+      const { data, error } = await supabase
+        .from('customer_crm_view')
+        .select('*')
+        .eq('subscriber_id', subscriberId);
+      
+      if (error) {
+        logSupabaseError('getCustomersCRM', error);
+        return [];
+      }
+      return data || [];
+    });
   }
 };

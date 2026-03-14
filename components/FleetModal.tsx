@@ -207,20 +207,22 @@ const FleetModal: React.FC<FleetModalProps> = ({
             </>
           )}
 
-          {activeTab === 'members' && (
-            <div className="space-y-6">
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <h4 className="text-sm font-semibold text-slate-900 mb-1">Registered Members</h4>
-                <p className="text-xs text-slate-500">
-                  Members are automatically synced from Staff Management. You can only edit your own display color.
-                </p>
-              </div>
+          {activeTab === 'members' && (() => {
+            const staffOnlyMembers = members.filter(m => m.staff_id);
+            return (
+              <div className="space-y-6">
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <h4 className="text-sm font-semibold text-slate-900 mb-1">Registered Members</h4>
+                  <p className="text-xs text-slate-500">
+                    Members are automatically synced from Staff Management. You can only edit your own display color.
+                  </p>
+                </div>
 
-              <div className="space-y-3">
-                {members.map((member) => {
-                  const isOwnMember = currentStaff && member.staff_id === currentStaff.id;
-                  return (
-                    <div key={member.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="space-y-3">
+                  {staffOnlyMembers.map((member) => {
+                    const isOwnMember = currentStaff && member.staff_id === currentStaff.id;
+                    return (
+                      <div key={member.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
                       <div className="flex items-center gap-3">
                         <div className={`w-8 h-8 rounded-full ${member.color} flex items-center justify-center text-white text-xs font-bold shadow-sm`}>
                           {member.name.substring(0,2).toUpperCase()}
@@ -270,10 +272,11 @@ const FleetModal: React.FC<FleetModalProps> = ({
                     </div>
                   );
                 })}
-                {members.length === 0 && <div className="text-center py-4 text-slate-400 text-sm">No members registered.</div>}
+                {staffOnlyMembers.length === 0 && <div className="text-center py-4 text-slate-400 text-sm">No members registered.</div>}
               </div>
             </div>
-          )}
+          );
+        })()}
 
           {activeTab === 'expenses' && (
             <>

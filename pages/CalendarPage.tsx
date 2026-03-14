@@ -69,8 +69,12 @@ const CalendarPage: React.FC = () => {
         apiService.getExpenses(currentSubscriberId, createdByToFetch),
         apiService.getStaffMembers(currentSubscriberId)
       ]);
+      
+      // Filter members to only include those that are staff
+      const staffOnlyMembers = fetchedMembers.filter(m => m.staff_id);
+      
       setCars(fetchedCars);
-      setMembers(fetchedMembers);
+      setMembers(staffOnlyMembers);
       setBookings(fetchedBookings);
       setExpenses(fetchedExpenses);
       setStaffMembers(fetchedStaff);

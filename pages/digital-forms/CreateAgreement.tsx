@@ -210,17 +210,6 @@ export default function CreateAgreement() {
 
       const newAgreement = await apiService.createAgreement(agreementData, subscriberId);
       
-      // Also save/update member for future lookup
-      await apiService.addMember({
-        name: formData.customer_name,
-        phone: formData.customer_phone,
-        identity_number: formData.identity_number,
-        billing_address: formData.billing_address,
-        emergency_contact_name: formData.emergency_contact_name,
-        emergency_contact_relation: formData.emergency_contact_relation,
-        color: 'bg-blue-500'
-      }, subscriberId);
-
       alert(`Agreement created! ID: ${newAgreement.id}`);
       navigate('/forms');
     } catch (err: any) {

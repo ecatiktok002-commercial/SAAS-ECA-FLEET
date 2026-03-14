@@ -244,26 +244,26 @@ const SubscriberManager: React.FC = () => {
 
   // Calculate Metrics
   const metrics = useMemo(() => {
-    let mrr = 0;
-    let activeSubs = 0;
+    // Find current month in revenueStats (which is now cash-basis)
+    const now = new Date();
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const currentMonthName = monthNames[now.getMonth()];
+    
+    const currentMonthData = revenueStats.find(m => m.month.startsWith(currentMonthName));
+    const mrr = currentMonthData ? currentMonthData.distributed_revenue : 0;
 
+    let activeSubs = 0;
     subscribers.forEach(sub => {
       const isExpired = sub.expiry_date && new Date(sub.expiry_date) < new Date();
-      const isActive = sub.status === 'ACTIVE' && !isExpired;
+      const isActive = sub.status === 'ACTIVE' && (sub.expiry_date === null || !isExpired);
 
       if (isActive) {
         activeSubs++;
-        // Calculate MRR based on tier for paid, non-trial subscribers
-        if (!sub.is_trial && sub.expiry_date !== null) {
-          if (sub.tier === 'Tier 1') mrr += 150;
-          else if (sub.tier === 'Tier 2') mrr += 200;
-          else if (sub.tier === 'Tier 3') mrr += 399;
-        }
       }
     });
 
     return { mrr, activeSubs };
-  }, [subscribers]);
+  }, [subscribers, revenueStats]);
 
   const displayedSubscribers = useMemo(() => {
     const minRows = 5;
@@ -342,8 +342,8 @@ const SubscriberManager: React.FC = () => {
               <DollarSign className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Monthly Recurring Revenue (MRR)</p>
-              <h3 className="text-3xl font-bold text-slate-900">RM {metrics.mrr.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Revenue (Current Month)</p>
+              <h3 className="text-3xl font-bold text-slate-900">RM {(metrics.mrr || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
             </div>
           </div>
           

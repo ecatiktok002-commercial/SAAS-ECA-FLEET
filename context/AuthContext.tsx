@@ -21,6 +21,15 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const normalizeTier = (tier: string | null): SubscriptionTier => {
+  if (!tier) return 'tier_1';
+  const normalized = tier.toLowerCase().replace(' ', '_');
+  if (normalized === 'tier_1' || normalized === 'tier_2' || normalized === 'tier_3') {
+    return normalized as SubscriptionTier;
+  }
+  return 'tier_1';
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [subscriberId, setSubscriberId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -66,12 +75,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUserName(isSuperAdmin ? 'Super Admin' : (session.user.user_metadata?.full_name || getDisplayId(session.user)));
         
         const storedRole = localStorage.getItem('staffRole') as StaffRole;
+        const storedTier = localStorage.getItem('subscriptionTier');
         const storedName = localStorage.getItem('userName');
         const storedUserId = localStorage.getItem('userId');
         const storedUserUid = localStorage.getItem('userUid');
         
         if (storedRole) {
           setStaffRole(storedRole);
+          if (storedTier) setSubscriptionTier(normalizeTier(storedTier));
           if (storedName) setUserName(storedName);
           if (storedUserId) setUserId(storedUserId);
           if (storedUserUid) setUserUid(storedUserUid);
@@ -88,8 +99,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .single();
           
           if (companyData?.tier) {
-            setSubscriptionTier(companyData.tier as SubscriptionTier);
-            localStorage.setItem('subscriptionTier', companyData.tier);
+            const normalizedTier = normalizeTier(companyData.tier);
+            setSubscriptionTier(normalizedTier);
+            localStorage.setItem('subscriptionTier', normalizedTier);
           }
         } else {
           setSubscriptionTier('tier_3');
@@ -101,10 +113,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkSession();
   }, []);
 
-  const login = (id: string, role: StaffRole, tier: SubscriptionTier, uId?: string, uName?: string, uUid?: string) => {
+  const login = (id: string, role: StaffRole, tier: string, uId?: string, uName?: string, uUid?: string) => {
+    const normalizedTier = normalizeTier(tier);
     setSubscriberId(id);
     setStaffRole(role);
-    setSubscriptionTier(tier);
+    setSubscriptionTier(normalizedTier);
     if (uId) {
       setUserId(uId);
       localStorage.setItem('userId', uId);
@@ -118,7 +131,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('userUid', uUid);
     }
     localStorage.setItem('staffRole', role);
-    localStorage.setItem('subscriptionTier', tier);
+    localStorage.setItem('subscriptionTier', normalizedTier);
   };
 
   const logout = async () => {

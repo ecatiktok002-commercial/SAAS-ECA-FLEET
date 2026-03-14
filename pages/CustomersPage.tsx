@@ -1,22 +1,22 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Users, Search, Phone, CreditCard, User, ExternalLink } from 'lucide-react';
+import { Users, Search, Phone, CreditCard, Download, MessageCircle, ExternalLink } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import * as Storage from '../services/storageService';
-import { DigitalForm } from '../types';
+import { apiService } from '../services/apiService';
+import * as XLSX from 'xlsx';
 
-interface CustomerData {
-  idNumber: string;
-  name: string;
-  phone: string;
-  agentName: string;
-  agentId: string;
-  lastFormId: string;
-  formCount: number;
+interface CustomerCRM {
+  id: string;
+  full_name: string;
+  phone_number: string;
+  ic_passport: string;
+  total_bookings: number;
+  last_rental_date: string | null;
+  status: 'Active' | 'Repeat' | 'New';
 }
 
 const CustomersPage: React.FC = () => {
   const { subscriberId, staffRole, userId } = useAuth();
-  const [forms, setForms] = useState<DigitalForm[]>([]);
+  const [customersData, setCustomersData] = useState<CustomerCRM[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -25,21 +25,10 @@ const CustomersPage: React.FC = () => {
       if (!subscriberId) return;
       setIsLoading(true);
       try {
-        const agentId = staffRole === 'staff' ? userId || undefined : undefined;
-        const [formsData, agreementsData] = await Promise.all([
-          Storage.getDigitalForms(subscriberId, agentId),
-          Storage.getAgreements(subscriberId, agentId)
-        ]);
-        
-        // Combine both sources as they both represent customer interactions
-        const combined = [
-          ...formsData.map((f: any) => ({ ...f, source: 'form' })),
-          ...agreementsData.map((a: any) => ({ ...a, source: 'agreement' }))
-        ];
-        
-        setForms(combined as any);
+        const data = await apiService.getCustomersCRM(subscriberId);
+        setCustomersData(data);
       } catch (error) {
-        console.error('Error fetching data for customers:', error);
+        console.error('Error fetching customer CRM data:', error);
       } finally {
         setIsLoading(false);
       }
@@ -48,157 +37,210 @@ const CustomersPage: React.FC = () => {
     fetchData();
   }, [subscriberId]);
 
-  const customers = useMemo(() => {
-    const customerMap = new Map<string, CustomerData>();
-
-    forms.forEach(form => {
-      // Use ID Number as unique key
-      const idNumber = form.identity_number || 'N/A';
-      
-      if (!customerMap.has(idNumber)) {
-        customerMap.set(idNumber, {
-          idNumber,
-          name: form.customer_name || 'Unknown',
-          phone: form.customer_phone || 'N/A',
-          agentName: form.agent_name || 'N/A',
-          agentId: form.agent_id || '',
-          lastFormId: form.id,
-          formCount: 1
-        });
-      } else {
-        const existing = customerMap.get(idNumber)!;
-        existing.formCount += 1;
-      }
-    });
-
-    let result = Array.from(customerMap.values());
+  const filteredCustomers = useMemo(() => {
+    let result = [...customersData];
 
     // Filter by search term
     if (searchTerm) {
       const lowerTerm = searchTerm.toLowerCase();
       result = result.filter(c => 
-        c.name.toLowerCase().includes(lowerTerm) ||
-        c.idNumber.toLowerCase().includes(lowerTerm) ||
-        c.phone.toLowerCase().includes(lowerTerm)
+        c.full_name.toLowerCase().includes(lowerTerm) ||
+        (c.ic_passport && c.ic_passport.toLowerCase().includes(lowerTerm)) ||
+        (c.phone_number && c.phone_number.toLowerCase().includes(lowerTerm))
       );
     }
 
-    // If staff, only show customers they brought in
-    if (staffRole === 'staff') {
-      result = result.filter(c => c.agentId === userId);
-    }
+    // Sort by last rental date (descending)
+    result.sort((a, b) => {
+      const dateA = a.last_rental_date ? new Date(a.last_rental_date).getTime() : 0;
+      const dateB = b.last_rental_date ? new Date(b.last_rental_date).getTime() : 0;
+      return dateB - dateA;
+    });
 
     return result;
-  }, [forms, searchTerm, staffRole, userId]);
+  }, [customersData, searchTerm]);
+
+  const exportToExcel = () => {
+    const dataToExport = filteredCustomers.map(c => ({
+      'Name': c.full_name,
+      'IC/Passport': c.ic_passport || 'N/A',
+      'Phone Number': c.phone_number || 'N/A',
+      'Total Bookings': c.total_bookings,
+      'Status': c.status,
+      'Last Rental Date': c.last_rental_date ? new Date(c.last_rental_date).toLocaleDateString() : 'N/A'
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Customers');
+    
+    // Generate filename with date
+    const date = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(workbook, `Customer_Database_${date}.xlsx`);
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'Active':
+        return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">Active</span>;
+      case 'Repeat':
+        return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">Repeat</span>;
+      default:
+        return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">New</span>;
+    }
+  };
+
+  // Ensure 5 rows minimum
+  const displayRows = [...filteredCustomers];
+  while (displayRows.length < 5 && !isLoading) {
+    displayRows.push({
+      id: `placeholder-${displayRows.length}`,
+      full_name: '',
+      phone_number: '',
+      ic_passport: '',
+      total_bookings: 0,
+      last_rental_date: null,
+      status: 'New'
+    } as any);
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
       <header className="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-3 w-full sm:w-auto">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-3 w-full md:w-auto">
             <div className="bg-blue-600 p-2 rounded-lg">
               <Users className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight">Customer Database</h1>
-              <p className="text-xs text-slate-400">Extracted from Digital Forms</p>
+              <h1 className="text-xl font-bold tracking-tight">Customer CRM</h1>
+              <p className="text-xs text-slate-400 font-mono uppercase tracking-wider">Subscriber ID: {subscriberId?.substring(0, 8)}...</p>
             </div>
           </div>
 
-          <div className="relative w-full sm:w-80 group">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 text-slate-400 group-focus-within:text-blue-400 transition-colors" />
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="relative flex-1 md:w-80 group">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 text-slate-400 group-focus-within:text-blue-400 transition-colors" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search Name or Phone..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="block w-full pl-10 pr-3 py-2 border border-slate-700 rounded-lg leading-5 bg-slate-800 text-slate-300 placeholder-slate-500 focus:outline-none focus:bg-slate-900 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-all"
+              />
             </div>
-            <input
-              type="text"
-              placeholder="Search by name, IC/Passport, or phone..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-slate-700 rounded-lg leading-5 bg-slate-800 text-slate-300 placeholder-slate-500 focus:outline-none focus:bg-slate-900 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-all"
-            />
+            
+            <button 
+              onClick={exportToExcel}
+              disabled={isLoading || filteredCustomers.length === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-[#0F172A] hover:bg-slate-800 text-white rounded-lg text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700 shadow-lg"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Export to Excel</span>
+            </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-slate-500 font-medium">Loading customer data...</p>
+      <main className="max-w-7xl mx-auto px-4 py-8">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto max-h-[600px] scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+            <table className="w-full text-left border-collapse">
+              <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Name</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">IC / Passport</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Phone Number</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Total Bookings</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Last Rental</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {isLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i} className="animate-pulse">
+                      <td className="px-6 py-4"><div className="h-4 bg-slate-100 rounded w-3/4"></div></td>
+                      <td className="px-6 py-4"><div className="h-4 bg-slate-100 rounded w-1/2"></div></td>
+                      <td className="px-6 py-4"><div className="h-4 bg-slate-100 rounded w-1/2"></div></td>
+                      <td className="px-6 py-4 text-center"><div className="h-4 bg-slate-100 rounded w-8 mx-auto"></div></td>
+                      <td className="px-6 py-4"><div className="h-6 bg-slate-100 rounded-full w-16"></div></td>
+                      <td className="px-6 py-4"><div className="h-4 bg-slate-100 rounded w-1/2"></div></td>
+                    </tr>
+                  ))
+                ) : (
+                  displayRows.map((customer, idx) => (
+                    <tr 
+                      key={customer.id} 
+                      className={`hover:bg-slate-50 transition-colors ${customer.full_name ? '' : 'opacity-30'}`}
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          {customer.full_name && (
+                            <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 font-bold text-xs">
+                              {customer.full_name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <span className="font-bold text-slate-900">{customer.full_name || '-'}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 font-mono text-sm text-slate-600">
+                        {customer.ic_passport || '-'}
+                      </td>
+                      <td className="px-6 py-4">
+                        {customer.phone_number ? (
+                          <div className="flex items-center gap-2">
+                            <a 
+                              href={`tel:${customer.phone_number}`}
+                              className="text-blue-600 hover:underline font-medium"
+                            >
+                              {customer.phone_number}
+                            </a>
+                            <a 
+                              href={`https://wa.me/${customer.phone_number.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                              title="Message on WhatsApp"
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                            </a>
+                          </div>
+                        ) : '-'}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg font-bold ${customer.total_bookings > 0 ? 'bg-blue-50 text-blue-700' : 'text-slate-300'}`}>
+                          {customer.total_bookings || 0}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {customer.full_name ? getStatusBadge(customer.status) : '-'}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-500">
+                        {customer.last_rental_date ? new Date(customer.last_rental_date).toLocaleDateString('en-MY', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric'
+                        }) : '-'}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
-        ) : customers.length === 0 ? (
-          <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300">
-            <div className="bg-slate-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Users className="w-8 h-8 text-slate-400" />
-            </div>
-            <h3 className="text-lg font-medium text-slate-900 mb-2">No Customers Found</h3>
-            <p className="text-slate-500 max-w-sm mx-auto">
-              {searchTerm 
-                ? `No results matching "${searchTerm}"`
-                : 'Customers will appear here once digital forms are submitted.'}
+          
+          <div className="bg-slate-50 px-6 py-3 border-t border-slate-200 flex justify-between items-center">
+            <p className="text-xs text-slate-500 font-medium">
+              Showing {filteredCustomers.length} of {customersData.length} customers
+            </p>
+            <p className="text-xs text-slate-400 italic">
+              * Data isolated by Subscriber ID
             </p>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {customers.map((customer) => (
-              <div key={customer.idNumber} className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all overflow-hidden group">
-                <div className="p-5 border-b border-slate-100 bg-slate-50/50">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">
-                      {customer.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                        {customer.name}
-                      </h3>
-                      <div className="flex items-center gap-1 text-xs text-slate-500">
-                        <User className="w-3 h-3" />
-                        <span>Agent: {customer.agentName}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="p-5 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-slate-600">
-                      <CreditCard className="w-4 h-4 text-slate-400" />
-                      <span className="text-sm font-medium">IC / Passport</span>
-                    </div>
-                    <span className="text-sm font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-700">
-                      {customer.idNumber}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-slate-600">
-                      <Phone className="w-4 h-4 text-slate-400" />
-                      <span className="text-sm font-medium">Phone Number</span>
-                    </div>
-                    <a 
-                      href={`tel:${customer.phone}`}
-                      className="text-sm text-blue-600 hover:underline font-medium"
-                    >
-                      {customer.phone}
-                    </a>
-                  </div>
-
-                  <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-                    <div className="text-xs text-slate-400">
-                      Total Forms: <span className="font-bold text-slate-700">{customer.formCount}</span>
-                    </div>
-                    <button 
-                      onClick={() => window.location.href = `/forms`}
-                      className="text-xs font-bold text-blue-600 flex items-center gap-1 hover:gap-2 transition-all"
-                    >
-                      View Forms <ExternalLink className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        </div>
       </main>
     </div>
   );
