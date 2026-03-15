@@ -1188,7 +1188,12 @@ export const apiService = {
       let finalAgreement = { ...agreement };
       if (subscriberId === 'superadmin') {
         const { data: { user } } = await supabase.auth.getUser();
-        if (user) finalAgreement.subscriber_id = user.id;
+        if (user) {
+          finalAgreement.subscriber_id = user.id;
+          if (finalAgreement.agent_id === 'superadmin' || !finalAgreement.agent_id) {
+            finalAgreement.agent_id = user.id;
+          }
+        }
       } else {
         finalAgreement.subscriber_id = subscriberId;
       }

@@ -181,7 +181,18 @@ export default function CreateAgreement() {
 
       // Get current staff name if available
       const staffName = userName || 'Agent';
-      const actualAgentId = staffRole === 'admin' ? subscriberId : userId;
+      let actualAgentId = staffRole === 'admin' ? subscriberId : userId;
+
+      // Ensure actualAgentId is a valid UUID. If it's a string UID (e.g., 'idmahira'), fetch the real UUID.
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (actualAgentId && actualAgentId !== 'superadmin' && !uuidRegex.test(actualAgentId)) {
+        const staffMember = await apiService.getStaffMemberByUid(actualAgentId, subscriberId);
+        if (staffMember) {
+          actualAgentId = staffMember.id;
+        } else {
+          throw new Error('Could not resolve staff UUID. Please log out and log in again.');
+        }
+      }
 
       // 1. Upsert customer to CRM first
       const customerId = await apiService.upsertCustomer({
@@ -197,7 +208,7 @@ export default function CreateAgreement() {
       const agreementData: any = {
         subscriber_id: subscriberId,
         customer_id: customerId, // Attach the customer_id
-        agent_id: actualAgentId || '', // Use subscriberId for admins to avoid UUID syntax error
+        agent_id: actualAgentId || subscriberId, // Fallback to subscriberId to avoid UUID syntax error
         agent_name: staffName,
         created_by: userUid || userId || '', // Track the actual string UID
         customer_name: formData.customer_name,
