@@ -885,29 +885,16 @@ export const apiService = {
 
       const uid = (designatedUid || name.toLowerCase().replace(/\s+/g, '')).trim().toLowerCase();
       const email = `${uid}@ecafleet.com`;
-      const password = uid; // User requested UID as password
 
-      // 1. Call the Edge Function to provision the account (bypasses rate limits)
-      const { data: provisionData, error: provisionError } = await supabase.functions.invoke('auth-provisioner-index-ts', {
-        body: { 
-          uid: uid, 
-          subscriber_id: targetSubscriberId 
-        }
-      });
-
-      if (provisionError) {
-        throw new Error('System busy or UID already exists. Please check the Edge Function logs.');
-      }
-
-      // 2. Get the confirmed user ID (handles existing users too)
+      // 1. Get the confirmed user ID (handles existing users too)
       const { data: confirmedId, error: rpcError } = await supabase.rpc('auto_confirm_user', { p_email: email });
       
       if (rpcError) {
         console.error('RPC Error in auto_confirm_user:', rpcError);
       }
 
-      // 3. Insert into staff_members table
-      const staffId = confirmedId || (provisionData && provisionData.user?.id) || undefined;
+      // 2. Insert into staff_members table
+      const staffId = confirmedId || undefined;
 
       const { data, error } = await supabase
         .from('staff_members')
@@ -1101,7 +1088,12 @@ export const apiService = {
       });
 
       if (provisionError) {
-        throw new Error('System busy or UID already exists. Please check the Edge Function logs.');
+        let errorMsg = provisionError.message;
+        try {
+          const body = await provisionError.context?.json();
+          if (body && body.error) errorMsg = body.error;
+        } catch (e) {}
+        throw new Error(`Auth Provisioning Failed: ${errorMsg}`);
       }
 
       // 2. Get the confirmed user ID (handles existing users too)

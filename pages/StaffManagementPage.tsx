@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/apiService';
+import { supabase } from '../services/supabase';
 import { StaffMember } from '../types';
 import { Shield, ShieldAlert, UserPlus, Trash2, Edit2, KeyRound } from 'lucide-react';
 import { hashPin } from '../utils/crypto';
@@ -38,18 +39,18 @@ const StaffManagementPage: React.FC = () => {
     e.preventDefault();
     if (!subscriberId) return;
 
+    const cleanUid = formData.designated_uid.trim().toLowerCase();
+
     try {
       setIsLoading(true);
-      if (!editingStaff) {
-        setStatusMessage('Setting up your account...');
-      }
+      
       const hashedPin = formData.pin ? await hashPin(formData.pin) : undefined;
       
       if (editingStaff) {
         // Update existing
         const updates: Partial<StaffMember> = { 
           name: formData.name, 
-          designated_uid: formData.designated_uid,
+          designated_uid: cleanUid,
           commission_tier_override: formData.commission_tier_override
         };
         if (hashedPin) {
@@ -58,14 +59,40 @@ const StaffManagementPage: React.FC = () => {
         await apiService.updateStaffMember(editingStaff.id, subscriberId, updates);
       } else {
         // Create new
-        await apiService.addStaffMember(formData.name, subscriberId, 'staff', hashedPin, formData.designated_uid, formData.commission_tier_override);
+        setStatusMessage('Setting up your account...');
+
+        // 1. Call the Edge Function using the official Supabase helper
+        const { data: provisionData, error: functionError } = await supabase.functions.invoke('auth-provisioner-index-ts', {
+          body: { 
+            uid: cleanUid, 
+            subscriber_id: subscriberId 
+          }
+        });
+
+        // 2. Check for Function Errors
+        if (functionError) {
+          let errorMsg = functionError.message;
+          try {
+            const body = await functionError.context?.json();
+            if (body && body.error) errorMsg = body.error;
+          } catch (e) {}
+          throw new Error(`Auth Provisioning Failed: ${errorMsg}`);
+        }
+
+        // 3. If Auth is successful (or user already exists), save to the Staff Table
+        // We use apiService.addStaffMember which now uses the provisioned account
+        await apiService.addStaffMember(formData.name, subscriberId, 'staff', hashedPin, cleanUid, formData.commission_tier_override);
+        
+        alert('Staff member created successfully in both Auth and Database!');
       }
+      
       await loadStaff();
       setIsModalOpen(false);
       setEditingStaff(null);
       setFormData({ name: '', designated_uid: '', pin: '', commission_tier_override: 'auto' });
     } catch (err: any) {
-      alert(`Error saving staff: ${err.message}`);
+      console.error('Handshake Error:', err);
+      alert(`Error: ${err.message}`);
     } finally {
       setIsLoading(false);
       setStatusMessage('');
