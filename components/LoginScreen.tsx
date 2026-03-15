@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../services/supabase';
+import { createClient } from '@supabase/supabase-js';
+import { supabase, SUPABASE_URL, SUPABASE_KEY } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
 import { hashPin } from '../utils/crypto';
 
@@ -29,7 +30,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   // Step 1: Handle UID Verification (Smart Detection)
   const handleVerifyUid = async (e: React.FormEvent) => {
     e.preventDefault();
-    const uid = uidInput.trim();
+    const uid = uidInput.trim().toLowerCase();
     if (!uid) {
       setError('Please enter your UID.');
       return;
@@ -40,7 +41,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
     try {
       // Path A: Superadmin
-      if (uid.toLowerCase() === 'superadmin') {
+      if (uid === 'superadmin') {
         setStep(3);
         setLoading(false);
         return;
@@ -61,10 +62,45 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       // For subscribers, we use the strong password format. For staff, we use the UID as password.
       const password = roleData.role === 'subscriber' ? `${uid}Eca123!` : uid;
 
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
+
+      // Step C (The Fix): Auth-on-the-Fly Migration
+      // If sign-in fails because user not found or invalid credentials (which happens if auth account missing)
+      if (authError && (authError.message.includes('Invalid login credentials') || authError.message.includes('Email not confirmed'))) {
+        try {
+          // Attempt to "repair" by signing up
+          const tempSupabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+            auth: { persistSession: false }
+          });
+
+          const { error: signUpError } = await tempSupabase.auth.signUp({
+            email,
+            password,
+          });
+
+          // If signup worked or they were already there but unconfirmed
+          if (!signUpError || signUpError.message.includes('already registered')) {
+            // Auto-confirm via RPC (which is SECURITY DEFINER)
+            await supabase.rpc('auto_confirm_user', { p_email: email });
+            
+            // Retry login
+            const retry = await supabase.auth.signInWithPassword({
+              email,
+              password,
+            });
+            
+            if (!retry.error) {
+              authData = retry.data;
+              authError = null;
+            }
+          }
+        } catch (repairErr) {
+          console.error('Auth repair failed:', repairErr);
+        }
+      }
 
       if (authError) {
         // Fallback for subscribers who might still be using legacy password
@@ -76,6 +112,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           if (fallback.error) {
             throw new Error('System Authentication Error: Please contact your Master Admin to verify your Auth account.');
           }
+          authData = fallback.data;
         } else {
           throw new Error('System Authentication Error: Please contact your Master Admin to verify your Auth account.');
         }
