@@ -52,6 +52,10 @@ ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'ACTIVE',
 ADD COLUMN IF NOT EXISTS is_trial BOOLEAN DEFAULT FALSE,
 ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMP WITH TIME ZONE,
 ADD COLUMN IF NOT EXISTS subscription_start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW();`;
+      } else if (table === 'marketing_events') {
+        sql = `ALTER TABLE marketing_events 
+ADD COLUMN IF NOT EXISTS goal_type TEXT DEFAULT 'Total Sales (RM)',
+ADD COLUMN IF NOT EXISTS reward_amount NUMERIC DEFAULT 0;`;
       }
       
       console.error(sql);
