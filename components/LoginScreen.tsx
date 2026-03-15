@@ -159,23 +159,48 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       }
 
       // Login to Supabase Auth as the Company to satisfy RLS
+      const sanitizedCode = detectedRole.company_code.toLowerCase().replace(/\s+/g, '');
+      
       let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: `${detectedRole.company_code}@ecafleet.com`,
-        password: `${detectedRole.company_code}Eca123!`, // Try strong password first
+        email: `${sanitizedCode}@ecafleet.com`,
+        password: `${sanitizedCode}Eca123!`,
       });
 
       if (authError) {
-        // Fallback to old password format
-        const fallback = await supabase.auth.signInWithPassword({
+        // Try with original company code (legacy)
+        const original = await supabase.auth.signInWithPassword({
           email: `${detectedRole.company_code}@ecafleet.com`,
-          password: detectedRole.company_code,
+          password: `${detectedRole.company_code}Eca123!`,
         });
-        authData = fallback.data;
-        authError = fallback.error;
+        
+        if (original.error) {
+          // Try fallback format for sanitized
+          const fallbackSanitized = await supabase.auth.signInWithPassword({
+            email: `${sanitizedCode}@ecafleet.com`,
+            password: sanitizedCode,
+          });
+          
+          if (fallbackSanitized.error) {
+            // Try fallback format for original
+            const fallbackOriginal = await supabase.auth.signInWithPassword({
+              email: `${detectedRole.company_code}@ecafleet.com`,
+              password: detectedRole.company_code,
+            });
+            
+            authData = fallbackOriginal.data;
+            authError = fallbackOriginal.error;
+          } else {
+            authData = fallbackSanitized.data;
+            authError = null;
+          }
+        } else {
+          authData = original.data;
+          authError = null;
+        }
       }
 
       if (authError) {
-        throw new Error('Failed to authenticate with company credentials. Please contact admin.');
+        throw new Error(`Failed to authenticate with company credentials (${detectedRole.company_code}). Please ensure the Subscriber account is active.`);
       }
 
       // Log in via Context

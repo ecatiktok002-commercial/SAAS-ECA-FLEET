@@ -1077,8 +1077,9 @@ export const apiService = {
         }
       });
 
-      const email = `${name}@ecafleet.com`;
-      const password = `${name}Eca123!`; // Use strong password to avoid length/complexity errors
+      const sanitizedName = name.toLowerCase().replace(/\s+/g, '');
+      const email = `${sanitizedName}@ecafleet.com`;
+      const password = `${sanitizedName}Eca123!`; // Use strong password to avoid length/complexity errors
 
       // 1. Create the user in auth.users
       const { data: authData, error: authError } = await tempSupabase.auth.signUp({
