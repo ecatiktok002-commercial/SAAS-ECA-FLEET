@@ -49,7 +49,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        const isSuperAdmin = session.user.email === 'superadmin@ecafleet.com';
+        const isSuperAdmin = session.user.email === 'superadmin@ecafleet.com' || session.user.email === 'ecatiktok002@gmail.com';
         
         // Retrieve subscriber_id from metadata or profiles table
         let sId = session.user.user_metadata?.subscriber_id;
