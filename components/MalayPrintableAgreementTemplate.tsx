@@ -53,11 +53,11 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
   };
 
   return (
-    <div className="absolute left-[-9999px] top-0">
-      <div 
-        id="printable-agreement" 
-        className="w-[794px] min-h-[1123px] bg-white text-black p-10 font-sans mx-auto"
-      >
+    <div className="absolute top-0 left-0 w-0 h-0 overflow-hidden -z-50 pointer-events-none opacity-0">
+      <div id="printable-agreement" className="w-[794px] min-w-[794px] max-w-[794px]">
+        <div 
+          className="w-[794px] min-w-[794px] max-w-[794px] min-h-[1123px] bg-white text-black p-10 font-sans mx-auto"
+        >
         {/* --- HEADER: BRAND SETTINGS --- */}
         <div className="flex justify-between items-center border-b-2 border-black pb-4 mb-6">
           <div className="flex items-center gap-4">
@@ -82,7 +82,7 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
         {/* --- SECTION A: MAKLUMAT PELANGGAN --- */}
         <div className="mb-6">
           <h3 className="font-bold bg-gray-200 p-1 border border-black uppercase text-sm mb-2">A. Maklumat Pelanggan</h3>
-          <table className="w-full border-collapse border border-black text-sm">
+          <table className="w-full table-fixed border-collapse border border-black text-sm">
             <tbody>
               <tr>
                 <td className="border border-black p-2 font-semibold w-1/4">Nama Penuh</td>
@@ -90,19 +90,19 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
               </tr>
               <tr>
                 <td className="border border-black p-2 font-semibold w-1/4">No. K/P / Pasport</td>
-                <td className="border border-black p-2 w-1/4">{customer.ic || '-'}</td>
+                <td className="border border-black p-2 w-1/4 break-words">{customer.ic || '-'}</td>
                 <td className="border border-black p-2 font-semibold w-1/4">No. Telefon</td>
-                <td className="border border-black p-2 w-1/4">{customer.phone || '-'}</td>
+                <td className="border border-black p-2 w-1/4 break-words">{customer.phone || '-'}</td>
               </tr>
               <tr>
                 <td className="border border-black p-2 font-semibold">Alamat Kediaman</td>
-                <td className="border border-black p-2" colSpan={3}>{customer.address || '-'}</td>
+                <td className="border border-black p-2 break-words" colSpan={3}>{customer.address || '-'}</td>
               </tr>
               <tr>
                 <td className="border border-black p-2 font-semibold">Kenalan Kecemasan</td>
-                <td className="border border-black p-2">{customer.emergencyContactName || '-'}</td>
+                <td className="border border-black p-2 break-words">{customer.emergencyContactName || '-'}</td>
                 <td className="border border-black p-2 font-semibold">Hubungan / Tel</td>
-                <td className="border border-black p-2">{customer.emergencyContactPhone || '-'}</td>
+                <td className="border border-black p-2 break-words">{customer.emergencyContactPhone || '-'}</td>
               </tr>
             </tbody>
           </table>
@@ -111,19 +111,19 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
         {/* --- SECTION B: MAKLUMAT KENDERAAN --- */}
         <div className="mb-6">
           <h3 className="font-bold bg-gray-200 p-1 border border-black uppercase text-sm mb-2">B. Maklumat Kenderaan</h3>
-          <table className="w-full border-collapse border border-black text-sm">
+          <table className="w-full table-fixed border-collapse border border-black text-sm">
             <tbody>
               <tr>
                 <td className="border border-black p-2 font-semibold w-1/4">Model Kenderaan</td>
-                <td className="border border-black p-2 w-1/4">{vehicle.model || '-'}</td>
+                <td className="border border-black p-2 w-1/4 break-words">{vehicle.model || '-'}</td>
                 <td className="border border-black p-2 font-semibold w-1/4">No. Pendaftaran (Plate)</td>
-                <td className="border border-black p-2 w-1/4 font-bold">{vehicle.plate || '-'}</td>
+                <td className="border border-black p-2 w-1/4 font-bold break-words">{vehicle.plate || '-'}</td>
               </tr>
               <tr>
                 <td className="border border-black p-2 font-semibold">Tarikh & Masa Ambil</td>
-                <td className="border border-black p-2">{formatDate(vehicle.pickupDate)}</td>
+                <td className="border border-black p-2 break-words">{formatDate(vehicle.pickupDate)}</td>
                 <td className="border border-black p-2 font-semibold">Tarikh & Masa Pulang</td>
-                <td className="border border-black p-2">{formatDate(vehicle.returnDate)}</td>
+                <td className="border border-black p-2 break-words">{formatDate(vehicle.returnDate)}</td>
               </tr>
               <tr>
                 <td className="border border-black p-2 font-semibold">Tempoh Sewaan</td>
@@ -136,11 +136,11 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
         {/* --- SECTION C: RINGKASAN BAYARAN --- */}
         <div className="mb-6">
           <h3 className="font-bold bg-gray-200 p-1 border border-black uppercase text-sm mb-2">C. Ringkasan Bayaran</h3>
-          <table className="w-full border-collapse border border-black text-sm">
+          <table className="w-full table-fixed border-collapse border border-black text-sm">
             <thead>
               <tr className="bg-gray-100">
-                <th className="border border-black p-2 text-left w-1/2">Perkara</th>
-                <th className="border border-black p-2 text-right w-1/2">Jumlah (RM)</th>
+                <th className="border border-black p-2 text-left w-3/4">Perkara</th>
+                <th className="border border-black p-2 text-right w-1/4">Jumlah (RM)</th>
               </tr>
             </thead>
             <tbody>
@@ -225,6 +225,7 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

@@ -103,9 +103,11 @@ export default function SignAgreement() {
           useCORS: true, 
           logging: false, 
           letterRendering: true,
-          windowWidth: 794
+          windowWidth: 794,
+          width: 794
         },
-        jsPDF:        { unit: 'px', format: 'a4' as const, orientation: 'portrait' as const }
+        jsPDF:        { unit: 'px', format: [794, 1123] as [number, number], orientation: 'portrait' as const },
+        pagebreak:    { mode: ['css', 'legacy'], before: '.break-before-page' }
       };
 
       html2pdf().set(opt).from(element).save();
