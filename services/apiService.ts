@@ -1,7 +1,6 @@
 
-import { createClient } from '@supabase/supabase-js';
 import { Booking, Car, Member, LogEntry, Expense, StaffMember, Agreement, DigitalForm, Company, MarketingEvent } from '../types';
-import { supabase, SUPABASE_URL, SUPABASE_KEY } from './supabase';
+import { supabase } from './supabase';
 
 // Service for managing fleet data
 const logSupabaseError = (context: string, error: any) => {
@@ -1054,63 +1053,26 @@ export const apiService = {
     });
   },
 
-  async addCompany(name: string, tier: string, isTrial: boolean = false, expiryDate: string | null = null): Promise<Company> {
-    return withRetry(async () => {
-      // Create a temporary Supabase client that doesn't persist session
-      // This allows us to sign up the new subscriber without logging out the superadmin
-      const tempSupabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-          detectSessionInUrl: false,
-          storage: {
-            getItem: () => null,
-            setItem: () => {},
-            removeItem: () => {}
-          }
-        }
-      });
-
-      const email = `${name}@ecafleet.com`;
-      const password = name;
-
-      // 1. Create the user in auth.users
-      const { data: authData, error: authError } = await tempSupabase.auth.signUp({
+  async provisionSubscriber(email: string, companyName: string, tier: string, isTrial: boolean = false, expiryDate: string | null = null): Promise<any> {
+    const response = await fetch('/api/provision-subscriber', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
         email,
-        password,
-      });
-
-      if (authError) {
-        throw new Error(`Failed to create auth user: ${authError.message}`);
-      }
-
-      const userId = authData.user?.id;
-      if (!userId) {
-        throw new Error('Failed to create auth user: No user ID returned');
-      }
-
-      // 2. Insert into subscribers table with the new user ID
-      const { data, error } = await supabase
-        .from('subscribers')
-        .insert([{ 
-          id: userId,
-          name, 
-          tier, 
-          is_active: true, 
-          status: 'ACTIVE', 
-          is_trial: isTrial,
-          expiry_date: expiryDate,
-          subscription_start_date: new Date().toISOString()
-        }])
-        .select()
-        .single();
-      
-      if (error) {
-        logSupabaseError('addCompany', error);
-        throw new Error(error.message || 'Failed to add company');
-      }
-      return data;
+        companyName,
+        tier,
+        isTrial,
+        expiryDate
+      }),
     });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to provision subscriber');
+    }
+    return data;
   },
 
   // Agreements

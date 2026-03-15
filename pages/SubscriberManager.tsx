@@ -61,7 +61,9 @@ const SubscriberManager: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
+  const [newCompanyEmail, setNewCompanyEmail] = useState('');
   const [newCompanyTier, setNewCompanyTier] = useState<Company['tier']>('Tier 1');
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showExpiryModal, setShowExpiryModal] = useState(false);
@@ -120,9 +122,15 @@ const SubscriberManager: React.FC = () => {
   };
 
   const handleAddCompany = async () => {
-    if (!newCompanyName.trim()) return;
+    if (!newCompanyName.trim() || !newCompanyEmail.trim()) return;
+    if (!newCompanyEmail.includes('@ecafleet.com')) {
+      setError('Email must be in the format prefix@ecafleet.com');
+      return;
+    }
+
     try {
       setLoading(true);
+      setError(null);
       
       let expiryDate: string | null = null;
       let isTrial = false;
@@ -142,12 +150,20 @@ const SubscriberManager: React.FC = () => {
         expiryDate = date.toISOString();
       }
 
-      await apiService.addCompany(newCompanyName, tier, isTrial, expiryDate);
+      const result = await apiService.provisionSubscriber(newCompanyEmail, newCompanyName, tier, isTrial, expiryDate);
+      
+      const prefix = newCompanyEmail.split('@')[0];
+      setSuccessMessage(`Subscriber ${prefix} provisioned. They can now login with their UID/Prefix.`);
+      
       setNewCompanyName('');
+      setNewCompanyEmail('');
       setShowAddModal(false);
       await fetchData();
-    } catch (err) {
-      setError('Failed to create new subscriber');
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccessMessage(null), 5000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to create new subscriber');
     } finally {
       setLoading(false);
     }
@@ -335,6 +351,16 @@ const SubscriberManager: React.FC = () => {
           </div>
         )}
 
+        {successMessage && (
+          <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-center gap-3 text-emerald-700 animate-in slide-in-from-top duration-300">
+            <CheckCircle2 className="w-5 h-5" />
+            <p className="font-medium">{successMessage}</p>
+            <button onClick={() => setSuccessMessage(null)} className="ml-auto hover:text-emerald-900">
+              <XCircle className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+
         {/* SaaS Analytics Section */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
@@ -424,7 +450,7 @@ const SubscriberManager: React.FC = () => {
             <table className="w-full text-left border-collapse whitespace-nowrap table-fixed">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="w-[8%] px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Code</th>
+                  <th className="w-[15%] px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">UID (Auth Link)</th>
                   <th className="w-[22%] px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Company Name</th>
                   <th className="w-[15%] px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Tier</th>
                   <th className="w-[15%] px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Expiry</th>
@@ -467,8 +493,8 @@ const SubscriberManager: React.FC = () => {
                     return (
                       <tr key={sub.id} className="hover:bg-slate-50 transition-colors group">
                         <td className="px-6 py-4">
-                          <code className="text-xs font-mono text-slate-600 bg-slate-100 px-2 py-1 rounded border border-slate-200">
-                            {sub.id.substring(0, 8)}...
+                          <code className="text-[10px] font-mono text-slate-600 bg-slate-100 px-2 py-1 rounded border border-slate-200 break-all whitespace-normal">
+                            {sub.id}
                           </code>
                         </td>
                         <td className="px-6 py-4">
@@ -668,6 +694,25 @@ const SubscriberManager: React.FC = () => {
               </div>
 
               <div className="space-y-5">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Subscriber Email</label>
+                  <input 
+                    type="email"
+                    value={newCompanyEmail}
+                    onChange={(e) => setNewCompanyEmail(e.target.value)}
+                    placeholder="prefix@ecafleet.com"
+                    className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-900 focus:ring-2 focus:ring-[#0F172A] outline-none transition-all"
+                  />
+                  {newCompanyEmail.includes('@') && (
+                    <div className="mt-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Login Preview</p>
+                      <p className="text-sm font-mono text-slate-700">
+                        Login: <span className="font-bold">{newCompanyEmail}</span> | Password: <span className="font-bold">{newCompanyEmail.split('@')[0]}</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1.5">Company Name</label>
                   <input 
