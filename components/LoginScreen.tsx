@@ -1,8 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createClient } from '@supabase/supabase-js';
-import { supabase, SUPABASE_URL, SUPABASE_KEY } from '../services/supabase';
+import { supabase } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
 import { hashPin } from '../utils/crypto';
 
@@ -17,6 +16,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [uidInput, setUidInput] = useState('');
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
   const [error, setError] = useState('');
   const [detectedRole, setDetectedRole] = useState<any>(null);
 
@@ -30,6 +30,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   // Step 1: Handle UID Verification (Smart Detection)
   const handleVerifyUid = async (e: React.FormEvent) => {
     e.preventDefault();
+    // 1. Sanitize the input
     const uid = uidInput.trim().toLowerCase();
     if (!uid) {
       setError('Please enter your UID.');
@@ -37,6 +38,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     }
 
     setLoading(true);
+    setStatusMessage('');
     setError('');
 
     try {
@@ -47,7 +49,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         return;
       }
 
-      // 1. Check database for UID existence (RPC verify_login_uid)
+      // 2. Database Check: Does this UID exist in our records? (Step A)
       const { data: roleData, error: rpcError } = await supabase.rpc('verify_login_uid', { p_uid: uid });
       
       if (rpcError || !roleData || roleData.role === 'unknown') {
@@ -56,10 +58,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
       setDetectedRole(roleData);
 
-      // 2. Attempt Supabase Auth Login
-      // For both Subscriber and Staff, we now use the UID-based email/password logic
+      // 3. Attempt Official Supabase Login (Step B)
       const email = `${uid}@ecafleet.com`;
-      // For subscribers, we use the strong password format. For staff, we use the UID as password.
       const password = roleData.role === 'subscriber' ? `${uid}Eca123!` : uid;
 
       let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -67,26 +67,26 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         password,
       });
 
-      // Step C (The Fix): Auth-on-the-Fly Migration
-      // If sign-in fails because user not found or invalid credentials (which happens if auth account missing)
-      if (authError && (authError.message.includes('Invalid login credentials') || authError.message.includes('Email not confirmed'))) {
+      // 4. THE AUTO-REPAIR LOGIC (Step C)
+      // If Auth fails because user not found or invalid credentials (which happens if auth account missing)
+      if (authError && (authError.message.includes('Invalid login credentials') || authError.message.includes('User not found') || authError.message.includes('Email not confirmed'))) {
+        console.log("Repairing missing Auth account for:", uid);
+        setStatusMessage('Setting up your account...');
+        
         try {
-          // Attempt to "repair" by signing up
-          const tempSupabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-            auth: { persistSession: false }
+          // Call the Edge Function to provision the account
+          const { error: provisionError } = await supabase.functions.invoke('auth-provisioner-index-ts', {
+            body: { 
+              uid: uid, 
+              subscriber_id: roleData.role === 'staff' ? roleData.subscriber_id : roleData.id 
+            }
           });
 
-          const { error: signUpError } = await tempSupabase.auth.signUp({
-            email,
-            password,
-          });
-
-          // If signup worked or they were already there but unconfirmed
-          if (!signUpError || signUpError.message.includes('already registered')) {
-            // Auto-confirm via RPC (which is SECURITY DEFINER)
-            await supabase.rpc('auto_confirm_user', { p_email: email });
-            
-            // Retry login
+          if (provisionError) {
+            console.error('Provisioning error:', provisionError);
+            // Don't throw yet, try fallback or original error
+          } else {
+            // Retry login now that the account should be provisioned
             const retry = await supabase.auth.signInWithPassword({
               email,
               password,
@@ -97,8 +97,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               authError = null;
             }
           }
-        } catch (repairErr) {
+        } catch (repairErr: any) {
           console.error('Auth repair failed:', repairErr);
+        } finally {
+          setStatusMessage('');
         }
       }
 
@@ -118,13 +120,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         }
       }
 
-      // Path B: Subscriber (Owner) - Log in immediately
+      // 5. Success - Standard Login
       if (roleData.role === 'subscriber') {
+        // Save subscriber context (matches user's navigateToDashboard logic)
+        localStorage.setItem('current_subscriber_id', roleData.id);
         login(roleData.id, 'admin', roleData.tier, roleData.company_code, roleData.company_code, roleData.company_code);
         if (onLogin) onLogin(roleData.id);
       } 
-      // Path C: Staff (Agent) - Proceed to PIN step
       else if (roleData.role === 'staff') {
+        // Save subscriber context (matches user's navigateToDashboard logic)
+        localStorage.setItem('current_subscriber_id', roleData.subscriber_id);
         setStep(2);
       } else {
         throw new Error('Unknown role detected.');
@@ -303,6 +308,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             {error && (
               <div className="text-rose-500 text-xs font-bold text-center animate-pulse bg-rose-50 p-3 rounded-lg border border-rose-100">
                 {error}
+              </div>
+            )}
+
+            {loading && statusMessage && (
+              <div className="text-blue-600 text-xs font-bold text-center animate-pulse bg-blue-50 p-3 rounded-lg border border-blue-100">
+                {statusMessage}
               </div>
             )}
 

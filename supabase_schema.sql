@@ -190,7 +190,7 @@ CREATE TABLE IF NOT EXISTS members (
   emergency_contact_name TEXT,
   emergency_contact_relation TEXT,
   color TEXT DEFAULT 'bg-blue-500',
-  staff_id UUID REFERENCES staff_members(id) ON DELETE CASCADE,
+  staff_id UUID REFERENCES staff_members(id) ON DELETE CASCADE ON UPDATE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -685,10 +685,7 @@ RETURNS UUID AS $$
 DECLARE
   v_id UUID;
 BEGIN
-  -- Only allow superadmin or authenticated subscribers to auto-confirm their staff
-  -- For simplicity, we allow any authenticated user to call this if the email is in @ecafleet.com
-  -- but we should ideally check if the caller is a subscriber.
-  
+  -- Only allow if the email is in @ecafleet.com
   IF NOT (p_email LIKE '%@ecafleet.com') THEN
     RAISE EXCEPTION 'Invalid email domain';
   END IF;
@@ -703,6 +700,28 @@ BEGIN
   END IF;
   
   RETURN v_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- RPC to synchronize staff_members.id with auth.users.id during migration
+CREATE OR REPLACE FUNCTION repair_staff_auth_link(p_uid TEXT, p_new_id UUID)
+RETURNS VOID AS $$
+BEGIN
+  -- Update the staff_members record
+  UPDATE public.staff_members
+  SET id = p_new_id
+  WHERE designated_uid = p_uid;
+
+  -- Update other tables that might have the old ID
+  -- Note: We don't know the old ID easily without a join, but we can update by designated_uid if we had it there.
+  -- Since we only have the new ID and the UID, we can update based on the old ID if we find it.
+  -- But if we have ON UPDATE CASCADE on FKs, we only need to update the PK in staff_members.
+  -- For tables without FKs, we might need manual updates.
+  
+  UPDATE public.bookings SET agent_id = p_new_id WHERE agent_id IN (SELECT id FROM public.staff_members WHERE designated_uid = p_uid);
+  UPDATE public.agreements SET agent_id = p_new_id WHERE agent_id IN (SELECT id FROM public.staff_members WHERE designated_uid = p_uid);
+  UPDATE public.digital_forms SET agent_id = p_new_id WHERE agent_id IN (SELECT id FROM public.staff_members WHERE designated_uid = p_uid);
+  UPDATE public.logs SET user_id = p_new_id WHERE user_id IN (SELECT id FROM public.staff_members WHERE designated_uid = p_uid);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
