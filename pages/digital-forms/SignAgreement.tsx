@@ -84,7 +84,7 @@ export default function SignAgreement() {
   };
 
   const handlePrint = () => {
-    if (!agreement) return;
+    if (!agreement || !agreement.customer_name) return;
 
     // Add a small buffer to allow the DOM to render the hidden template
     setTimeout(() => {
@@ -109,7 +109,7 @@ export default function SignAgreement() {
       };
 
       html2pdf().set(opt).from(element).save();
-    }, 500);
+    }, 300);
   };
 
   if (loading) {
@@ -147,25 +147,25 @@ export default function SignAgreement() {
         {/* Printable Template (Hidden from screen) */}
         {agreement && (
           <MalayPrintableAgreementTemplate
-            agreementId={agreement.booking_reference}
+            agreementId={agreement.booking_reference || agreement.id}
             customer={{
-              name: agreement.customer_name,
-              ic: agreement.identity_number,
-              phone: agreement.customer_phone,
-              address: agreement.billing_address,
+              name: agreement.customer_name || agreement.full_name,
+              ic: agreement.identity_number || agreement.ic_number,
+              phone: agreement.customer_phone || agreement.phone_number,
+              address: agreement.billing_address || agreement.customer_address,
               emergencyContactName: agreement.emergency_contact_name,
               emergencyContactPhone: agreement.emergency_contact_relation
             }}
             vehicle={{
-              model: agreement.car_model,
-              plate: agreement.car_plate_number,
+              model: agreement.car_model || agreement.vehicle_name,
+              plate: agreement.car_plate_number || agreement.registration_no,
               pickupDate: agreement.start_date,
               returnDate: agreement.end_date,
               duration: agreement.duration_days
             }}
             payment={{
               rentalPrice: agreement.total_price,
-              deposit: agreement.deposit
+              deposit: agreement.deposit || agreement.security_deposit
             }}
             brandSettings={{
               logoUrl: company?.logo_url,
