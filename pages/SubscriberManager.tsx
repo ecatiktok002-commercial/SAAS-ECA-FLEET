@@ -250,7 +250,7 @@ const SubscriberManager: React.FC = () => {
     const currentMonthName = monthNames[now.getMonth()];
     
     const currentMonthData = revenueStats.find(m => m.month.startsWith(currentMonthName));
-    const mrr = currentMonthData ? currentMonthData.distributed_revenue : 0;
+    const mrr = currentMonthData ? currentMonthData.monthly_revenue : 0;
 
     let activeSubs = 0;
     subscribers.forEach(sub => {
