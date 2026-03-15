@@ -15,6 +15,7 @@
     "@types/react-signature-canvas": "^1.0.7",
     "browser-image-compression": "^2.0.2",
     "date-fns": "^4.1.0",
+    "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "html2pdf.js": "^0.14.0",
     "lucide-react": "^0.577.0",

@@ -1068,7 +1068,15 @@ export const apiService = {
       }),
     });
 
-    const data = await response.json();
+    const text = await response.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      console.error('Non-JSON response from server:', text);
+      throw new Error(`Server error: Received invalid response format. Status: ${response.status}`);
+    }
+
     if (!response.ok) {
       throw new Error(data.error || 'Failed to provision subscriber');
     }
