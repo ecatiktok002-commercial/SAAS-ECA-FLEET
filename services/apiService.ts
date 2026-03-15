@@ -911,12 +911,16 @@ export const apiService = {
         throw new Error(`Failed to create auth user for staff: ${authError.message}`);
       }
 
-      // 2. Auto-confirm the user
-      await supabase.rpc('auto_confirm_user', { p_email: email });
+      // 2. Auto-confirm the user and get their ID (handles existing users too)
+      const { data: confirmedId, error: rpcError } = await supabase.rpc('auto_confirm_user', { p_email: email });
+      
+      if (rpcError) {
+        console.error('RPC Error in auto_confirm_user:', rpcError);
+      }
 
       // 3. Insert into staff_members table
-      // If auth user was created, use its ID. Otherwise fallback to generated UUID
-      const staffId = authData.user?.id || undefined;
+      // Use the ID from RPC (confirmedId) if available, otherwise fallback to authData or undefined
+      const staffId = confirmedId || authData.user?.id || undefined;
 
       const { data, error } = await supabase
         .from('staff_members')
