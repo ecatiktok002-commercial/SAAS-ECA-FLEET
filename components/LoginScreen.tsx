@@ -75,7 +75,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         
         try {
           // Call the Edge Function to provision the account
-          const { error: provisionError } = await supabase.functions.invoke('auth-provisioner-index-ts', {
+          const { error: provisionError } = await supabase.functions.invoke('auth-provisioner', {
             body: { 
               uid: uid, 
               subscriber_id: roleData.role === 'staff' ? roleData.subscriber_id : roleData.id 

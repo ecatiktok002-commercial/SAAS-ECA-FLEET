@@ -1080,7 +1080,7 @@ export const apiService = {
       const password = `${sanitizedName}Eca123!`; // Use strong password to avoid length/complexity errors
 
       // 1. Call the Edge Function to provision the account (bypasses rate limits)
-      const { data: provisionData, error: provisionError } = await supabase.functions.invoke('auth-provisioner-index-ts', {
+      const { data: provisionData, error: provisionError } = await supabase.functions.invoke('auth-provisioner', {
         body: { 
           uid: sanitizedName, 
           subscriber_id: sanitizedName // For new subscribers, we use their name as initial ID/context

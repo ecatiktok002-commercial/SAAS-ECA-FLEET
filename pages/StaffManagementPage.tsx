@@ -62,7 +62,7 @@ const StaffManagementPage: React.FC = () => {
         setStatusMessage('Setting up your account...');
 
         // 1. Call the Edge Function using the official Supabase helper
-        const { data: provisionData, error: functionError } = await supabase.functions.invoke('auth-provisioner-index-ts', {
+        const { data: provisionData, error: functionError } = await supabase.functions.invoke('auth-provisioner', {
           body: { 
             uid: cleanUid, 
             subscriber_id: subscriberId 
