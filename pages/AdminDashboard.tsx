@@ -52,6 +52,7 @@ const AdminDashboard: React.FC = () => {
   const [currentStaff, setCurrentStaff] = useState<any>(null);
   const [dailyCommissions, setDailyCommissions] = useState<{ date: string, amount: number }[]>([]);
   const [totalEarnedToday, setTotalEarnedToday] = useState(0);
+  const [lifetimeEarnings, setLifetimeEarnings] = useState(0);
   const [recentAgreements, setRecentAgreements] = useState<Agreement[]>([]);
   
   const [loading, setLoading] = useState(true);
@@ -65,6 +66,11 @@ const AdminDashboard: React.FC = () => {
     reward_amount: 0,
     start_date: '', 
     end_date: '' 
+  });
+  
+  const currencyFormatter = new Intl.NumberFormat('en-MY', {
+    style: 'currency',
+    currency: 'MYR',
   });
 
   useEffect(() => {
@@ -220,35 +226,61 @@ const AdminDashboard: React.FC = () => {
           return 0.30;
         };
 
-        // Calculate Daily Commissions for last 30 days
-        const last30Days: { [key: string]: number } = {};
-        for (let i = 29; i >= 0; i--) {
+        // Calculate Weekly Commissions for last 90 days (Quarterly)
+        const weeklyData: { [key: string]: number } = {};
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        
+        // Initialize last 13 weeks (approx 90 days)
+        for (let i = 12; i >= 0; i--) {
           const d = new Date();
-          d.setDate(d.getDate() - i);
-          last30Days[d.toISOString().split('T')[0]] = 0;
+          d.setDate(d.getDate() - (i * 7));
+          // Find the start of that week (Sunday)
+          const weekStart = new Date(d);
+          weekStart.setDate(d.getDate() - d.getDay());
+          
+          const weekNum = Math.ceil(weekStart.getDate() / 7);
+          const monthName = monthNames[weekStart.getMonth()];
+          const label = `W${weekNum} - ${monthName}`;
+          weeklyData[label] = 0;
         }
 
         let earnedToday = 0;
+        let lifetime = 0;
+        
         completedAgreements.forEach(a => {
-          const date = a.created_at.split('T')[0];
-          const rate = getCommissionRate(salesThisMonth); // Simplified: use current month's tier for all
+          const date = new Date(a.created_at);
+          const dateStr = a.created_at.split('T')[0];
+          
+          // Use current month's tier for today's calculation, but for lifetime we should probably be consistent
+          const rate = getCommissionRate(salesThisMonth); 
           const commission = a.total_price * rate;
           
-          if (last30Days[date] !== undefined) {
-            last30Days[date] += commission;
-          }
-          if (date === todayStr) {
+          lifetime += commission;
+          
+          if (dateStr === todayStr) {
             earnedToday += commission;
+          }
+
+          // Group into weeks for the chart
+          const weekStart = new Date(date);
+          weekStart.setDate(date.getDate() - date.getDay());
+          const weekNum = Math.ceil(weekStart.getDate() / 7);
+          const monthName = monthNames[weekStart.getMonth()];
+          const label = `W${weekNum} - ${monthName}`;
+          
+          if (weeklyData[label] !== undefined) {
+            weeklyData[label] += commission;
           }
         });
 
-        const chartData = Object.entries(last30Days).map(([date, amount]) => ({
-          date: date.split('-').slice(1).join('/'), // MM/DD
+        const chartData = Object.entries(weeklyData).map(([label, amount]) => ({
+          date: label,
           amount: Number(amount.toFixed(2))
         }));
 
         setDailyCommissions(chartData);
         setTotalEarnedToday(earnedToday);
+        setLifetimeEarnings(lifetime);
       }
 
     } catch (err: any) {
@@ -405,26 +437,72 @@ const AdminDashboard: React.FC = () => {
         {/* Top Row: High-Level KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {staffRole === 'staff' ? (
-            <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-6 rounded-xl border border-transparent shadow-lg text-white lg:col-span-3">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <Wallet className="w-6 h-6 text-emerald-100" />
-                  <h3 className="text-emerald-50 text-sm font-bold uppercase tracking-widest">My Pocket</h3>
+            <div className="lg:col-span-3 space-y-6">
+              <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-6 rounded-xl border border-transparent shadow-lg text-white">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <Wallet className="w-6 h-6 text-emerald-100" />
+                    <h3 className="text-emerald-50 text-sm font-bold uppercase tracking-widest">My Pocket</h3>
+                  </div>
+                  <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Live Earnings</span>
                 </div>
-                <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Live Earnings</span>
-              </div>
-              <div className="space-y-1">
-                <p className="text-emerald-100 text-sm font-medium">Total Earned Today</p>
-                <p className="text-5xl font-black tracking-tighter">RM {totalEarnedToday.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</p>
-              </div>
-              <div className="mt-6 pt-6 border-t border-white/10 flex justify-between items-end">
-                <div>
-                  <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1">Current Sales</p>
-                  <p className="text-2xl font-bold">RM {stats.salesToday.toLocaleString()}</p>
+                <div className="space-y-1">
+                  <p className="text-emerald-100 text-sm font-medium">Total Earned Today</p>
+                  <p className="text-5xl font-black tracking-tighter">{currencyFormatter.format(totalEarnedToday)}</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1">Active Bonus</p>
-                  <p className="text-2xl font-bold">RM {events.filter(e => new Date(e.start_date) <= new Date() && new Date(e.end_date) >= new Date()).reduce((sum, e) => sum + e.reward_amount, 0).toLocaleString()}</p>
+                <div className="mt-6 pt-6 border-t border-white/10 flex justify-between items-end">
+                  <div>
+                    <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1">Current Sales</p>
+                    <p className="text-2xl font-bold">{currencyFormatter.format(stats.salesToday)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1">YOUR TOTAL EARNINGS</p>
+                    <p className="text-2xl font-bold">{currencyFormatter.format(lifetimeEarnings)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Weekly Quarterly Chart */}
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <div className="flex items-center gap-3 mb-4">
+                  <BarChart3 className="w-5 h-5 text-emerald-600" />
+                  <h3 className="font-bold text-slate-900 uppercase tracking-tight text-sm">Weekly Earnings Performance (90 Days)</h3>
+                </div>
+                <div className="h-40 w-full">
+                  {dailyCommissions.some(d => d.amount > 0) ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={dailyCommissions}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis 
+                          dataKey="date" 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={{ fill: '#64748b', fontSize: 10 }}
+                        />
+                        <YAxis 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={{ fill: '#64748b', fontSize: 10 }}
+                          tickFormatter={(value) => `RM${value}`}
+                        />
+                        <Tooltip 
+                          cursor={{ fill: '#f8fafc' }}
+                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                          formatter={(value: any) => [`${currencyFormatter.format(Number(value))}`, 'Commission']}
+                        />
+                        <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
+                          {dailyCommissions.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.amount > 0 ? '#10b981' : '#e2e8f0'} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-center p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                      <TrendingUp className="w-8 h-8 text-slate-300 mb-2" />
+                      <p className="text-slate-900 font-bold text-xs">No earnings yet this quarter</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -432,15 +510,15 @@ const AdminDashboard: React.FC = () => {
             <>
               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                 <h3 className="text-slate-500 text-sm font-medium mb-2">Sales Today</h3>
-                <p className="text-3xl font-bold text-slate-900">RM {stats.salesToday.toLocaleString()}</p>
+                <p className="text-3xl font-bold text-slate-900">{currencyFormatter.format(stats.salesToday)}</p>
               </div>
               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                 <h3 className="text-slate-500 text-sm font-medium mb-2">Sales This Week</h3>
-                <p className="text-3xl font-bold text-slate-900">RM {stats.salesThisWeek.toLocaleString()}</p>
+                <p className="text-3xl font-bold text-slate-900">{currencyFormatter.format(stats.salesThisWeek)}</p>
               </div>
               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                 <h3 className="text-slate-500 text-sm font-medium mb-2">Sales This Month</h3>
-                <p className="text-3xl font-bold text-slate-900">RM {stats.salesThisMonth.toLocaleString()}</p>
+                <p className="text-3xl font-bold text-slate-900">{currencyFormatter.format(stats.salesThisMonth)}</p>
               </div>
             </>
           )}
@@ -452,52 +530,6 @@ const AdminDashboard: React.FC = () => {
             <p className="text-3xl font-bold text-slate-900">{stats.idleVehicles}</p>
           </div>
         </div>
-
-        {staffRole === 'staff' && (
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <div className="flex items-center gap-3 mb-6">
-              <BarChart3 className="w-5 h-5 text-emerald-600" />
-              <h3 className="font-bold text-slate-900 uppercase tracking-tight">My Monthly Earnings (RM)</h3>
-            </div>
-            <div className="h-64 w-full">
-              {dailyCommissions.some(d => d.amount > 0) ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={dailyCommissions}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis 
-                      dataKey="date" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: '#64748b', fontSize: 10 }}
-                    />
-                    <YAxis 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: '#64748b', fontSize: 10 }}
-                      tickFormatter={(value) => `RM${value}`}
-                    />
-                    <Tooltip 
-                      cursor={{ fill: '#f8fafc' }}
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                      formatter={(value: any) => [`RM ${Number(value).toLocaleString()}`, 'Commission']}
-                    />
-                    <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
-                      {dailyCommissions.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.amount > 0 ? '#10b981' : '#e2e8f0'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center p-8 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                  <TrendingUp className="w-12 h-12 text-slate-300 mb-3" />
-                  <p className="text-slate-900 font-bold mb-1">No earnings yet this month</p>
-                  <p className="text-slate-500 text-sm">Start your first booking of the month to see your earnings grow!</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Middle Row: The Action Center */}
         {staffRole === 'admin' && (
@@ -611,7 +643,7 @@ const AdminDashboard: React.FC = () => {
                         {agreement.car_plate_number || agreement.car_model}
                       </td>
                       <td className="px-6 py-4 text-sm font-black text-emerald-600 text-right">
-                        RM {agreement.total_price.toLocaleString()}
+                        {currencyFormatter.format(agreement.total_price)}
                       </td>
                     </tr>
                   )) : (
@@ -674,12 +706,12 @@ const AdminDashboard: React.FC = () => {
                           <div>
                             <p className={`text-xs ${isActive ? 'text-indigo-100' : 'text-slate-500'}`}>Goal: {event.goal_type}</p>
                             <p className="text-lg font-bold">
-                              {event.goal_type === 'Total Orders' ? `${event.target_goal} Orders` : `RM ${event.target_goal.toLocaleString()}`}
+                              {event.goal_type === 'Total Orders' ? `${event.target_goal} Orders` : currencyFormatter.format(event.target_goal)}
                             </p>
                           </div>
                           <div>
                             <p className={`text-xs ${isActive ? 'text-indigo-100' : 'text-slate-500'}`}>Reward</p>
-                            <p className="text-lg font-bold text-emerald-500">RM {event.reward_amount.toLocaleString()}</p>
+                            <p className="text-lg font-bold text-emerald-500">{currencyFormatter.format(event.reward_amount)}</p>
                           </div>
                         </div>
                         <p className={`text-xs mt-4 ${isActive ? 'text-indigo-200' : 'text-slate-400'}`}>
@@ -720,7 +752,7 @@ const AdminDashboard: React.FC = () => {
                           </span>
                           <p className="text-sm font-medium text-slate-900">{agent.name}</p>
                         </div>
-                        <p className="text-sm font-bold text-slate-900">RM {agent.total.toLocaleString()}</p>
+                        <p className="text-sm font-bold text-slate-900">{currencyFormatter.format(agent.total)}</p>
                       </div>
                       <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden ml-9" style={{ width: 'calc(100% - 36px)' }}>
                         <div 
