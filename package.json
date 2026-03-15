@@ -4,10 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
+    "dev": "vite",
     "build": "tsc && vite build",
     "lint": "tsc --noEmit",
-    "start": "node dist/server.cjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -15,8 +14,6 @@
     "@types/react-signature-canvas": "^1.0.7",
     "browser-image-compression": "^2.0.2",
     "date-fns": "^4.1.0",
-    "dotenv": "^17.3.1",
-    "express": "^5.2.1",
     "html2pdf.js": "^0.14.0",
     "lucide-react": "^0.577.0",
     "react": "^19.0.0",
@@ -24,12 +21,10 @@
     "react-router-dom": "^7.13.1",
     "react-signature-canvas": "^1.1.0-alpha.2",
     "recharts": "^3.8.0",
-    "tsx": "^4.21.0",
     "xlsx": "^0.18.5",
     "yet-another-react-lightbox": "^3.29.1"
   },
   "devDependencies": {
-    "@types/express": "^5.0.6",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",

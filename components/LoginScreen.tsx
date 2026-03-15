@@ -179,38 +179,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     setError('');
 
     try {
-      let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: 'superadmin@ecafleet.com',
         password: 'superadmin',
       });
 
-      if (authError && authError.message.includes('Invalid login credentials')) {
-        // Try to sign up if the user doesn't exist
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: 'superadmin@ecafleet.com',
-          password: 'superadmin',
-        });
-        
-        if (signUpError) {
-          if (signUpError.message.includes('User already registered')) {
-            throw new Error('Invalid credentials for Master Admin. Please ensure the password for superadmin@ecafleet.com is set to "superadmin".');
-          }
-          throw signUpError;
-        }
-        
-        // After signup, we might need to sign in again if email confirmation is disabled
-        // If email confirmation is enabled, this will still fail until confirmed.
-        if (signUpData.user && signUpData.session) {
-          authData = { user: signUpData.user, session: signUpData.session };
-          authError = null;
-        } else {
-          throw new Error('Superadmin account created but requires email confirmation. Please disable email confirmation in Supabase Auth settings or confirm the email.');
-        }
-      } else if (authError) {
+      if (authError) {
         throw authError;
       }
 
-      if (authData?.user) {
+      if (authData.user) {
         login('superadmin', 'admin', 'tier_3', 'Master Admin', 'Master Admin', 'superadmin');
         if (onLogin) onLogin('superadmin');
       }
