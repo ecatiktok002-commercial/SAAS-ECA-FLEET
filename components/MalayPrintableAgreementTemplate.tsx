@@ -62,7 +62,7 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
         <div className="flex justify-between items-center border-b-2 border-black pb-4 mb-6">
           <div className="flex items-center gap-4">
             {brandSettings.logoUrl ? (
-              <img src={brandSettings.logoUrl} alt="Company Logo" className="h-16 object-contain" />
+              <img src={brandSettings.logoUrl} alt="Company Logo" className="h-16 object-contain" crossOrigin="anonymous" />
             ) : (
               <div className="h-16 w-16 bg-slate-200 flex items-center justify-center font-bold text-xs text-center border border-black">LOGO</div>
             )}
@@ -187,7 +187,7 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
           <div className="flex justify-between items-end mt-12 px-8">
             <div className="w-64 text-center">
               {signatureImg ? (
-                <img src={signatureImg} alt="Customer Signature" className="h-20 mx-auto border-b border-black mb-1 object-contain" />
+                <img src={signatureImg} alt="Customer Signature" className="h-20 mx-auto border-b border-black mb-1 object-contain" crossOrigin="anonymous" />
               ) : (
                 <div className="h-20 border-b border-black mb-1"></div>
               )}
@@ -218,7 +218,7 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
           <div className="grid grid-cols-2 gap-4">
             {beforePhotos.map((photoUrl, index) => (
               <div key={index} className="border border-gray-300 p-2 text-center">
-                <img src={photoUrl} alt={`Car condition ${index + 1}`} className="w-full h-48 object-cover mb-2" />
+                <img src={photoUrl} alt={`Car condition ${index + 1}`} className="w-full h-48 object-cover mb-2" crossOrigin="anonymous" />
                 <p className="text-xs font-bold">Gambar {index + 1}</p>
               </div>
             ))}

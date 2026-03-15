@@ -84,27 +84,32 @@ export default function SignAgreement() {
   };
 
   const handlePrint = () => {
-    const element = document.getElementById('printable-agreement');
-    if (!element) {
-      alert('Printable agreement content not found');
-      return;
-    }
+    if (!agreement) return;
 
-    const opt = {
-      margin:       0,
-      filename:     `Agreement_${agreement?.customer_name?.replace(/\s+/g, '_') || 'Customer'}.pdf`,
-      image:        { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas:  { 
-        scale: 2, 
-        useCORS: true, 
-        logging: false, 
-        letterRendering: true,
-        windowWidth: 794
-      },
-      jsPDF:        { unit: 'px', format: 'a4' as const, orientation: 'portrait' as const }
-    };
+    // Add a small buffer to allow the DOM to render the hidden template
+    setTimeout(() => {
+      const element = document.getElementById('printable-agreement');
+      if (!element) {
+        alert('Printable agreement content not found');
+        return;
+      }
 
-    html2pdf().set(opt).from(element).save();
+      const opt = {
+        margin:       0,
+        filename:     `Agreement_${agreement?.customer_name?.replace(/\s+/g, '_') || 'Customer'}.pdf`,
+        image:        { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas:  { 
+          scale: 2, 
+          useCORS: true, 
+          logging: false, 
+          letterRendering: true,
+          windowWidth: 794
+        },
+        jsPDF:        { unit: 'px', format: 'a4' as const, orientation: 'portrait' as const }
+      };
+
+      html2pdf().set(opt).from(element).save();
+    }, 500);
   };
 
   if (loading) {
