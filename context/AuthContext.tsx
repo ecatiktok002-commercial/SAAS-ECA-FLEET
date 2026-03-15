@@ -47,8 +47,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          if (error.message.includes('Refresh Token Not Found') || error.message.includes('invalid_grant')) {
+            console.warn('Auth session expired or invalid. Logging out.');
+            await logout();
+            return;
+          }
+          throw error;
+        }
+
+        if (session?.user) {
         const isSuperAdmin = session.user.email === 'superadmin@ecafleet.com';
         
         // Retrieve subscriber_id from metadata or profiles table
@@ -122,10 +133,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSubscriptionTier('tier_3');
         }
       }
+    } catch (err) {
+      console.error('Error checking session:', err);
+    } finally {
       setIsLoading(false);
-    };
+    }
+  };
     
     checkSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setSubscriberId(null);
+        setUserId(null);
+        setUserName(null);
+        setUserUid(null);
+        setStaffRole(null);
+        setSubscriptionTier(null);
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (session) {
+          checkSession();
+        }
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = (id: string, role: StaffRole, tier: string, uId?: string, uName?: string, uUid?: string) => {

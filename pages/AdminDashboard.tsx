@@ -3,11 +3,16 @@ import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/apiService';
 import { 
   Users, Car, CalendarCheck, DollarSign, FileText, AlertTriangle, 
-  TrendingUp, Clock, ArrowRight, Plus, Zap, AlertCircle, CheckCircle2
+  TrendingUp, Clock, ArrowRight, Plus, Zap, AlertCircle, CheckCircle2,
+  Wallet, BarChart3, ListTodo
 } from 'lucide-react';
 import { Link, Navigate } from 'react-router-dom';
 import { Agreement, Booking, Car as CarType, MarketingEvent, Member } from '../types';
 import { AgentGamificationWidget } from '../components/AgentGamificationWidget';
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
+  ResponsiveContainer, Cell 
+} from 'recharts';
 
 interface AgentStat {
   name: string;
@@ -45,6 +50,9 @@ const AdminDashboard: React.FC = () => {
   const [events, setEvents] = useState<MarketingEvent[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [currentStaff, setCurrentStaff] = useState<any>(null);
+  const [dailyCommissions, setDailyCommissions] = useState<{ date: string, amount: number }[]>([]);
+  const [totalEarnedToday, setTotalEarnedToday] = useState(0);
+  const [recentAgreements, setRecentAgreements] = useState<Agreement[]>([]);
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -133,7 +141,11 @@ const AdminDashboard: React.FC = () => {
       const pending: PendingDelivery[] = [];
       const overdue: OverdueReturn[] = [];
 
-      bookings.forEach(b => {
+      const filteredBookings = staffRole === 'staff' 
+        ? bookings.filter(b => b.agent_id === userId || b.created_by === userUid || b.created_by === userId)
+        : bookings;
+
+      filteredBookings.forEach(b => {
         if (b.status === 'cancelled') return;
         
         const start = new Date(b.start);
@@ -191,6 +203,53 @@ const AdminDashboard: React.FC = () => {
       setLeaderboard(sortedAgents.slice(0, 5));
       setEvents(marketingEvents);
       setBookings(bookings);
+      setRecentAgreements(completedAgreements.slice(0, 5));
+
+      // 6. Agent Specific Metrics (Earnings & Chart)
+      if (staffRole === 'staff') {
+        const tierOverride = currentStaff?.commission_tier_override || 'auto';
+        
+        const getCommissionRate = (sales: number) => {
+          if (tierOverride !== 'auto') {
+            if (tierOverride === 'premium') return 0.20;
+            if (tierOverride === 'prestige') return 0.25;
+            if (tierOverride === 'privilege') return 0.30;
+          }
+          if (sales < 5000) return 0.20;
+          if (sales < 8000) return 0.25;
+          return 0.30;
+        };
+
+        // Calculate Daily Commissions for last 30 days
+        const last30Days: { [key: string]: number } = {};
+        for (let i = 29; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          last30Days[d.toISOString().split('T')[0]] = 0;
+        }
+
+        let earnedToday = 0;
+        completedAgreements.forEach(a => {
+          const date = a.created_at.split('T')[0];
+          const rate = getCommissionRate(salesThisMonth); // Simplified: use current month's tier for all
+          const commission = a.total_price * rate;
+          
+          if (last30Days[date] !== undefined) {
+            last30Days[date] += commission;
+          }
+          if (date === todayStr) {
+            earnedToday += commission;
+          }
+        });
+
+        const chartData = Object.entries(last30Days).map(([date, amount]) => ({
+          date: date.split('-').slice(1).join('/'), // MM/DD
+          amount: Number(amount.toFixed(2))
+        }));
+
+        setDailyCommissions(chartData);
+        setTotalEarnedToday(earnedToday);
+      }
 
     } catch (err: any) {
       console.error('Failed to fetch dashboard data:', err);
@@ -232,7 +291,12 @@ const AdminDashboard: React.FC = () => {
     const diffMs = Math.abs(date.getTime() - now.getTime());
     const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
     const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    return `${diffHrs}h ${diffMins}m`;
+    
+    const parts = [];
+    if (diffHrs > 0) parts.push(`${diffHrs} ${diffHrs === 1 ? 'HOUR' : 'HOURS'}`);
+    if (diffMins > 0 || parts.length === 0) parts.push(`${diffMins} ${diffMins === 1 ? 'MINUTE' : 'MINUTES'}`);
+    
+    return parts.join(' ');
   };
 
   if (loading) {
@@ -278,6 +342,56 @@ const AdminDashboard: React.FC = () => {
           </div>
         </div>
 
+        {staffRole === 'staff' && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8">
+            <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
+              <ListTodo className="w-5 h-5 text-blue-600" />
+              <h2 className="font-bold text-slate-900 uppercase tracking-tight">Daily Mission Log</h2>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {(() => {
+                const missions = [
+                  ...pendingDeliveries.map(p => ({ ...p, type: 'pickup' })),
+                  ...overdueReturns.map(r => ({ ...r, type: 'return' }))
+                ].sort((a, b) => {
+                  const timeA = 'pickupTime' in a ? a.pickupTime.getTime() : a.returnTime.getTime();
+                  const timeB = 'pickupTime' in b ? b.pickupTime.getTime() : b.returnTime.getTime();
+                  return timeA - timeB;
+                }).slice(0, 3);
+
+                if (missions.length === 0) {
+                  return <div className="p-6 text-center text-slate-500 italic">No urgent missions today. Keep hunting!</div>;
+                }
+
+                return missions.map((m, idx) => (
+                  <div key={idx} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${m.type === 'pickup' ? 'bg-blue-100 text-blue-600' : 'bg-rose-100 text-rose-600'}`}>
+                        {m.type === 'pickup' ? <ArrowRight className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-900">{m.carPlate}</p>
+                        <p className="text-sm text-slate-500">{m.customerName}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      {m.type === 'pickup' ? (
+                        <p className="font-bold text-blue-600 uppercase text-sm">
+                          {m.carPlate} OUT IN {formatTimeDiff((m as any).pickupTime).toUpperCase()}
+                        </p>
+                      ) : (
+                        <p className="font-bold text-rose-600 uppercase text-sm">
+                          {m.carPlate} LATE RETURN ({formatTimeDiff((m as any).returnTime).toUpperCase()} LATE)
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+        )}
+
         {staffRole === 'staff' && currentStaff && (
           <AgentGamificationWidget 
             salesThisMonth={stats.salesThisMonth}
@@ -290,18 +404,46 @@ const AdminDashboard: React.FC = () => {
 
         {/* Top Row: High-Level KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <h3 className="text-slate-500 text-sm font-medium mb-2">Sales Today</h3>
-            <p className="text-3xl font-bold text-slate-900">RM {stats.salesToday.toLocaleString()}</p>
-          </div>
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <h3 className="text-slate-500 text-sm font-medium mb-2">Sales This Week</h3>
-            <p className="text-3xl font-bold text-slate-900">RM {stats.salesThisWeek.toLocaleString()}</p>
-          </div>
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <h3 className="text-slate-500 text-sm font-medium mb-2">Sales This Month</h3>
-            <p className="text-3xl font-bold text-slate-900">RM {stats.salesThisMonth.toLocaleString()}</p>
-          </div>
+          {staffRole === 'staff' ? (
+            <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-6 rounded-xl border border-transparent shadow-lg text-white lg:col-span-3">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <Wallet className="w-6 h-6 text-emerald-100" />
+                  <h3 className="text-emerald-50 text-sm font-bold uppercase tracking-widest">My Pocket</h3>
+                </div>
+                <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Live Earnings</span>
+              </div>
+              <div className="space-y-1">
+                <p className="text-emerald-100 text-sm font-medium">Total Earned Today</p>
+                <p className="text-5xl font-black tracking-tighter">RM {totalEarnedToday.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</p>
+              </div>
+              <div className="mt-6 pt-6 border-t border-white/10 flex justify-between items-end">
+                <div>
+                  <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1">Current Sales</p>
+                  <p className="text-2xl font-bold">RM {stats.salesToday.toLocaleString()}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1">Active Bonus</p>
+                  <p className="text-2xl font-bold">RM {events.filter(e => new Date(e.start_date) <= new Date() && new Date(e.end_date) >= new Date()).reduce((sum, e) => sum + e.reward_amount, 0).toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <h3 className="text-slate-500 text-sm font-medium mb-2">Sales Today</h3>
+                <p className="text-3xl font-bold text-slate-900">RM {stats.salesToday.toLocaleString()}</p>
+              </div>
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <h3 className="text-slate-500 text-sm font-medium mb-2">Sales This Week</h3>
+                <p className="text-3xl font-bold text-slate-900">RM {stats.salesThisWeek.toLocaleString()}</p>
+              </div>
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <h3 className="text-slate-500 text-sm font-medium mb-2">Sales This Month</h3>
+                <p className="text-3xl font-bold text-slate-900">RM {stats.salesThisMonth.toLocaleString()}</p>
+              </div>
+            </>
+          )}
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-slate-500 text-sm font-medium">Idle Vehicles</h3>
@@ -311,80 +453,179 @@ const AdminDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Middle Row: The Action Center */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Pending Deliveries */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-            <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
-              <Clock className="w-5 h-5 text-blue-600" />
-              <h2 className="font-semibold text-slate-900">Pending Deliveries (Today)</h2>
-              <span className="ml-auto bg-blue-100 text-blue-700 py-0.5 px-2.5 rounded-full text-xs font-medium">
-                {pendingDeliveries.length} To-Do
-              </span>
+        {staffRole === 'staff' && (
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex items-center gap-3 mb-6">
+              <BarChart3 className="w-5 h-5 text-emerald-600" />
+              <h3 className="font-bold text-slate-900 uppercase tracking-tight">My Monthly Earnings (RM)</h3>
             </div>
-            <div className="divide-y divide-slate-100 flex-1 overflow-y-auto max-h-96">
-              {pendingDeliveries.length > 0 ? pendingDeliveries.map(delivery => (
-                <div key={delivery.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-slate-900">{delivery.customerName}</p>
-                    <p className="text-sm text-slate-500 flex items-center gap-2 mt-1">
-                      <Car className="w-4 h-4" /> {delivery.carPlate}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-slate-900">
-                      {delivery.pickupTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                    <p className="text-xs text-blue-600 font-medium mt-1">
-                      In {formatTimeDiff(delivery.pickupTime)}
-                    </p>
-                  </div>
-                </div>
-              )) : (
-                <div className="p-8 text-center text-slate-500">
-                  <CheckCircle2 className="w-8 h-8 mx-auto mb-3 text-emerald-500" />
-                  <p>No pending deliveries today.</p>
+            <div className="h-64 w-full">
+              {dailyCommissions.some(d => d.amount > 0) ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dailyCommissions}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis 
+                      dataKey="date" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#64748b', fontSize: 10 }}
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#64748b', fontSize: 10 }}
+                      tickFormatter={(value) => `RM${value}`}
+                    />
+                    <Tooltip 
+                      cursor={{ fill: '#f8fafc' }}
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                      formatter={(value: any) => [`RM ${Number(value).toLocaleString()}`, 'Commission']}
+                    />
+                    <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
+                      {dailyCommissions.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.amount > 0 ? '#10b981' : '#e2e8f0'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-center p-8 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                  <TrendingUp className="w-12 h-12 text-slate-300 mb-3" />
+                  <p className="text-slate-900 font-bold mb-1">No earnings yet this month</p>
+                  <p className="text-slate-500 text-sm">Start your first booking of the month to see your earnings grow!</p>
                 </div>
               )}
             </div>
           </div>
+        )}
 
-          {/* Overdue Returns */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-            <div className="p-6 border-b border-slate-100 bg-rose-50/30 flex items-center gap-3">
-              <AlertCircle className="w-5 h-5 text-rose-600" />
-              <h2 className="font-semibold text-slate-900">Overdue Returns (Urgent)</h2>
-              <span className="ml-auto bg-rose-100 text-rose-700 py-0.5 px-2.5 rounded-full text-xs font-medium">
-                {overdueReturns.length} Late
-              </span>
+        {/* Middle Row: The Action Center */}
+        {staffRole === 'admin' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Pending Deliveries */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
+                <Clock className="w-5 h-5 text-blue-600" />
+                <h2 className="font-semibold text-slate-900">Pending Deliveries (Today)</h2>
+                <span className="ml-auto bg-blue-100 text-blue-700 py-0.5 px-2.5 rounded-full text-xs font-medium">
+                  {pendingDeliveries.length} To-Do
+                </span>
+              </div>
+              <div className="divide-y divide-slate-100 flex-1 overflow-y-auto max-h-96">
+                {pendingDeliveries.length > 0 ? pendingDeliveries.map(delivery => (
+                  <div key={delivery.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-slate-900">{delivery.customerName}</p>
+                      <p className="text-sm text-slate-500 flex items-center gap-2 mt-1">
+                        <Car className="w-4 h-4" /> {delivery.carPlate}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-slate-900">
+                        {delivery.pickupTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                      <p className="text-xs text-blue-600 font-medium mt-1">
+                        In {formatTimeDiff(delivery.pickupTime)}
+                      </p>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="p-8 text-center text-slate-500">
+                    <CheckCircle2 className="w-8 h-8 mx-auto mb-3 text-emerald-500" />
+                    <p>No pending deliveries today.</p>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="divide-y divide-slate-100 flex-1 overflow-y-auto max-h-96">
-              {overdueReturns.length > 0 ? overdueReturns.map(returnItem => (
-                <div key={returnItem.id} className="p-4 hover:bg-rose-50/50 transition-colors flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-slate-900">{returnItem.customerName}</p>
-                    <p className="text-sm text-slate-500 flex items-center gap-2 mt-1">
-                      <Car className="w-4 h-4" /> {returnItem.carPlate}
-                    </p>
+
+            {/* Overdue Returns */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-slate-100 bg-rose-50/30 flex items-center gap-3">
+                <AlertCircle className="w-5 h-5 text-rose-600" />
+                <h2 className="font-semibold text-slate-900">Overdue Returns (Urgent)</h2>
+                <span className="ml-auto bg-rose-100 text-rose-700 py-0.5 px-2.5 rounded-full text-xs font-medium">
+                  {overdueReturns.length} Late
+                </span>
+              </div>
+              <div className="divide-y divide-slate-100 flex-1 overflow-y-auto max-h-96">
+                {overdueReturns.length > 0 ? overdueReturns.map(returnItem => (
+                  <div key={returnItem.id} className="p-4 hover:bg-rose-50/50 transition-colors flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-slate-900">{returnItem.customerName}</p>
+                      <p className="text-sm text-slate-500 flex items-center gap-2 mt-1">
+                        <Car className="w-4 h-4" /> {returnItem.carPlate}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-slate-900">
+                        {returnItem.returnTime.toLocaleDateString()} {returnItem.returnTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                      <p className="text-xs text-rose-600 font-medium mt-1">
+                        Late by {formatTimeDiff(returnItem.returnTime)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-slate-900">
-                      {returnItem.returnTime.toLocaleDateString()} {returnItem.returnTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                    <p className="text-xs text-rose-600 font-medium mt-1">
-                      Late by {formatTimeDiff(returnItem.returnTime)}
-                    </p>
+                )) : (
+                  <div className="p-8 text-center text-slate-500">
+                    <CheckCircle2 className="w-8 h-8 mx-auto mb-3 text-emerald-500" />
+                    <p>No overdue returns.</p>
                   </div>
-                </div>
-              )) : (
-                <div className="p-8 text-center text-slate-500">
-                  <CheckCircle2 className="w-8 h-8 mx-auto mb-3 text-emerald-500" />
-                  <p>No overdue returns.</p>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Recent Earnings Table (Agent Only) */}
+        {staffRole === 'staff' && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <DollarSign className="w-5 h-5 text-emerald-600" />
+                <h2 className="font-bold text-slate-900 uppercase tracking-tight">Recent Earnings Table</h2>
+              </div>
+              <Link to="/agreements" className="text-sm font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                View All <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-widest">
+                  <tr>
+                    <th className="px-6 py-4">Date</th>
+                    <th className="px-6 py-4">Customer</th>
+                    <th className="px-6 py-4">Vehicle</th>
+                    <th className="px-6 py-4 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {recentAgreements.length > 0 ? recentAgreements.map((agreement) => (
+                    <tr key={agreement.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 text-sm text-slate-600">
+                        {new Date(agreement.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-bold text-slate-900">
+                        {agreement.customer_name}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600">
+                        {agreement.car_plate_number || agreement.car_model}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-black text-emerald-600 text-right">
+                        RM {agreement.total_price.toLocaleString()}
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-8 text-center text-slate-500 italic">
+                        No transactions found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Bottom Row: Strategy & Team */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -457,45 +698,47 @@ const AdminDashboard: React.FC = () => {
             </div>
           )}
 
-          {/* Agent Leaderboard */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-100 flex items-center gap-3">
-              <TrendingUp className="w-5 h-5 text-emerald-600" />
-              <h2 className="font-semibold text-slate-900">Agent Leaderboard (This Month)</h2>
-            </div>
-            <div className="p-6">
-              <div className="space-y-6">
-                {leaderboard.length > 0 ? leaderboard.map((agent, idx) => (
-                  <div key={idx} className="space-y-2">
-                    <div className="flex justify-between items-end">
-                      <div className="flex items-center gap-3">
-                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                          idx === 0 ? 'bg-amber-100 text-amber-700' : 
-                          idx === 1 ? 'bg-slate-100 text-slate-700' : 
-                          idx === 2 ? 'bg-orange-100 text-orange-800' : 'bg-slate-50 text-slate-500'
-                        }`}>
-                          {idx + 1}
-                        </span>
-                        <p className="text-sm font-medium text-slate-900">{agent.name}</p>
+          {/* Agent Leaderboard (Admin Only) */}
+          {staffRole === 'admin' && (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="p-6 border-b border-slate-100 flex items-center gap-3">
+                <TrendingUp className="w-5 h-5 text-emerald-600" />
+                <h2 className="font-semibold text-slate-900">Agent Leaderboard (This Month)</h2>
+              </div>
+              <div className="p-6">
+                <div className="space-y-6">
+                  {leaderboard.length > 0 ? leaderboard.map((agent, idx) => (
+                    <div key={idx} className="space-y-2">
+                      <div className="flex justify-between items-end">
+                        <div className="flex items-center gap-3">
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                            idx === 0 ? 'bg-amber-100 text-amber-700' : 
+                            idx === 1 ? 'bg-slate-100 text-slate-700' : 
+                            idx === 2 ? 'bg-orange-100 text-orange-800' : 'bg-slate-50 text-slate-500'
+                          }`}>
+                            {idx + 1}
+                          </span>
+                          <p className="text-sm font-medium text-slate-900">{agent.name}</p>
+                        </div>
+                        <p className="text-sm font-bold text-slate-900">RM {agent.total.toLocaleString()}</p>
                       </div>
-                      <p className="text-sm font-bold text-slate-900">RM {agent.total.toLocaleString()}</p>
+                      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden ml-9" style={{ width: 'calc(100% - 36px)' }}>
+                        <div 
+                          className="h-full bg-emerald-500 rounded-full transition-all duration-1000" 
+                          style={{ width: `${agent.percentage}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden ml-9" style={{ width: 'calc(100% - 36px)' }}>
-                      <div 
-                        className="h-full bg-emerald-500 rounded-full transition-all duration-1000" 
-                        style={{ width: `${agent.percentage}%` }}
-                      />
+                  )) : (
+                    <div className="text-center py-8 text-slate-500">
+                      <TrendingUp className="w-8 h-8 mx-auto mb-3 text-slate-300" />
+                      <p>No sales recorded this month.</p>
                     </div>
-                  </div>
-                )) : (
-                  <div className="text-center py-8 text-slate-500">
-                    <TrendingUp className="w-8 h-8 mx-auto mb-3 text-slate-300" />
-                    <p>No sales recorded this month.</p>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
