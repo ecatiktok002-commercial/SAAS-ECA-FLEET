@@ -16,8 +16,8 @@ import SupabaseErrorBanner from './components/SupabaseErrorBanner';
 import { isConfigured } from './services/supabase';
 
 // A simple gate to handle Tier/Role redirects
-const TierGate: React.FC<{ children: React.ReactNode; minTier: number; allowStaff?: boolean }> = ({ children, minTier, allowStaff = true }) => {
-  const { user, subscriberTier, role, isLoading } = useAuth();
+const StrictTierGate: React.FC<{ children: React.ReactNode; allowedTiers: string[]; allowStaff?: boolean }> = ({ children, allowedTiers, allowStaff = true }) => {
+  const { user, subscriptionTier, staffRole, isLoading } = useAuth();
   
   if (isLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">Loading...</div>;
@@ -25,11 +25,11 @@ const TierGate: React.FC<{ children: React.ReactNode; minTier: number; allowStaf
 
   if (!user) return <Navigate to="/login" replace />;
   
-  // Rule: Agent/Staff can NEVER see Staff Management
-  if (role === 'staff' && !allowStaff) return <Navigate to="/" replace />;
+  // Rule: Agent/Staff can NEVER see Staff Management or other restricted pages
+  if (staffRole === 'staff' && !allowStaff) return <Navigate to="/" replace />;
   
-  // Rule: Feature requires a higher Tier
-  if (subscriberTier < minTier) return <Navigate to="/" replace />;
+  // Rule: Feature requires specific Tier
+  if (!subscriptionTier || !allowedTiers.includes(subscriptionTier)) return <Navigate to="/" replace />;
 
   return <>{children}</>;
 };
@@ -49,6 +49,20 @@ const App: React.FC = () => {
   );
 };
 
+const IndexRedirect: React.FC = () => {
+  const { subscriptionTier, staffRole } = useAuth();
+  
+  if (subscriptionTier === 'tier_2') {
+    return <Navigate to="/calendar" replace />;
+  }
+  
+  if (staffRole === 'admin' && subscriptionTier === 'tier_1') {
+    return <Navigate to="/forms" replace />;
+  }
+  
+  return <AdminDashboard />;
+};
+
 const AppRoutes: React.FC = () => {
   const { subscriberId } = useAuth();
   const isSuperAdmin = subscriberId === 'superadmin';
@@ -59,29 +73,42 @@ const AppRoutes: React.FC = () => {
       <Route path="/forms/sign/:id" element={<SignAgreement />} />
       
       <Route path="/" element={<Layout />}>
-        {/* Tier 1: Digital Forms is available to everyone */}
-        <Route index element={isSuperAdmin ? <Navigate to="/subscribers" replace /> : <AdminDashboard />} />
-        <Route path="forms/*" element={<DigitalFormPage />} />
+        {/* Dashboard: Tier 3 for Admin, Tier 1/3 for Staff */}
+        <Route index element={
+          isSuperAdmin ? <Navigate to="/subscribers" replace /> : 
+          <StrictTierGate allowedTiers={['tier_1', 'tier_2', 'tier_3']}>
+            <IndexRedirect />
+          </StrictTierGate>
+        } />
+        
+        {/* Digital Forms: Tier 1 and Tier 3 */}
+        <Route path="forms/*" element={
+          <StrictTierGate allowedTiers={['tier_1', 'tier_3']}><DigitalFormPage /></StrictTierGate>
+        } />
+        
+        {/* Customers: Tier 3 only */}
         <Route path="customers" element={
-          <TierGate minTier={1} allowStaff={false}><CustomersPage /></TierGate>
+          <StrictTierGate allowedTiers={['tier_3']} allowStaff={false}><CustomersPage /></StrictTierGate>
         } />
 
-        {/* Tier 2: Calendar Access */}
+        {/* Calendar: Tier 2 and Tier 3 */}
         <Route path="calendar" element={
-          <TierGate minTier={2}><CalendarPage /></TierGate>
+          <StrictTierGate allowedTiers={['tier_2', 'tier_3']}><CalendarPage /></StrictTierGate>
         } />
 
-        {/* Tier 3: Fleet Guardian Access */}
+        {/* Fleet Guardian: Tier 3 only */}
         <Route path="fleet" element={
-          <TierGate minTier={3} allowStaff={false}><FleetGuardianPage /></TierGate>
+          <StrictTierGate allowedTiers={['tier_3']} allowStaff={false}><FleetGuardianPage /></StrictTierGate>
         } />
 
-        {/* Role Gate: Only Subscribers (Owners) can see these */}
+        {/* Staff Management: All Tiers, but Admin only */}
         <Route path="staff" element={
-          <TierGate minTier={1} allowStaff={false}><StaffManagementPage /></TierGate>
+          <StrictTierGate allowedTiers={['tier_1', 'tier_2', 'tier_3']} allowStaff={false}><StaffManagementPage /></StrictTierGate>
         } />
+        
+        {/* Subscribers: Superadmin only */}
         <Route path="subscribers" element={
-          <TierGate minTier={1} allowStaff={false}><SubscriberManager /></TierGate>
+          <StrictTierGate allowedTiers={['tier_1', 'tier_2', 'tier_3']} allowStaff={false}><SubscriberManager /></StrictTierGate>
         } />
       </Route>
       

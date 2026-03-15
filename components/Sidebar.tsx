@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Calendar, FileText, Users, Car, Settings, LogOut, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { LayoutDashboard, Calendar, FileText, Users, Car, Settings, LogOut, ChevronLeft, ChevronRight, X, Lock } from 'lucide-react';
+import UpsellModal from './UpsellModal';
 
 interface SidebarProps {
   isMobileOpen: boolean;
@@ -15,6 +16,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
   // Initialize based on role
   const [isCollapsed, setIsCollapsed] = useState(staffRole === 'staff');
   const [isHovered, setIsHovered] = useState(false);
+  
+  // Upsell Modal State
+  const [upsellFeature, setUpsellFeature] = useState<string | null>(null);
 
   // Close mobile sidebar on route change
   useEffect(() => {
@@ -31,54 +35,104 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
 
     // Master Admin (Superadmin) specific items
     if (isSuperAdmin) {
-      items.push({ name: 'Subscribers', path: '/subscribers', icon: <Users className="w-5 h-5" /> });
+      items.push({ name: 'Subscribers', path: '/subscribers', icon: <Users className="w-5 h-5" />, isLocked: false });
       return items;
     }
 
-    // Layer 1: Tier Gate (Feature Access)
-    // Tier 1: Only Digital Forms
-    // Tier 2: Only Calendar
-    // Tier 3: All (Forms, Calendar, Fleet)
-    
-    // Dashboard Access
-    // Subscriber always gets Business Dashboard (except Tier 2 which is Calendar ONLY)
-    // Agent gets Personal Stats if Tier 1 (Forms) or Tier 3 (All)
-    if ((isAdmin && subscriptionTier !== 'tier_2') || (isStaff && subscriptionTier !== 'tier_2')) {
+    // Strict Tier Access Logic
+    // Tier 1: Digital Form, Staff Management
+    // Tier 2: Calendar, Staff Management
+    // Tier 3: All Features
+
+    // Business Dashboard
+    if (isAdmin) {
       items.push({ 
-        name: isAdmin ? 'Business Dashboard' : 'Personal Stats', 
+        name: 'Business Dashboard', 
         path: '/', 
-        icon: <LayoutDashboard className="w-5 h-5" /> 
+        icon: <LayoutDashboard className="w-5 h-5" />,
+        isLocked: subscriptionTier !== 'tier_3'
+      });
+    } else if (isStaff && subscriptionTier !== 'tier_2') {
+      items.push({ 
+        name: 'Personal Stats', 
+        path: '/', 
+        icon: <LayoutDashboard className="w-5 h-5" />,
+        isLocked: false
       });
     }
 
-    // Digital Forms (Tier 1 or Tier 3)
-    if (subscriptionTier === 'tier_1' || subscriptionTier === 'tier_3') {
-      items.push({ name: 'Digital Form', path: '/forms', icon: <FileText className="w-5 h-5" /> });
-    }
-
-    // Calendar (Tier 2 or Tier 3)
-    if (subscriptionTier === 'tier_2' || subscriptionTier === 'tier_3') {
-      items.push({ name: 'Calendar', path: '/calendar', icon: <Calendar className="w-5 h-5" /> });
-    }
-
-    // Fleet Guardian (Tier 3 only) - Exclusive access to Subscribers (Admins) only
-    if (isAdmin && subscriptionTier === 'tier_3') {
-      items.push({ name: 'Fleet Guardian', path: '/fleet', icon: <Car className="w-5 h-5" /> });
-    }
-
-    // Customers (Available if they have access to Forms or Tier 3 Calendar)
-    // For Tier 2 (Calendar ONLY), we exclude Customers to keep it strictly Calendar
-    // Exclusive access to Subscribers (Admins) only
-    if (isAdmin && (subscriptionTier === 'tier_1' || subscriptionTier === 'tier_3')) {
-      items.push({ name: 'Customers', path: '/customers', icon: <Users className="w-5 h-5" /> });
-    }
-
-    // Staff Management - Subscriber only (Available by Default for Subscriber)
+    // Digital Form
     if (isAdmin) {
-      items.push({ name: 'Staff Management', path: '/staff', icon: <Settings className="w-5 h-5" /> });
+      items.push({ 
+        name: 'Digital Form', 
+        path: '/forms', 
+        icon: <FileText className="w-5 h-5" />,
+        isLocked: subscriptionTier === 'tier_2'
+      });
+    } else if (isStaff && (subscriptionTier === 'tier_1' || subscriptionTier === 'tier_3')) {
+      items.push({ 
+        name: 'Digital Form', 
+        path: '/forms', 
+        icon: <FileText className="w-5 h-5" />,
+        isLocked: false
+      });
+    }
+
+    // Calendar
+    if (isAdmin) {
+      items.push({ 
+        name: 'Calendar', 
+        path: '/calendar', 
+        icon: <Calendar className="w-5 h-5" />,
+        isLocked: subscriptionTier === 'tier_1'
+      });
+    } else if (isStaff && (subscriptionTier === 'tier_2' || subscriptionTier === 'tier_3')) {
+      items.push({ 
+        name: 'Calendar', 
+        path: '/calendar', 
+        icon: <Calendar className="w-5 h-5" />,
+        isLocked: false
+      });
+    }
+
+    // Fleet Guardian
+    if (isAdmin) {
+      items.push({ 
+        name: 'Fleet Guardian', 
+        path: '/fleet', 
+        icon: <Car className="w-5 h-5" />,
+        isLocked: subscriptionTier !== 'tier_3'
+      });
+    }
+
+    // Customers / CRM
+    if (isAdmin) {
+      items.push({ 
+        name: 'Customers / CRM', 
+        path: '/customers', 
+        icon: <Users className="w-5 h-5" />,
+        isLocked: subscriptionTier !== 'tier_3'
+      });
+    }
+
+    // Staff Management
+    if (isAdmin) {
+      items.push({ 
+        name: 'Staff Management', 
+        path: '/staff', 
+        icon: <Settings className="w-5 h-5" />,
+        isLocked: false
+      });
     }
 
     return items;
+  };
+
+  const handleLinkClick = (e: React.MouseEvent, item: any) => {
+    if (item.isLocked) {
+      e.preventDefault();
+      setUpsellFeature(item.name);
+    }
   };
 
   return (
@@ -132,24 +186,29 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
             <NavLink
               key={item.name}
               to={item.path}
+              onClick={(e) => handleLinkClick(e, item)}
               className={({ isActive }) =>
                 `flex items-center ${isExpanded ? 'px-4' : 'justify-center px-0'} py-3 rounded-xl transition-colors whitespace-nowrap group relative ${
-                  isActive 
-                    ? 'bg-blue-600 text-white font-medium shadow-md shadow-blue-900/20' 
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  item.isLocked
+                    ? 'text-slate-400 hover:bg-slate-800/50 cursor-pointer'
+                    : isActive 
+                      ? 'bg-blue-600 text-white font-medium shadow-md shadow-blue-900/20' 
+                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                 }`
               }
               title={!isExpanded ? item.name : undefined}
             >
-              <div className="shrink-0">{item.icon}</div>
-              <span className={`ml-3 transition-opacity duration-300 ${isExpanded ? 'opacity-100' : 'opacity-0 hidden'}`}>
-                {item.name}
+              <div className={`shrink-0 ${item.isLocked ? 'opacity-50' : ''}`}>{item.icon}</div>
+              <span className={`ml-3 flex-1 flex items-center justify-between transition-opacity duration-300 ${isExpanded ? 'opacity-100' : 'opacity-0 hidden'}`}>
+                <span>{item.name}</span>
+                {item.isLocked && <Lock className="w-4 h-4 text-slate-500 shrink-0" />}
               </span>
               
               {/* Tooltip for collapsed state */}
               {!isExpanded && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap">
+                <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap flex items-center gap-2">
                   {item.name}
+                  {item.isLocked && <Lock className="w-3 h-3 text-slate-400" />}
                 </div>
               )}
             </NavLink>
@@ -183,6 +242,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
           </button>
         </div>
       </div>
+
+      <UpsellModal 
+        isOpen={!!upsellFeature} 
+        onClose={() => setUpsellFeature(null)} 
+        featureName={upsellFeature || ''} 
+      />
     </>
   );
 };
