@@ -668,6 +668,20 @@ JOIN customer_stats s ON c.id = s.customer_id AND c.subscriber_id = s.subscriber
 -- ===============================================================
 -- SMART LOGIN DETECTION RPC
 -- ===============================================================
+CREATE OR REPLACE FUNCTION auto_confirm_user(p_email TEXT)
+RETURNS VOID AS $$
+BEGIN
+  -- Only allow superadmin to auto-confirm
+  IF auth.jwt() ->> 'email' != 'superadmin@ecafleet.com' THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  UPDATE auth.users
+  SET email_confirmed_at = NOW()
+  WHERE email = p_email;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 CREATE OR REPLACE FUNCTION verify_login_uid(p_uid TEXT)
 RETURNS JSON AS $$
 DECLARE

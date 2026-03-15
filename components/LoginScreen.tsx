@@ -53,10 +53,20 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
       // Fallback if RPC is missing or fails
       if (rpcError || !roleData || roleData.role === 'unknown') {
-        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
           email: `${uid}@ecafleet.com`,
-          password: uid,
+          password: `${uid}Eca123!`, // Try strong password first
         });
+
+        if (authError) {
+          // Fallback to old password format
+          const fallback = await supabase.auth.signInWithPassword({
+            email: `${uid}@ecafleet.com`,
+            password: uid,
+          });
+          authData = fallback.data;
+          authError = fallback.error;
+        }
 
         if (authError || !authData.user) {
           throw new Error('Invalid UID. If you are a staff member, please ensure the database RPC is installed.');
@@ -100,10 +110,20 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const loginAsSubscriber = async (roleData: any) => {
     try {
       // Ensure Supabase Auth session
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: `${roleData.company_code}@ecafleet.com`,
-        password: roleData.company_code,
+        password: `${roleData.company_code}Eca123!`, // Try strong password first
       });
+
+      if (authError) {
+        // Fallback to old password format
+        const fallback = await supabase.auth.signInWithPassword({
+          email: `${roleData.company_code}@ecafleet.com`,
+          password: roleData.company_code,
+        });
+        authData = fallback.data;
+        authError = fallback.error;
+      }
 
       if (authError) throw authError;
 
@@ -139,10 +159,20 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       }
 
       // Login to Supabase Auth as the Company to satisfy RLS
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: `${detectedRole.company_code}@ecafleet.com`,
-        password: detectedRole.company_code,
+        password: `${detectedRole.company_code}Eca123!`, // Try strong password first
       });
+
+      if (authError) {
+        // Fallback to old password format
+        const fallback = await supabase.auth.signInWithPassword({
+          email: `${detectedRole.company_code}@ecafleet.com`,
+          password: detectedRole.company_code,
+        });
+        authData = fallback.data;
+        authError = fallback.error;
+      }
 
       if (authError) {
         throw new Error('Failed to authenticate with company credentials. Please contact admin.');

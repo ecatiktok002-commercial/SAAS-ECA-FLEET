@@ -1072,7 +1072,7 @@ export const apiService = {
       });
 
       const email = `${name}@ecafleet.com`;
-      const password = name;
+      const password = `${name}Eca123!`; // Use strong password to avoid length/complexity errors
 
       // 1. Create the user in auth.users
       const { data: authData, error: authError } = await tempSupabase.auth.signUp({
@@ -1087,6 +1087,12 @@ export const apiService = {
       const userId = authData.user?.id;
       if (!userId) {
         throw new Error('Failed to create auth user: No user ID returned');
+      }
+
+      // Auto-confirm the user using the main client (which has superadmin session)
+      const { error: confirmError } = await supabase.rpc('auto_confirm_user', { p_email: email });
+      if (confirmError) {
+        console.warn('Failed to auto-confirm user. They may need to verify their email manually.', confirmError);
       }
 
       // 2. Insert into subscribers table with the new user ID
