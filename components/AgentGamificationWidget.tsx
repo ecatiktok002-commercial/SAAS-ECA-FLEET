@@ -1,18 +1,25 @@
-import React from 'react';
-import { Trophy, Star, Target, Zap } from 'lucide-react';
-import { MarketingEvent } from '../types';
+import React, { useEffect, useState } from 'react';
+import { Trophy, Star, Target, Zap, Clock, CheckCircle2 } from 'lucide-react';
+import { MarketingEvent, Booking } from '../types';
+import confetti from 'canvas-confetti';
 
 interface AgentGamificationWidgetProps {
   salesThisMonth: number;
   commissionTierOverride: 'auto' | 'premium' | 'prestige' | 'privilege';
   events: MarketingEvent[];
+  bookings: Booking[];
+  userId: string;
 }
 
 export const AgentGamificationWidget: React.FC<AgentGamificationWidgetProps> = ({
   salesThisMonth,
   commissionTierOverride,
-  events
+  events,
+  bookings,
+  userId
 }) => {
+  const [celebratedEvents, setCelebratedEvents] = useState<string[]>([]);
+
   // 1. Define the Tier Logic
   const tiers = {
     premium: { name: 'Premium Base (20%)', min: 0, max: 5000, color: 'bg-slate-700', text: 'text-slate-700' },
@@ -27,14 +34,12 @@ export const AgentGamificationWidget: React.FC<AgentGamificationWidgetProps> = (
     activeTier = tiers.premium;
     nextTier = tiers.prestige;
     remainingToNext = tiers.premium.max - salesThisMonth;
-    // Calculate percentage filled within this specific tier bracket
     progressPercent = (salesThisMonth / tiers.premium.max) * 100;
   } 
   else if (salesThisMonth < tiers.privilege.min) {
     activeTier = tiers.prestige;
     nextTier = tiers.privilege;
     remainingToNext = tiers.prestige.max - salesThisMonth;
-    // Calculate percentage filled within the 5k - 8k bracket
     const tierRange = tiers.prestige.max - tiers.prestige.min;
     const salesInTier = salesThisMonth - tiers.prestige.min;
     progressPercent = (salesInTier / tierRange) * 100;
@@ -46,15 +51,62 @@ export const AgentGamificationWidget: React.FC<AgentGamificationWidgetProps> = (
     progressPercent = 100;
   }
 
-  // Apply override if not auto
   if (commissionTierOverride !== 'auto') {
     activeTier = { ...tiers[commissionTierOverride], name: `${tiers[commissionTierOverride].name} (Locked)` };
   }
 
-  // Helper to format currency nicely
   const formatRM = (amount: number) => `RM ${amount.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const activeEvents = events.filter(e => new Date(e.start_date) <= new Date() && new Date(e.end_date) >= new Date());
+  const activeEvents = events.filter(e => {
+    const now = new Date();
+    return new Date(e.start_date) <= now && new Date(e.end_date) >= now;
+  });
+
+  // Calculate event progress
+  const eventProgress = activeEvents.map(event => {
+    const eventBookings = bookings.filter(b => {
+      const bookingDate = new Date(b.start);
+      return b.agent_id === userId && 
+             b.status === 'completed' &&
+             bookingDate >= new Date(event.start_date) && 
+             bookingDate <= new Date(event.end_date);
+    });
+
+    let current = 0;
+    if (event.goal_type === 'Total Orders') {
+      current = eventBookings.length;
+    } else {
+      current = eventBookings.reduce((sum, b) => sum + (b.total_price || 0), 0);
+    }
+
+    const percent = Math.min((current / event.target_goal) * 100, 100);
+    const isCompleted = current >= event.target_goal;
+
+    // Time left calculation
+    const now = new Date();
+    const end = new Date(event.end_date);
+    const diffMs = end.getTime() - now.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffHrs = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const timeLeft = diffDays > 0 ? `${diffDays}d ${diffHrs}h` : `${diffHrs}h`;
+
+    return { ...event, current, percent, isCompleted, timeLeft };
+  });
+
+  // Trigger confetti for newly completed events
+  useEffect(() => {
+    eventProgress.forEach(event => {
+      if (event.isCompleted && !celebratedEvents.includes(event.id)) {
+        confetti({
+          particleCount: 150,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b']
+        });
+        setCelebratedEvents(prev => [...prev, event.id]);
+      }
+    });
+  }, [eventProgress, celebratedEvents]);
 
   return (
     <div className="space-y-6 mb-8">
@@ -65,7 +117,6 @@ export const AgentGamificationWidget: React.FC<AgentGamificationWidgetProps> = (
         </div>
         
         <div className="relative z-10">
-          {/* Header Section */}
           <div className="flex justify-between items-end mb-4">
             <div>
               <p className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-1">Current Sales</p>
@@ -79,15 +130,13 @@ export const AgentGamificationWidget: React.FC<AgentGamificationWidgetProps> = (
             </div>
           </div>
 
-          {/* The Progress Bar */}
           <div className="relative w-full h-4 bg-slate-100 rounded-full overflow-hidden my-4">
             <div 
               className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ease-out ${activeTier.color}`}
-              style={{ width: `${Math.max(progressPercent, 2)}%` }} // Minimum 2% so they always see a little sliver of progress
+              style={{ width: `${Math.max(progressPercent, 2)}%` }}
             ></div>
           </div>
 
-          {/* Gamification Messaging */}
           <div className="mt-4 text-center">
             {nextTier ? (
               <p className="text-sm text-slate-500 font-medium">
@@ -102,34 +151,91 @@ export const AgentGamificationWidget: React.FC<AgentGamificationWidgetProps> = (
         </div>
       </div>
 
-      {/* Active Promotions */}
-      {activeEvents.length > 0 && (
-        <div>
-          <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <Zap className="w-5 h-5 text-amber-500" /> Active Promotions (Pitch These Today!)
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {activeEvents.map(event => (
-              <div key={event.id} className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl p-5 text-white shadow-md relative overflow-hidden group hover:shadow-lg transition-all">
-                <div className="absolute -right-4 -top-4 opacity-20 group-hover:scale-110 transition-transform duration-500">
-                  <Target className="w-24 h-24" />
+      {/* Dynamic Goal Progress Widget */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+          <Zap className="w-5 h-5 text-amber-500" /> Active Bonus Events
+        </h3>
+        
+        {eventProgress.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {eventProgress.map(event => (
+              <div 
+                key={event.id} 
+                className={`bg-white p-6 rounded-2xl shadow-sm border-2 transition-all relative overflow-hidden ${
+                  event.isCompleted ? 'border-emerald-500 bg-emerald-50/30' : 'border-slate-100'
+                }`}
+              >
+                {event.isCompleted && (
+                  <div className="absolute -right-6 -top-6 bg-emerald-500 text-white p-8 rounded-full shadow-lg transform rotate-12">
+                    <CheckCircle2 className="w-8 h-8" />
+                  </div>
+                )}
+
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h4 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                      🔥 {event.name}
+                    </h4>
+                    <p className="text-sm text-slate-500 flex items-center gap-1 mt-1">
+                      <Clock className="w-4 h-4" /> Time Left: {event.timeLeft}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Reward</span>
+                    <p className="text-xl font-black text-emerald-600">RM {event.reward_amount}</p>
+                  </div>
                 </div>
-                <div className="relative z-10">
-                  <span className="bg-white/20 px-2 py-1 rounded text-xs font-bold uppercase tracking-wider mb-3 inline-block">Sudden Event</span>
-                  <h4 className="font-bold text-xl mb-1">{event.name}</h4>
-                  <p className="text-indigo-100 text-sm mb-4">
-                    {new Date(event.start_date).toLocaleDateString()} - {new Date(event.end_date).toLocaleDateString()}
-                  </p>
-                  <div className="bg-white/10 rounded-lg p-3 backdrop-blur-sm border border-white/10">
-                    <p className="text-xs text-indigo-200 uppercase font-bold tracking-wider mb-1">Target Goal</p>
-                    <p className="text-2xl font-black">RM {event.target_goal.toLocaleString()}</p>
+
+                <div className="space-y-3">
+                  <div className="flex justify-between items-end text-sm">
+                    <span className="font-bold text-slate-600">
+                      {event.goal_type === 'Total Orders' 
+                        ? `${event.current} / ${event.target_goal} Orders` 
+                        : `${formatRM(event.current)} / ${formatRM(event.target_goal)}`}
+                    </span>
+                    <span className={`font-black ${event.isCompleted ? 'text-emerald-600' : 'text-indigo-600'}`}>
+                      {Math.round(event.percent)}%
+                    </span>
+                  </div>
+                  
+                  <div className="h-4 bg-slate-100 rounded-full overflow-hidden relative">
+                    <div 
+                      className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ease-out ${
+                        event.isCompleted ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'bg-gradient-to-r from-indigo-500 to-purple-600'
+                      }`}
+                      style={{ width: `${Math.max(event.percent, 2)}%` }}
+                    ></div>
+                  </div>
+
+                  <div className="pt-2">
+                    {event.isCompleted ? (
+                      <div className="flex items-center justify-center gap-2 text-emerald-600 font-black animate-bounce">
+                        <Star className="w-5 h-5 fill-emerald-600" />
+                        BONUS UNLOCKED!
+                        <Star className="w-5 h-5 fill-emerald-600" />
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500 text-center font-medium">
+                        Just <span className="text-indigo-600 font-bold">
+                          {event.goal_type === 'Total Orders' 
+                            ? `${event.target_goal - event.current} more orders` 
+                            : formatRM(event.target_goal - event.current)}
+                        </span> to unlock your RM{event.reward_amount} Bonus!
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="bg-white p-10 rounded-2xl border border-dashed border-slate-300 text-center">
+            <Zap className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+            <p className="text-slate-500 font-medium">No Active Bonus Events. Stay tuned!</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

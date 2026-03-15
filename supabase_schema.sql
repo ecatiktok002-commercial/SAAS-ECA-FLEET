@@ -62,7 +62,9 @@
 -- ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES companies(id) ON DELETE CASCADE;
 -- ALTER TABLE expenses ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES companies(id) ON DELETE CASCADE;
 -- ALTER TABLE logs ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES companies(id) ON DELETE CASCADE;
--- ALTER TABLE handover_records ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES companies(id) ON DELETE CASCADE;
+-- ALTER TABLE handover_records ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES subscribers(id) ON DELETE CASCADE;
+-- ALTER TABLE handover_records ADD COLUMN IF NOT EXISTS car_id UUID REFERENCES cars(id) ON DELETE CASCADE;
+-- ALTER TABLE handover_records ADD COLUMN IF NOT EXISTS booking_id UUID REFERENCES bookings(id) ON DELETE CASCADE;
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -338,7 +340,9 @@ CREATE TABLE IF NOT EXISTS marketing_events (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   subscriber_id UUID NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
+  goal_type TEXT NOT NULL DEFAULT 'Total Sales (RM)', -- 'Total Orders' or 'Total Sales (RM)'
   target_goal NUMERIC NOT NULL DEFAULT 0,
+  reward_amount NUMERIC NOT NULL DEFAULT 0,
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

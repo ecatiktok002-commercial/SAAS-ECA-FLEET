@@ -43,13 +43,21 @@ const AdminDashboard: React.FC = () => {
   const [overdueReturns, setOverdueReturns] = useState<OverdueReturn[]>([]);
   const [leaderboard, setLeaderboard] = useState<AgentStat[]>([]);
   const [events, setEvents] = useState<MarketingEvent[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [currentStaff, setCurrentStaff] = useState<any>(null);
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
   const [showEventModal, setShowEventModal] = useState(false);
-  const [newEvent, setNewEvent] = useState({ name: '', target_goal: 0, start_date: '', end_date: '' });
+  const [newEvent, setNewEvent] = useState({ 
+    name: '', 
+    goal_type: 'Total Sales (RM)' as 'Total Orders' | 'Total Sales (RM)',
+    target_goal: 0, 
+    reward_amount: 0,
+    start_date: '', 
+    end_date: '' 
+  });
 
   useEffect(() => {
     if (subscriberId) {
@@ -182,6 +190,7 @@ const AdminDashboard: React.FC = () => {
 
       setLeaderboard(sortedAgents.slice(0, 5));
       setEvents(marketingEvents);
+      setBookings(bookings);
 
     } catch (err: any) {
       console.error('Failed to fetch dashboard data:', err);
@@ -197,12 +206,21 @@ const AdminDashboard: React.FC = () => {
       if (!subscriberId) return;
       await apiService.addMarketingEvent({
         name: newEvent.name,
+        goal_type: newEvent.goal_type,
         target_goal: Number(newEvent.target_goal),
+        reward_amount: Number(newEvent.reward_amount),
         start_date: newEvent.start_date,
         end_date: newEvent.end_date
       }, subscriberId);
       setShowEventModal(false);
-      setNewEvent({ name: '', target_goal: 0, start_date: '', end_date: '' });
+      setNewEvent({ 
+        name: '', 
+        goal_type: 'Total Sales (RM)',
+        target_goal: 0, 
+        reward_amount: 0,
+        start_date: '', 
+        end_date: '' 
+      });
       fetchDashboardData();
     } catch (err) {
       console.error('Failed to add event:', err);
@@ -265,6 +283,8 @@ const AdminDashboard: React.FC = () => {
             salesThisMonth={stats.salesThisMonth}
             commissionTierOverride={currentStaff.commission_tier_override || 'auto'}
             events={events}
+            bookings={bookings}
+            userId={userId || ''}
           />
         )}
 
@@ -369,32 +389,30 @@ const AdminDashboard: React.FC = () => {
         {/* Bottom Row: Strategy & Team */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Pop-Up Events Engine */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Zap className="w-5 h-5 text-amber-500" />
-                <h2 className="font-semibold text-slate-900">Pop-Up Events Engine</h2>
-              </div>
-              {staffRole === 'admin' && (
+          {staffRole === 'admin' && (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Zap className="w-5 h-5 text-amber-500" />
+                  <h2 className="font-semibold text-slate-900">Pop-Up Events Engine</h2>
+                </div>
                 <button 
                   onClick={() => setShowEventModal(true)}
                   className="flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"
                 >
                   <Plus className="w-4 h-4" /> Add Event
                 </button>
-              )}
-            </div>
-            <div className="p-6 flex-1 bg-slate-50/50">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {events.length > 0 ? events.map(event => {
-                  const isActive = new Date(event.start_date) <= new Date() && new Date(event.end_date) >= new Date();
-                  return (
-                    <div key={event.id} className={`p-4 rounded-xl border ${isActive ? 'bg-gradient-to-br from-indigo-500 to-purple-600 border-transparent text-white shadow-md' : 'bg-white border-slate-200 text-slate-900'}`}>
-                      <div className="flex justify-between items-start mb-4">
-                        <h3 className="font-bold text-lg">{event.name}</h3>
-                        <div className="flex items-center gap-2">
-                          {isActive && <span className="bg-white/20 px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wider">Active</span>}
-                          {staffRole === 'admin' && (
+              </div>
+              <div className="p-6 flex-1 bg-slate-50/50">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {events.length > 0 ? events.map(event => {
+                    const isActive = new Date(event.start_date) <= new Date() && new Date(event.end_date) >= new Date();
+                    return (
+                      <div key={event.id} className={`p-4 rounded-xl border ${isActive ? 'bg-gradient-to-br from-indigo-500 to-purple-600 border-transparent text-white shadow-md' : 'bg-white border-slate-200 text-slate-900'}`}>
+                        <div className="flex justify-between items-start mb-4">
+                          <h3 className="font-bold text-lg">{event.name}</h3>
+                          <div className="flex items-center gap-2">
+                            {isActive && <span className="bg-white/20 px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wider">Active</span>}
                             <button 
                               onClick={async () => {
                                 try {
@@ -409,27 +427,35 @@ const AdminDashboard: React.FC = () => {
                             >
                               &times;
                             </button>
-                          )}
+                          </div>
                         </div>
+                        <div className="space-y-2">
+                          <div>
+                            <p className={`text-xs ${isActive ? 'text-indigo-100' : 'text-slate-500'}`}>Goal: {event.goal_type}</p>
+                            <p className="text-lg font-bold">
+                              {event.goal_type === 'Total Orders' ? `${event.target_goal} Orders` : `RM ${event.target_goal.toLocaleString()}`}
+                            </p>
+                          </div>
+                          <div>
+                            <p className={`text-xs ${isActive ? 'text-indigo-100' : 'text-slate-500'}`}>Reward</p>
+                            <p className="text-lg font-bold text-emerald-500">RM {event.reward_amount.toLocaleString()}</p>
+                          </div>
+                        </div>
+                        <p className={`text-xs mt-4 ${isActive ? 'text-indigo-200' : 'text-slate-400'}`}>
+                          {new Date(event.start_date).toLocaleDateString()} - {new Date(event.end_date).toLocaleDateString()}
+                        </p>
                       </div>
-                      <div className="space-y-1">
-                        <p className={`text-sm ${isActive ? 'text-indigo-100' : 'text-slate-500'}`}>Target Goal</p>
-                        <p className="text-xl font-bold">RM {event.target_goal.toLocaleString()}</p>
-                      </div>
-                      <p className={`text-xs mt-4 ${isActive ? 'text-indigo-200' : 'text-slate-400'}`}>
-                        {new Date(event.start_date).toLocaleDateString()} - {new Date(event.end_date).toLocaleDateString()}
-                      </p>
+                    );
+                  }) : (
+                    <div className="col-span-full text-center py-8 text-slate-500">
+                      <Zap className="w-8 h-8 mx-auto mb-3 text-slate-300" />
+                      <p>No active marketing events.</p>
                     </div>
-                  );
-                }) : (
-                  <div className="col-span-full text-center py-8 text-slate-500">
-                    <Zap className="w-8 h-8 mx-auto mb-3 text-slate-300" />
-                    <p>No active marketing events.</p>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Agent Leaderboard */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -495,16 +521,43 @@ const AdminDashboard: React.FC = () => {
                   onChange={e => setNewEvent({...newEvent, name: e.target.value})}
                 />
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Goal Type</label>
+                  <select 
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    value={newEvent.goal_type}
+                    onChange={e => setNewEvent({...newEvent, goal_type: e.target.value as any})}
+                  >
+                    <option value="Total Orders">Total Orders</option>
+                    <option value="Total Sales (RM)">Total Sales (RM)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    {newEvent.goal_type === 'Total Orders' ? 'Target Orders' : 'Target Sales (RM)'}
+                  </label>
+                  <input 
+                    type="number" 
+                    required
+                    min="1"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder={newEvent.goal_type === 'Total Orders' ? '10' : '5000'}
+                    value={newEvent.target_goal || ''}
+                    onChange={e => setNewEvent({...newEvent, target_goal: Number(e.target.value)})}
+                  />
+                </div>
+              </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Target Goal (RM)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Reward Amount (RM)</label>
                 <input 
                   type="number" 
                   required
                   min="0"
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="50000"
-                  value={newEvent.target_goal || ''}
-                  onChange={e => setNewEvent({...newEvent, target_goal: Number(e.target.value)})}
+                  placeholder="100"
+                  value={newEvent.reward_amount || ''}
+                  onChange={e => setNewEvent({...newEvent, reward_amount: Number(e.target.value)})}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">

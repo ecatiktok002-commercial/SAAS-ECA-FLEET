@@ -159,7 +159,9 @@ export interface MarketingEvent {
   id: string;
   subscriber_id: string;
   name: string;
+  goal_type: 'Total Orders' | 'Total Sales (RM)';
   target_goal: number;
+  reward_amount: number;
   start_date: string;
   end_date: string;
   created_at: string;
