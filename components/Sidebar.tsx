@@ -61,8 +61,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
       items.push({ name: 'Calendar', path: '/calendar', icon: <Calendar className="w-5 h-5" /> });
     }
 
-    // Fleet Guardian (Tier 3 only)
-    if (subscriptionTier === 'tier_3') {
+    // Fleet Guardian (Tier 3 only) - Exclusive access to Subscribers (Admins) only
+    if (isAdmin && subscriptionTier === 'tier_3') {
       items.push({ name: 'Fleet Guardian', path: '/fleet', icon: <Car className="w-5 h-5" /> });
     }
 

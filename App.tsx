@@ -62,7 +62,9 @@ const AppRoutes: React.FC = () => {
         {/* Tier 1: Digital Forms is available to everyone */}
         <Route index element={isSuperAdmin ? <Navigate to="/subscribers" replace /> : <AdminDashboard />} />
         <Route path="forms/*" element={<DigitalFormPage />} />
-        <Route path="customers" element={<CustomersPage />} />
+        <Route path="customers" element={
+          <TierGate minTier={1} allowStaff={false}><CustomersPage /></TierGate>
+        } />
 
         {/* Tier 2: Calendar Access */}
         <Route path="calendar" element={
@@ -71,7 +73,7 @@ const AppRoutes: React.FC = () => {
 
         {/* Tier 3: Fleet Guardian Access */}
         <Route path="fleet" element={
-          <TierGate minTier={3}><FleetGuardianPage /></TierGate>
+          <TierGate minTier={3} allowStaff={false}><FleetGuardianPage /></TierGate>
         } />
 
         {/* Role Gate: Only Subscribers (Owners) can see these */}
