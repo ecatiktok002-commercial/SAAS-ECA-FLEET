@@ -1,7 +1,6 @@
 
-import { createClient } from '@supabase/supabase-js';
 import { Booking, Car, Member, LogEntry, Expense, StaffMember, Agreement, DigitalForm, Company, MarketingEvent } from '../types';
-import { supabase, SUPABASE_URL, SUPABASE_KEY } from './supabase';
+import { supabase } from './supabase';
 
 // Service for managing fleet data
 const logSupabaseError = (context: string, error: any) => {
@@ -884,34 +883,23 @@ export const apiService = {
         if (user) targetSubscriberId = user.id;
       }
 
-      const uid = designatedUid || name.toLowerCase().replace(/\s+/g, '');
+      const uid = (designatedUid || name.toLowerCase().replace(/\s+/g, '')).trim().toLowerCase();
       const email = `${uid}@ecafleet.com`;
       const password = uid; // User requested UID as password
 
-      // 1. Create Auth User for the staff member
-      const tempSupabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-          detectSessionInUrl: false,
-          storage: {
-            getItem: () => null,
-            setItem: () => {},
-            removeItem: () => {}
-          }
+      // 1. Call the Edge Function to provision the account (bypasses rate limits)
+      const { data: provisionData, error: provisionError } = await supabase.functions.invoke('auth-provisioner-index-ts', {
+        body: { 
+          uid: uid, 
+          subscriber_id: targetSubscriberId 
         }
       });
 
-      const { data: authData, error: authError } = await tempSupabase.auth.signUp({
-        email,
-        password,
-      });
-
-      if (authError && !authError.message.includes('already registered')) {
-        throw new Error(`Failed to create auth user for staff: ${authError.message}`);
+      if (provisionError) {
+        throw new Error('System busy or UID already exists. Please check the Edge Function logs.');
       }
 
-      // 2. Auto-confirm the user and get their ID (handles existing users too)
+      // 2. Get the confirmed user ID (handles existing users too)
       const { data: confirmedId, error: rpcError } = await supabase.rpc('auto_confirm_user', { p_email: email });
       
       if (rpcError) {
@@ -919,8 +907,7 @@ export const apiService = {
       }
 
       // 3. Insert into staff_members table
-      // Use the ID from RPC (confirmedId) if available, otherwise fallback to authData or undefined
-      const staffId = confirmedId || authData.user?.id || undefined;
+      const staffId = confirmedId || (provisionData && provisionData.user?.id) || undefined;
 
       const { data, error } = await supabase
         .from('staff_members')
@@ -1101,47 +1088,34 @@ export const apiService = {
 
   async addCompany(name: string, tier: string, isTrial: boolean = false, expiryDate: string | null = null): Promise<Company> {
     return withRetry(async () => {
-      // Create a temporary Supabase client that doesn't persist session
-      // This allows us to sign up the new subscriber without logging out the superadmin
-      const tempSupabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-          detectSessionInUrl: false,
-          storage: {
-            getItem: () => null,
-            setItem: () => {},
-            removeItem: () => {}
-          }
-        }
-      });
-
       const sanitizedName = name.toLowerCase().replace(/\s+/g, '');
       const email = `${sanitizedName}@ecafleet.com`;
       const password = `${sanitizedName}Eca123!`; // Use strong password to avoid length/complexity errors
 
-      // 1. Create the user in auth.users
-      const { data: authData, error: authError } = await tempSupabase.auth.signUp({
-        email,
-        password,
+      // 1. Call the Edge Function to provision the account (bypasses rate limits)
+      const { data: provisionData, error: provisionError } = await supabase.functions.invoke('auth-provisioner-index-ts', {
+        body: { 
+          uid: sanitizedName, 
+          subscriber_id: sanitizedName // For new subscribers, we use their name as initial ID/context
+        }
       });
 
-      if (authError) {
-        throw new Error(`Failed to create auth user: ${authError.message}`);
+      if (provisionError) {
+        throw new Error('System busy or UID already exists. Please check the Edge Function logs.');
       }
 
-      const userId = authData.user?.id;
+      // 2. Get the confirmed user ID (handles existing users too)
+      const { data: confirmedId, error: rpcError } = await supabase.rpc('auto_confirm_user', { p_email: email });
+      if (rpcError) {
+        console.warn('Failed to auto-confirm user.', rpcError);
+      }
+
+      const userId = confirmedId || (provisionData && provisionData.user?.id);
       if (!userId) {
         throw new Error('Failed to create auth user: No user ID returned');
       }
 
-      // Auto-confirm the user using the main client (which has superadmin session)
-      const { error: confirmError } = await supabase.rpc('auto_confirm_user', { p_email: email });
-      if (confirmError) {
-        console.warn('Failed to auto-confirm user. They may need to verify their email manually.', confirmError);
-      }
-
-      // 2. Insert into subscribers table with the new user ID
+      // 3. Insert into subscribers table with the new user ID
       const { data, error } = await supabase
         .from('subscribers')
         .insert([{ 

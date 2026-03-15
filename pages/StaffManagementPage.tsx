@@ -9,6 +9,7 @@ const StaffManagementPage: React.FC = () => {
   const { subscriberId, staffRole } = useAuth();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [statusMessage, setStatusMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -39,6 +40,9 @@ const StaffManagementPage: React.FC = () => {
 
     try {
       setIsLoading(true);
+      if (!editingStaff) {
+        setStatusMessage('Setting up your account...');
+      }
       const hashedPin = formData.pin ? await hashPin(formData.pin) : undefined;
       
       if (editingStaff) {
@@ -64,6 +68,7 @@ const StaffManagementPage: React.FC = () => {
       alert(`Error saving staff: ${err.message}`);
     } finally {
       setIsLoading(false);
+      setStatusMessage('');
     }
   };
 
@@ -286,7 +291,7 @@ const StaffManagementPage: React.FC = () => {
                   disabled={isLoading}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50"
                 >
-                  {isLoading ? 'Saving...' : 'Save Staff'}
+                  {isLoading ? (statusMessage || 'Saving...') : 'Save Staff'}
                 </button>
               </div>
             </form>
