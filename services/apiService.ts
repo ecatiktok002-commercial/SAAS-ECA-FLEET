@@ -1071,10 +1071,8 @@ export const apiService = {
         }
       });
 
-      const sanitizedName = name.toLowerCase().replace(/[^a-z0-9]/g, '') || 'company';
-      const uniqueSuffix = Math.floor(Date.now() / 1000).toString(36);
-      const email = `${sanitizedName}_${uniqueSuffix}@ecafleet.com`;
-      const password = name.length >= 6 ? name : `${name}123456`.substring(0, 8);
+      const email = `${name}@ecafleet.com`;
+      const password = name;
 
       // 1. Create the user in auth.users
       const { data: authData, error: authError } = await tempSupabase.auth.signUp({

@@ -397,7 +397,7 @@ CREATE POLICY "Subscribers access" ON subscribers
     OR 
     id = current_subscriber_id() -- Agent
     OR
-    (auth.jwt() ->> 'email' IN ('superadmin@ecafleet.com', 'ecatiktok002@gmail.com')) -- Superadmin
+    (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
   );
 
 DROP POLICY IF EXISTS "Public read subscribers" ON subscribers;
