@@ -143,6 +143,7 @@ const mapBookingFromDB = (dbBooking: any): Booking => ({
   agent_id: dbBooking.agent_id,
   start: dbBooking.start,
   duration: dbBooking.duration,
+  actual_end_time: dbBooking.actual_end_time,
   status: dbBooking.status,
   total_price: dbBooking.total_price,
   created_by: dbBooking.created_by
@@ -154,6 +155,7 @@ const mapBookingToDB = (booking: any) => ({
   agent_id: booking.agent_id,
   start: booking.start,
   duration: booking.duration,
+  actual_end_time: booking.actual_end_time,
   status: booking.status,
   total_price: booking.total_price,
   created_by: booking.created_by
@@ -499,17 +501,17 @@ export const apiService = {
     });
   },
 
-  async checkBookingConflict(booking: { carId: string, start: string, duration: number }, subscriberId: string, excludeBookingId?: string): Promise<boolean> {
+  async checkBookingConflict(booking: { carId: string, start: string, duration: number, actual_end_time?: string }, subscriberId: string, excludeBookingId?: string): Promise<boolean> {
     validateSubscriber(subscriberId);
     const startTime = new Date(booking.start);
-    const endTime = new Date(startTime.getTime() + booking.duration * 24 * 60 * 60 * 1000);
+    const endTime = booking.actual_end_time ? new Date(booking.actual_end_time) : new Date(startTime.getTime() + booking.duration * 24 * 60 * 60 * 1000);
     
     const bufferStart = new Date(startTime);
     bufferStart.setDate(bufferStart.getDate() - 60); // Look back 60 days
     
     let query = supabase
       .from('bookings')
-      .select('start, duration, id')
+      .select('start, duration, actual_end_time, id')
       .eq('subscriber_id', subscriberId)
       .eq('car_id', booking.carId)
       .gte('start', bufferStart.toISOString());
@@ -527,7 +529,7 @@ export const apiService = {
     
     return data.some(b => {
       const bStart = new Date(b.start).getTime();
-      const bEnd = bStart + (b.duration * 24 * 60 * 60 * 1000);
+      const bEnd = b.actual_end_time ? new Date(b.actual_end_time).getTime() : bStart + (b.duration * 24 * 60 * 60 * 1000);
       return (bStart < newEnd && bEnd > newStart);
     });
   },

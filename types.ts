@@ -50,6 +50,7 @@ export interface Booking {
   agent_id?: string; // The staff member who created it
   start: string; // ISO string
   duration: number; // in days
+  actual_end_time?: string | null; // ISO string
   track?: number; // assigned vertical slot
   status?: 'active' | 'completed' | 'cancelled';
   total_price?: number;

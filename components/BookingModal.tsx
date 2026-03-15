@@ -45,6 +45,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
   // New state for Early Return logic
   const [isEarlyReturn, setIsEarlyReturn] = useState(false);
+  const [actualEndTime, setActualEndTime] = useState('');
 
   const [isHandoverOpen, setIsHandoverOpen] = useState(false);
   const [handoverRecords, setHandoverRecords] = useState<any[]>([]);
@@ -132,7 +133,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
            carId: car.id, 
            start: start.toISOString(), 
            duration: Number(duration),
-           memberId: '' // Dummy for validation
+           memberId: '', // Dummy for validation
+           ...(isEarlyReturn && actualEndTime ? { actual_end_time: new Date(actualEndTime).toISOString() } : { actual_end_time: null })
          };
          // Exclude current booking if editing
          const otherBookings = editingBooking 
@@ -143,7 +145,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
       map[model] = available.length;
     });
     return map;
-  }, [selectedDateTimeStr, duration, uniqueModels, cars, existingBookings, editingBooking]);
+  }, [selectedDateTimeStr, duration, uniqueModels, cars, existingBookings, editingBooking, isEarlyReturn, actualEndTime]);
 
   useEffect(() => {
     if (isOpen) {
@@ -157,6 +159,20 @@ const BookingModal: React.FC<BookingModalProps> = ({
         setCarId(editingBooking.carId);
         setMemberId(editingBooking.memberId || '');
         setDuration(editingBooking.duration);
+        
+        if (editingBooking.actual_end_time) {
+          setIsEarlyReturn(true);
+          const d = new Date(editingBooking.actual_end_time);
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          const hours = String(d.getHours()).padStart(2, '0');
+          const minutes = String(d.getMinutes()).padStart(2, '0');
+          setActualEndTime(`${year}-${month}-${day}T${hours}:${minutes}`);
+        } else {
+          setIsEarlyReturn(false);
+          setActualEndTime('');
+        }
         
         const car = cars.find(c => c.id === editingBooking.carId);
         if (car) setSelectedModel(car.name);
@@ -207,33 +223,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
     }
   }, [isOpen, initialDate, editingBooking, preselectedCarId, cars]);
 
-  // Effect to auto-calculate duration if "Early Return" is ticked
-  useEffect(() => {
-    if (isEarlyReturn && carId && selectedDateTimeStr) {
-        const start = new Date(selectedDateTimeStr).getTime();
-        // Find bookings for this car that start after the selected start time
-        const futureBookings = existingBookings
-             .filter(b => b.carId === carId && b.id !== editingBooking?.id)
-             .map(b => ({ ...b, startTime: new Date(b.start).getTime() }))
-             .filter(b => b.startTime > start)
-             .sort((a, b) => a.startTime - b.startTime);
-
-        if (futureBookings.length > 0) {
-            const nextBooking = futureBookings[0];
-            // Rule: Default return time must be -1 hour less than the next nearest upcoming booking
-            // Gap = NextStart - CurrentStart - 1 hour (3600000 ms)
-            const gapMs = nextBooking.startTime - start - (60 * 60 * 1000);
-            
-            if (gapMs > 0) {
-                const days = gapMs / (24 * 60 * 60 * 1000);
-                // Set duration with high precision
-                setDuration(Number(days.toFixed(4))); 
-            }
-        }
-    }
-  }, [isEarlyReturn, carId, selectedDateTimeStr, existingBookings, editingBooking]);
-
-
   // For specific mode: Calculate strictly available cars
   const selectedDate = selectedDateTimeStr ? new Date(selectedDateTimeStr) : null;
   const specificAvailableCars = selectedDate 
@@ -271,6 +260,12 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
     if (!selectedDateTimeStr) return setError('Please select a start date and time');
     if (!memberId) return setError('Please select a fleet member');
+    if (isEarlyReturn) {
+      if (!actualEndTime) return setError('Please select an actual end time');
+      if (new Date(actualEndTime).getTime() <= new Date(selectedDateTimeStr).getTime()) {
+        return setError('Actual end time must be after the start time');
+      }
+    }
     
     // Logic split based on mode
     let finalCarId = carId;
@@ -283,7 +278,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
         new Date(selectedDateTimeStr), 
         duration, 
         existingBookings.filter(b => b.id !== editingBooking?.id), 
-        cars
+        cars,
+        isEarlyReturn && actualEndTime ? new Date(actualEndTime).toISOString() : undefined
       );
 
       if (!foundCarId) {
@@ -293,7 +289,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
           new Date(selectedDateTimeStr),
           duration,
           existingBookings.filter(b => b.id !== editingBooking?.id),
-          cars
+          cars,
+          isEarlyReturn && actualEndTime ? new Date(actualEndTime).toISOString() : undefined
         );
 
         if (upgrade) {
@@ -318,7 +315,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
       carId: finalCarId,
       memberId,
       start: new Date(selectedDateTimeStr).toISOString(),
-      duration: Number(duration)
+      duration: Number(duration),
+      ...(isEarlyReturn && actualEndTime ? { actual_end_time: new Date(actualEndTime).toISOString() } : { actual_end_time: null })
     };
 
     // Double check validation for specific car (Category mode is already validated by findAvailableCarByModel)
@@ -580,6 +578,21 @@ const BookingModal: React.FC<BookingModalProps> = ({
               className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all font-semibold text-slate-700 text-sm disabled:opacity-60"
             />
           </div>
+
+          {isEarlyReturn && (
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Actual End Time
+              </label>
+              <input 
+                type="datetime-local" 
+                value={actualEndTime}
+                onChange={(e) => setActualEndTime(e.target.value)}
+                disabled={!isEditable}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all font-semibold text-slate-700 text-sm disabled:opacity-60"
+              />
+            </div>
+          )}
 
           {error && (
             <div className={`p-3 border rounded-xl text-xs font-bold flex flex-col gap-2 ${upgradeSuggestion ? 'bg-amber-50 border-amber-100 text-amber-700' : 'bg-rose-50 border-rose-100 text-rose-600'}`}>
