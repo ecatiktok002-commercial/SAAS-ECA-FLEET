@@ -65,6 +65,12 @@
 -- ALTER TABLE handover_records ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES subscribers(id) ON DELETE CASCADE;
 -- ALTER TABLE handover_records ADD COLUMN IF NOT EXISTS car_id UUID REFERENCES cars(id) ON DELETE CASCADE;
 -- ALTER TABLE handover_records ADD COLUMN IF NOT EXISTS booking_id UUID REFERENCES bookings(id) ON DELETE CASCADE;
+-- ALTER TABLE handover_records ADD COLUMN IF NOT EXISTS handover_type TEXT;
+-- ALTER TABLE handover_records ADD COLUMN IF NOT EXISTS mileage INTEGER;
+-- ALTER TABLE handover_records ADD COLUMN IF NOT EXISTS fuel_level TEXT;
+-- ALTER TABLE handover_records ADD COLUMN IF NOT EXISTS condition_details TEXT;
+-- ALTER TABLE handover_records ADD COLUMN IF NOT EXISTS photos_url TEXT[];
+-- ALTER TABLE handover_records ADD COLUMN IF NOT EXISTS is_disputed BOOLEAN DEFAULT FALSE;
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
