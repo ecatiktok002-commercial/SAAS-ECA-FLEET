@@ -395,9 +395,8 @@ BEGIN
     RETURN comp_id;
   END IF;
   
-  -- 2. Check if user is an agent (linked via designated_uid)
-  -- We use designated_uid to match the auth.uid()
-  SELECT subscriber_id INTO comp_id FROM staff_members WHERE designated_uid = auth.uid()::text LIMIT 1;
+  -- 2. Check if user is an agent (linked via id)
+  SELECT subscriber_id INTO comp_id FROM staff_members WHERE id = auth.uid() LIMIT 1;
   RETURN comp_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -424,7 +423,7 @@ CREATE POLICY "Staff members access" ON staff_members
   FOR ALL USING (
     auth.uid() = subscriber_id -- Subscriber
     OR 
-    designated_uid = auth.uid()::text -- Agent (can see/update self)
+    auth.uid() = id -- Agent (can see/update self)
   );
 
 -- 3. Cars
@@ -444,7 +443,7 @@ CREATE POLICY "Members access" ON members
   FOR ALL USING (
     auth.uid() = subscriber_id -- Subscriber
     OR 
-    (EXISTS (SELECT 1 FROM staff_members WHERE id = members.staff_id AND designated_uid = auth.uid()::text) AND subscriber_id = current_subscriber_id()) -- Agent
+    (EXISTS (SELECT 1 FROM staff_members WHERE id = members.staff_id AND id = auth.uid()) AND subscriber_id = current_subscriber_id()) -- Agent
   );
 
 -- 5. Bookings

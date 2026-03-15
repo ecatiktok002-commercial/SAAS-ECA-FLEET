@@ -46,54 +46,47 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         return;
       }
 
-      // Call RPC to detect role
-      const { data, error: rpcError } = await supabase.rpc('verify_login_uid', { p_uid: uid });
+      // 1. Check database for UID existence (RPC verify_login_uid)
+      const { data: roleData, error: rpcError } = await supabase.rpc('verify_login_uid', { p_uid: uid });
       
-      let roleData = data;
-
-      // Fallback if RPC is missing or fails
       if (rpcError || !roleData || roleData.role === 'unknown') {
-        let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-          email: `${uid}@ecafleet.com`,
-          password: `${uid}Eca123!`, // Try strong password first
-        });
-
-        if (authError) {
-          // Fallback to old password format
-          const fallback = await supabase.auth.signInWithPassword({
-            email: `${uid}@ecafleet.com`,
-            password: uid,
-          });
-          authData = fallback.data;
-          authError = fallback.error;
-        }
-
-        if (authError || !authData.user) {
-          throw new Error('Invalid UID. If you are a staff member, please ensure the database RPC is installed.');
-        }
-
-        // It's a company (Subscriber)
-        const { data: companyData } = await supabase
-          .from('subscribers')
-          .select('tier')
-          .eq('id', authData.user.id)
-          .single();
-
-        roleData = {
-          role: 'subscriber',
-          id: authData.user.id,
-          tier: companyData?.tier || 'tier_1',
-          company_code: uid
-        };
+        throw new Error('UID not registered in EcaFleet.');
       }
 
       setDetectedRole(roleData);
 
-      // Path B: Subscriber (Owner)
+      // 2. Attempt Supabase Auth Login
+      // For both Subscriber and Staff, we now use the UID-based email/password logic
+      const email = `${uid}@ecafleet.com`;
+      // For subscribers, we use the strong password format. For staff, we use the UID as password.
+      const password = roleData.role === 'subscriber' ? `${uid}Eca123!` : uid;
+
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authError) {
+        // Fallback for subscribers who might still be using legacy password
+        if (roleData.role === 'subscriber') {
+          const fallback = await supabase.auth.signInWithPassword({
+            email,
+            password: uid,
+          });
+          if (fallback.error) {
+            throw new Error('System Authentication Error: Please contact your Master Admin to verify your Auth account.');
+          }
+        } else {
+          throw new Error('System Authentication Error: Please contact your Master Admin to verify your Auth account.');
+        }
+      }
+
+      // Path B: Subscriber (Owner) - Log in immediately
       if (roleData.role === 'subscriber') {
-        await loginAsSubscriber(roleData);
+        login(roleData.id, 'admin', roleData.tier, roleData.company_code, roleData.company_code, roleData.company_code);
+        if (onLogin) onLogin(roleData.id);
       } 
-      // Path C: Staff (Agent)
+      // Path C: Staff (Agent) - Proceed to PIN step
       else if (roleData.role === 'staff') {
         setStep(2);
       } else {
@@ -104,33 +97,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       setError(err.message || 'Verification failed.');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loginAsSubscriber = async (roleData: any) => {
-    try {
-      // Ensure Supabase Auth session
-      let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: `${roleData.company_code}@ecafleet.com`,
-        password: `${roleData.company_code}Eca123!`, // Try strong password first
-      });
-
-      if (authError) {
-        // Fallback to old password format
-        const fallback = await supabase.auth.signInWithPassword({
-          email: `${roleData.company_code}@ecafleet.com`,
-          password: roleData.company_code,
-        });
-        authData = fallback.data;
-        authError = fallback.error;
-      }
-
-      if (authError) throw authError;
-
-      login(roleData.id, 'admin', roleData.tier, roleData.company_code, roleData.company_code, roleData.company_code);
-      if (onLogin) onLogin(roleData.id);
-    } catch (err: any) {
-      setError('Failed to login as Subscriber: ' + err.message);
     }
   };
 
@@ -156,51 +122,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         if (hashedInputPin !== detectedRole.pin_hash) {
           throw new Error('Incorrect PIN.');
         }
-      }
-
-      // Login to Supabase Auth as the Company to satisfy RLS
-      const sanitizedCode = detectedRole.company_code.toLowerCase().replace(/\s+/g, '');
-      
-      let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: `${sanitizedCode}@ecafleet.com`,
-        password: `${sanitizedCode}Eca123!`,
-      });
-
-      if (authError) {
-        // Try with original company code (legacy)
-        const original = await supabase.auth.signInWithPassword({
-          email: `${detectedRole.company_code}@ecafleet.com`,
-          password: `${detectedRole.company_code}Eca123!`,
-        });
-        
-        if (original.error) {
-          // Try fallback format for sanitized
-          const fallbackSanitized = await supabase.auth.signInWithPassword({
-            email: `${sanitizedCode}@ecafleet.com`,
-            password: sanitizedCode,
-          });
-          
-          if (fallbackSanitized.error) {
-            // Try fallback format for original
-            const fallbackOriginal = await supabase.auth.signInWithPassword({
-              email: `${detectedRole.company_code}@ecafleet.com`,
-              password: detectedRole.company_code,
-            });
-            
-            authData = fallbackOriginal.data;
-            authError = fallbackOriginal.error;
-          } else {
-            authData = fallbackSanitized.data;
-            authError = null;
-          }
-        } else {
-          authData = original.data;
-          authError = null;
-        }
-      }
-
-      if (authError) {
-        throw new Error(`Failed to authenticate with company credentials (${detectedRole.company_code}). Please ensure the Subscriber account is active.`);
       }
 
       // Log in via Context

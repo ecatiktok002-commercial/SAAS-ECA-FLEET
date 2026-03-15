@@ -884,14 +884,49 @@ export const apiService = {
         if (user) targetSubscriberId = user.id;
       }
 
+      const uid = designatedUid || name.toLowerCase().replace(/\s+/g, '');
+      const email = `${uid}@ecafleet.com`;
+      const password = uid; // User requested UID as password
+
+      // 1. Create Auth User for the staff member
+      const tempSupabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+          storage: {
+            getItem: () => null,
+            setItem: () => {},
+            removeItem: () => {}
+          }
+        }
+      });
+
+      const { data: authData, error: authError } = await tempSupabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (authError && !authError.message.includes('already registered')) {
+        throw new Error(`Failed to create auth user for staff: ${authError.message}`);
+      }
+
+      // 2. Auto-confirm the user
+      await supabase.rpc('auto_confirm_user', { p_email: email });
+
+      // 3. Insert into staff_members table
+      // If auth user was created, use its ID. Otherwise fallback to generated UUID
+      const staffId = authData.user?.id || undefined;
+
       const { data, error } = await supabase
         .from('staff_members')
         .insert([{ 
+          id: staffId,
           name, 
           subscriber_id: targetSubscriberId, 
           role, 
           pin_hash: pinHash,
-          designated_uid: designatedUid || name.toLowerCase().replace(/\s+/g, ''),
+          designated_uid: uid,
           commission_tier_override: commissionTierOverride
         }])
         .select()
