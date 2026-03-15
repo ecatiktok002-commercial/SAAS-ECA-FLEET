@@ -195,6 +195,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   agent_id UUID, -- The staff member who created it
   start TIMESTAMP WITH TIME ZONE NOT NULL,
   duration INTEGER NOT NULL,
+  end_time TIMESTAMP WITH TIME ZONE,
   status TEXT DEFAULT 'active',
   total_price NUMERIC DEFAULT 0,
   created_by TEXT,
@@ -297,11 +298,13 @@ CREATE TABLE IF NOT EXISTS handover_records (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   subscriber_id UUID NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
   booking_id UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-  type TEXT NOT NULL,
+  car_id UUID NOT NULL REFERENCES cars(id) ON DELETE CASCADE,
+  handover_type TEXT NOT NULL,
   mileage INTEGER,
-  fuel_level INTEGER,
-  notes TEXT,
+  fuel_level TEXT,
+  condition_details TEXT,
   photos_url TEXT[],
+  is_disputed BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -896,3 +899,31 @@ BEGIN
   END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 16. pg_cron for cleanup-expired-photos
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS pg_net;
+
+SELECT cron.schedule(
+  'cleanup-expired-photos-daily',
+  '0 0 * * *',
+  $$
+    SELECT net.http_post(
+      url:='https://' || current_setting('request.headers', true)::json->>'host' || '/functions/v1/cleanup-expired-photos',
+      headers:='{"Content-Type": "application/json", "Authorization": "Bearer ' || current_setting('request.headers', true)::json->>'apikey' || '"}'::jsonb,
+      body:='{}'::jsonb
+    );
+  $$
+);
+
+SELECT cron.schedule(
+  'cleanup-storage-daily',
+  '0 1 * * *', -- Run at 1 AM every day
+  $$
+    SELECT net.http_post(
+      url:='https://' || current_setting('request.headers', true)::json->>'host' || '/functions/v1/cleanup-storage',
+      headers:='{"Content-Type": "application/json", "Authorization": "Bearer ' || current_setting('request.headers', true)::json->>'apikey' || '"}'::jsonb,
+      body:='{}'::jsonb
+    );
+  $$
+);
