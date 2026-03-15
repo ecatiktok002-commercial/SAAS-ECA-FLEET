@@ -869,3 +869,16 @@ FROM customers c
 WHERE f.identity_number = c.ic_passport 
 AND f.subscriber_id = c.subscriber_id
 AND f.customer_id IS NULL;
+
+-- Function to link a newly signed-up auth user to an existing subscriber record
+CREATE OR REPLACE FUNCTION link_subscriber_auth(p_name TEXT, p_new_id UUID)
+RETURNS VOID AS $$
+BEGIN
+  -- Only allow updating if the new ID matches the currently authenticated user
+  IF auth.uid() = p_new_id THEN
+    UPDATE subscribers SET id = p_new_id WHERE name = p_name;
+  ELSE
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
