@@ -931,39 +931,51 @@ export const apiService = {
       const { data: subData } = await supabase.from('subscribers').select('name').eq('id', targetSubscriberId).single();
       const slug = subData?.name || targetSubscriberId;
 
-      const staffId = confirmedId || undefined;
+      // Construct the staff record dynamically to avoid sending 'id: null'
+      const staffRecord: any = { 
+        name, 
+        subscriber_id: slug, 
+        staff_uid: uid,
+        pin_code: pin || '1234', 
+        is_active: true
+      };
+
+      if (confirmedId) {
+        staffRecord.id = confirmedId;
+      }
 
       // Insert into the new 'staff' table (for Virtual Login)
-      const { data, error } = await supabase
+      const { data: newStaff, error: staffError } = await supabase
         .from('staff')
-        .insert([{ 
-          id: staffId,
-          name, 
-          subscriber_id: slug, 
-          staff_uid: uid,
-          pin_code: pin || '1234', 
-          is_active: true
-        }])
+        .insert([staffRecord])
         .select()
         .single();
 
+      if (staffError) {
+        logSupabaseError('addStaffMember (staff)', staffError);
+        throw new Error(staffError.message || 'Failed to add staff member');
+      }
+
+      // Use the ID from the first insert (either confirmedId or database-generated)
+      const finalId = newStaff.id;
+
       // Also insert into legacy 'staff_members' table (for FKs and RLS)
-      await supabase
+      const { error: legacyError } = await supabase
         .from('staff_members')
         .insert([{ 
-          id: staffId,
+          id: finalId,
           name, 
           subscriber_id: targetSubscriberId, 
           role, 
           designated_uid: uid,
           commission_tier_override: commissionTierOverride
         }]);
-
-      if (error) {
-        logSupabaseError('addStaffMember', error);
-        throw new Error(error.message || 'Failed to add staff member');
+      
+      if (legacyError) {
+        console.warn('Legacy staff_members insert failed:', legacyError);
       }
-      return mapStaffFromDB(data);
+
+      return mapStaffFromDB(newStaff);
     });
   },
 
