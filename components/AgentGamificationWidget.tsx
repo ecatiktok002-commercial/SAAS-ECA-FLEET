@@ -53,15 +53,12 @@ export const AgentGamificationWidget: React.FC<AgentGamificationWidgetProps> = (
 
   if (commissionTierOverride !== 'auto') {
     activeTier = { ...tiers[commissionTierOverride], name: `${tiers[commissionTierOverride].name} (Locked)` };
-    // If manually assigned to the top tier, ensure progress is 100% and nextTier is null
-    if (commissionTierOverride === 'privilege') {
-      nextTier = null;
-      remainingToNext = 0;
-      progressPercent = 100;
-    }
+    nextTier = null;
+    remainingToNext = 0;
+    progressPercent = 100;
   }
 
-  const isMaxTier = !nextTier || activeTier.name.includes('Privilege');
+  const isMaxTier = activeTier.name.includes('Privilege');
 
   const formatRM = (amount: number) => `RM ${amount.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 

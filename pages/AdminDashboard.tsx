@@ -215,15 +215,19 @@ const AdminDashboard: React.FC = () => {
       if (staffRole === 'staff') {
         const tierOverride = currentStaff?.commission_tier_override || 'auto';
         
-        const getCommissionRate = (sales: number) => {
+        const getCommissionForAmount = (amount: number, runningTotal: number) => {
           if (tierOverride !== 'auto') {
-            if (tierOverride === 'premium') return 0.20;
-            if (tierOverride === 'prestige') return 0.25;
-            if (tierOverride === 'privilege') return 0.30;
+            const rate = tierOverride === 'premium' ? 0.20 : tierOverride === 'prestige' ? 0.25 : 0.30;
+            return amount * rate;
           }
-          if (sales < 5000) return 0.20;
-          if (sales < 8000) return 0.25;
-          return 0.30;
+          
+          const getTotalCommission = (total: number) => {
+            if (total <= 5000) return total * 0.20;
+            if (total <= 8000) return (5000 * 0.20) + ((total - 5000) * 0.25);
+            return (5000 * 0.20) + (3000 * 0.25) + ((total - 8000) * 0.30);
+          };
+
+          return getTotalCommission(runningTotal + amount) - getTotalCommission(runningTotal);
         };
 
         // Calculate Weekly Commissions for last 90 days (Quarterly)
@@ -244,33 +248,46 @@ const AdminDashboard: React.FC = () => {
           weeklyData[label] = 0;
         }
 
+        // Group agreements by month and sort them by date for progressive calculation
+        const monthGroups: { [key: string]: Agreement[] } = {};
+        completedAgreements.forEach(a => {
+          const monthKey = a.created_at.substring(0, 7);
+          if (!monthGroups[monthKey]) monthGroups[monthKey] = [];
+          monthGroups[monthKey].push(a);
+        });
+
         let earnedToday = 0;
         let lifetime = 0;
         
-        completedAgreements.forEach(a => {
-          const date = new Date(a.created_at);
-          const dateStr = a.created_at.split('T')[0];
-          
-          // Use current month's tier for today's calculation, but for lifetime we should probably be consistent
-          const rate = getCommissionRate(salesThisMonth); 
-          const commission = a.total_price * rate;
-          
-          lifetime += commission;
-          
-          if (dateStr === todayStr) {
-            earnedToday += commission;
-          }
+        Object.keys(monthGroups).forEach(monthKey => {
+          // Sort agreements in this month by created_at
+          const monthAgreements = monthGroups[monthKey].sort((a, b) => 
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          );
 
-          // Group into weeks for the chart
-          const weekStart = new Date(date);
-          weekStart.setDate(date.getDate() - date.getDay());
-          const weekNum = Math.ceil(weekStart.getDate() / 7);
-          const monthName = monthNames[weekStart.getMonth()];
-          const label = `W${weekNum} - ${monthName}`;
-          
-          if (weeklyData[label] !== undefined) {
-            weeklyData[label] += commission;
-          }
+          let runningTotal = 0;
+          monthAgreements.forEach(a => {
+            const commission = getCommissionForAmount(a.total_price, runningTotal);
+            runningTotal += a.total_price;
+            lifetime += commission;
+
+            const dateStr = a.created_at.split('T')[0];
+            if (dateStr === todayStr) {
+              earnedToday += commission;
+            }
+
+            // Group into weeks for the chart
+            const date = new Date(a.created_at);
+            const weekStart = new Date(date);
+            weekStart.setDate(date.getDate() - date.getDay());
+            const weekNum = Math.ceil(weekStart.getDate() / 7);
+            const monthName = monthNames[weekStart.getMonth()];
+            const label = `W${weekNum} - ${monthName}`;
+            
+            if (weeklyData[label] !== undefined) {
+              weeklyData[label] += commission;
+            }
+          });
         });
 
         const chartData = Object.entries(weeklyData).map(([label, amount]) => ({
