@@ -229,9 +229,11 @@ const mapStaffFromDB = (dbStaff: any): StaffMember => ({
   id: dbStaff.id,
   subscriber_id: dbStaff.subscriber_id,
   name: dbStaff.name,
-  designated_uid: dbStaff.designated_uid,
+  designated_uid: dbStaff.staff_uid || dbStaff.designated_uid,
   pin_hash: dbStaff.pin_hash,
-  role: dbStaff.role,
+  pin_code: dbStaff.pin_code,
+  role: dbStaff.role || 'staff',
+  is_active: dbStaff.is_active,
   created_at: dbStaff.created_at,
   commission_tier_override: dbStaff.commission_tier_override
 });
@@ -239,9 +241,14 @@ const mapStaffFromDB = (dbStaff: any): StaffMember => ({
 const mapStaffToDB = (staff: any) => {
   const db: any = {};
   if (staff.name !== undefined) db.name = staff.name;
-  if (staff.designated_uid !== undefined) db.designated_uid = staff.designated_uid;
+  if (staff.designated_uid !== undefined) {
+    db.designated_uid = staff.designated_uid;
+    db.staff_uid = staff.designated_uid;
+  }
   if (staff.pin_hash !== undefined) db.pin_hash = staff.pin_hash;
+  if (staff.pin_code !== undefined) db.pin_code = staff.pin_code;
   if (staff.role !== undefined) db.role = staff.role;
+  if (staff.is_active !== undefined) db.is_active = staff.is_active;
   if (staff.commission_tier_override !== undefined) db.commission_tier_override = staff.commission_tier_override;
   return db;
 };
@@ -820,12 +827,31 @@ export const apiService = {
   async getStaffMembers(subscriberId: string): Promise<StaffMember[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
-      let query = supabase.from('staff_members').select('*');
-      query = query.eq('subscriber_id', subscriberId);
+      // We need to find the slug for this subscriberId (UUID)
+      const { data: subData } = await supabase.from('subscribers').select('name').eq('id', subscriberId).single();
+      const slug = subData?.name;
 
-      const { data, error } = await query;
+      let query = supabase.from('staff').select('*');
+      if (slug) {
+        query = query.eq('subscriber_id', slug);
+      } else {
+        // Fallback to UUID if slug not found (though unlikely)
+        query = query.eq('subscriber_id', subscriberId);
+      }
+      
+      // Try to filter by is_active, but handle cases where column might not exist yet
+      const { data, error } = await query.eq('is_active', true);
       
       if (error) {
+        // If the error is about the column not existing, try without the filter
+        if (error.message.includes('column staff.is_active does not exist')) {
+          const { data: fallbackData, error: fallbackError } = await query;
+          if (fallbackError) {
+            logSupabaseError('getStaffMembers (fallback)', fallbackError);
+            return [];
+          }
+          return (fallbackData || []).map(mapStaffFromDB);
+        }
         logSupabaseError('getStaffMembers', error);
         return [];
       }
@@ -836,33 +862,40 @@ export const apiService = {
   async getStaffMemberByUid(uid: string, subscriberId: string): Promise<StaffMember | null> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
+      // We need to find the slug for this subscriberId (UUID)
+      const { data: subData } = await supabase.from('subscribers').select('name').eq('id', subscriberId).single();
+      const slug = subData?.name || subscriberId;
+
       let query = supabase
-        .from('staff_members')
+        .from('staff')
         .select('*')
-        .eq('designated_uid', uid);
+        .eq('staff_uid', uid)
+        .eq('subscriber_id', slug)
+        .eq('is_active', true);
 
-      query = query.eq('subscriber_id', subscriberId);
-
-      const { data, error } = await query.single();
+      const { data, error } = await query.maybeSingle();
 
       if (error) {
-        if (error.code === 'PGRST116') return null; // Not found
         logSupabaseError('getStaffMemberByUid', error);
         return null;
       }
-      return mapStaffFromDB(data);
+      return data ? mapStaffFromDB(data) : null;
     });
   },
 
   async getStaffMemberByName(name: string, subscriberId: string): Promise<StaffMember | null> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
-      let query = supabase
-        .from('staff_members')
-        .select('*')
-        .eq('name', name);
+      // We need to find the slug for this subscriberId (UUID)
+      const { data: subData } = await supabase.from('subscribers').select('name').eq('id', subscriberId).single();
+      const slug = subData?.name || subscriberId;
 
-      query = query.eq('subscriber_id', subscriberId);
+      let query = supabase
+        .from('staff')
+        .select('*')
+        .eq('name', name)
+        .eq('subscriber_id', slug)
+        .eq('is_active', true);
 
       const { data, error } = await query.maybeSingle();
 
@@ -874,7 +907,7 @@ export const apiService = {
     });
   },
 
-  async addStaffMember(name: string, subscriberId: string, role: 'admin' | 'staff' = 'staff', pinHash?: string, designatedUid?: string, commissionTierOverride: 'auto' | 'premium' | 'prestige' | 'privilege' = 'auto'): Promise<StaffMember> {
+  async addStaffMember(name: string, subscriberId: string, role: 'admin' | 'staff' = 'staff', pin?: string, designatedUid?: string, commissionTierOverride: 'auto' | 'premium' | 'prestige' | 'privilege' = 'auto'): Promise<StaffMember> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let targetSubscriberId = subscriberId;
@@ -893,22 +926,38 @@ export const apiService = {
         console.error('RPC Error in auto_confirm_user:', rpcError);
       }
 
-      // 2. Insert into staff_members table
+      // 2. Insert into both tables for compatibility
+      // We need the subscriber slug
+      const { data: subData } = await supabase.from('subscribers').select('name').eq('id', targetSubscriberId).single();
+      const slug = subData?.name || targetSubscriberId;
+
       const staffId = confirmedId || undefined;
 
+      // Insert into the new 'staff' table (for Virtual Login)
       const { data, error } = await supabase
+        .from('staff')
+        .insert([{ 
+          id: staffId,
+          name, 
+          subscriber_id: slug, 
+          staff_uid: uid,
+          pin_code: pin || '1234', 
+          is_active: true
+        }])
+        .select()
+        .single();
+
+      // Also insert into legacy 'staff_members' table (for FKs and RLS)
+      await supabase
         .from('staff_members')
         .insert([{ 
           id: staffId,
           name, 
           subscriber_id: targetSubscriberId, 
           role, 
-          pin_hash: pinHash,
           designated_uid: uid,
           commission_tier_override: commissionTierOverride
-        }])
-        .select()
-        .single();
+        }]);
 
       if (error) {
         logSupabaseError('addStaffMember', error);
@@ -921,16 +970,34 @@ export const apiService = {
   async updateStaffMember(staffId: string, subscriberId: string, updates: Partial<StaffMember>): Promise<StaffMember> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
-      let query = supabase
-        .from('staff_members')
-        .update(mapStaffToDB(updates))
-        .eq('id', staffId);
-      
-      query = query.eq('subscriber_id', subscriberId);
+      // Map StaffMember updates to DB fields
+      const dbUpdates: any = {};
+      if (updates.name !== undefined) dbUpdates.name = updates.name;
+      if (updates.designated_uid !== undefined) dbUpdates.staff_uid = updates.designated_uid;
+      if (updates.pin_code !== undefined) dbUpdates.pin_code = updates.pin_code;
+      if (updates.is_active !== undefined) dbUpdates.is_active = updates.is_active;
 
-      const { data, error } = await query
+      // Update 'staff' table
+      const { data, error } = await supabase
+        .from('staff')
+        .update(dbUpdates)
+        .eq('id', staffId)
         .select()
         .single();
+
+      // Update 'staff_members' table for compatibility
+      const legacyUpdates: any = {};
+      if (updates.name !== undefined) legacyUpdates.name = updates.name;
+      if (updates.designated_uid !== undefined) legacyUpdates.designated_uid = updates.designated_uid;
+      if (updates.role !== undefined) legacyUpdates.role = updates.role;
+      if (updates.commission_tier_override !== undefined) legacyUpdates.commission_tier_override = updates.commission_tier_override;
+      
+      if (Object.keys(legacyUpdates).length > 0) {
+        await supabase
+          .from('staff_members')
+          .update(legacyUpdates)
+          .eq('id', staffId);
+      }
 
       if (error) {
         logSupabaseError('updateStaffMember', error);
@@ -943,22 +1010,14 @@ export const apiService = {
   async deleteStaffMember(staffId: string, subscriberId: string): Promise<void> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
-      let query = supabase
-        .from('staff_members')
-        .delete()
+      const { error } = await supabase
+        .from('staff')
+        .update({ is_active: false })
         .eq('id', staffId);
       
-      query = query.eq('subscriber_id', subscriberId);
-
-      const { error, count } = await query.select();
-
       if (error) {
         logSupabaseError('deleteStaffMember', error);
-        throw new Error(`Failed to delete staff member: ${error.message}`);
-      }
-      
-      if (count === 0) {
-        console.warn(`No staff member found with ID ${staffId} for subscriber ${subscriberId}`);
+        throw new Error('Failed to disable staff member');
       }
     });
   },

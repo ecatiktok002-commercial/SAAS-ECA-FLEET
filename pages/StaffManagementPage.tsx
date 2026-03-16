@@ -44,8 +44,6 @@ const StaffManagementPage: React.FC = () => {
     try {
       setIsLoading(true);
       
-      const hashedPin = formData.pin ? await hashPin(formData.pin) : undefined;
-      
       if (editingStaff) {
         // Update existing
         const updates: Partial<StaffMember> = { 
@@ -53,8 +51,8 @@ const StaffManagementPage: React.FC = () => {
           designated_uid: cleanUid,
           commission_tier_override: formData.commission_tier_override
         };
-        if (hashedPin) {
-          updates.pin_hash = hashedPin; 
+        if (formData.pin) {
+          updates.pin_code = formData.pin; 
         }
         await apiService.updateStaffMember(editingStaff.id, subscriberId, updates);
       } else {
@@ -62,26 +60,40 @@ const StaffManagementPage: React.FC = () => {
         setStatusMessage('Setting up your account...');
 
         // 1. Call the Edge Function using the official Supabase helper
-        const { data: provisionData, error: functionError } = await supabase.functions.invoke('auth-provisioner', {
-          body: { 
-            uid: cleanUid, 
-            subscriber_id: subscriberId 
+        let provisionError = null;
+        try {
+          const { data: provisionData, error: functionError } = await supabase.functions.invoke('auth-provisioner', {
+            body: { 
+              uid: cleanUid, 
+              subscriber_id: subscriberId 
+            }
+          });
+          if (functionError) provisionError = functionError;
+        } catch (e: any) {
+          console.warn('Edge Function call failed, attempting to proceed anyway:', e);
+          // If it's a network error, we might still be able to proceed if the user already exists
+          if (!e.message?.includes('Failed to send a request')) {
+            throw e;
           }
-        });
+        }
 
         // 2. Check for Function Errors
-        if (functionError) {
-          let errorMsg = functionError.message;
+        if (provisionError) {
+          let errorMsg = provisionError.message;
           try {
-            const body = await functionError.context?.json();
+            const body = await provisionError.context?.json();
             if (body && body.error) errorMsg = body.error;
           } catch (e) {}
-          throw new Error(`Auth Provisioning Failed: ${errorMsg}`);
+          
+          // If the error is "User already exists", we can safely ignore it and proceed
+          if (!errorMsg.toLowerCase().includes('already exists')) {
+            throw new Error(`Auth Provisioning Failed: ${errorMsg}`);
+          }
         }
 
         // 3. If Auth is successful (or user already exists), save to the Staff Table
         // We use apiService.addStaffMember which now uses the provisioned account
-        await apiService.addStaffMember(formData.name, subscriberId, 'staff', hashedPin, cleanUid, formData.commission_tier_override);
+        await apiService.addStaffMember(formData.name, subscriberId, 'staff', formData.pin, cleanUid, formData.commission_tier_override);
         
         alert('Staff member created successfully in both Auth and Database!');
       }

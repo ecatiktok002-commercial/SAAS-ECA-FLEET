@@ -38,7 +38,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     }
 
     setLoading(true);
-    setStatusMessage('');
+    setStatusMessage('Verifying...');
     setError('');
 
     try {
@@ -49,91 +49,72 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         return;
       }
 
-      // 2. Database Check: Does this UID exist in our records? (Step A)
-      const { data: roleData, error: rpcError } = await supabase.rpc('verify_login_uid', { p_uid: uid });
-      
-      if (rpcError || !roleData || roleData.role === 'unknown') {
-        throw new Error('UID not registered in EcaFleet.');
+      // 1. The Parallel Check
+      // Task A: Query the staff table (via RPC)
+      // Task B: Attempt Master Login
+      const [staffCheck, authCheck] = await Promise.all([
+        supabase.rpc('verify_login_uid', { p_uid: uid }),
+        supabase.auth.signInWithPassword({
+          email: `${uid}@ecafleet.com`,
+          password: uid,
+        }).catch(err => ({ data: { user: null, session: null }, error: err }))
+      ]);
+
+      const staffData = staffCheck.data;
+      const authData = authCheck.data;
+      const authError = authCheck.error;
+
+      // 2. Handling the Results
+      if (staffData && staffData.role === 'disabled_staff') {
+        throw new Error('Account disabled. Please contact your manager.');
       }
 
-      setDetectedRole(roleData);
+      // IF Task A (Staff) is found
+      if (staffData && staffData.role === 'staff') {
+        setDetectedRole(staffData);
+        setStep(2); // Show the PIN Input Overlay
+        setLoading(false);
+        return;
+      }
 
-      // 3. Attempt Official Supabase Login (Step B)
-      const email = `${uid}@ecafleet.com`;
-      const password = roleData.role === 'subscriber' ? `${uid}Eca123!` : uid;
+      // ELSE IF Task B (Master Login) is successful
+      if (authData?.user && !authError) {
+        // This is a Subscriber.
+        // We need the subscriber metadata (tier, id)
+        let subData = staffData;
+        if (!subData || subData.role !== 'subscriber') {
+          const { data } = await supabase.rpc('verify_login_uid', { p_uid: uid });
+          subData = data;
+        }
 
-      let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+        if (subData && subData.role === 'subscriber') {
+          localStorage.setItem('current_subscriber_id', subData.id);
+          login(subData.id, 'admin', subData.tier, subData.id, subData.company_code, subData.company_code);
+          if (onLogin) onLogin(subData.id);
+          return;
+        }
+      }
 
-      // 4. THE AUTO-REPAIR LOGIC (Step C)
-      // If Auth fails because user not found or invalid credentials (which happens if auth account missing)
-      if (authError && (authError.message.includes('Invalid login credentials') || authError.message.includes('User not found') || authError.message.includes('Email not confirmed'))) {
-        console.log("Repairing missing Auth account for:", uid);
-        setStatusMessage('Setting up your account...');
+      // Special case for subscribers who might have a different password (legacy)
+      if (staffData && staffData.role === 'subscriber') {
+        const sharedUid = staffData.company_code.toLowerCase();
+        const email = `${sharedUid}@ecafleet.com`;
+        const subscriberPassword = `${sharedUid}Eca123!`;
+        const fallback = await supabase.auth.signInWithPassword({
+          email,
+          password: subscriberPassword,
+        });
         
-        try {
-          // Call the Edge Function to provision the account
-          const { error: provisionError } = await supabase.functions.invoke('auth-provisioner', {
-            body: { 
-              uid: uid, 
-              subscriber_id: roleData.role === 'staff' ? roleData.subscriber_id : roleData.id 
-            }
-          });
-
-          if (provisionError) {
-            console.error('Provisioning error:', provisionError);
-            // Don't throw yet, try fallback or original error
-          } else {
-            // Retry login now that the account should be provisioned
-            const retry = await supabase.auth.signInWithPassword({
-              email,
-              password,
-            });
-            
-            if (!retry.error) {
-              authData = retry.data;
-              authError = null;
-            }
-          }
-        } catch (repairErr: any) {
-          console.error('Auth repair failed:', repairErr);
-        } finally {
-          setStatusMessage('');
+        if (!fallback.error) {
+          localStorage.setItem('current_subscriber_id', staffData.id);
+          login(staffData.id, 'admin', staffData.tier, staffData.id, staffData.company_code, staffData.company_code);
+          if (onLogin) onLogin(staffData.id);
+          return;
         }
       }
 
-      if (authError) {
-        // Fallback for subscribers who might still be using legacy password
-        if (roleData.role === 'subscriber') {
-          const fallback = await supabase.auth.signInWithPassword({
-            email,
-            password: uid,
-          });
-          if (fallback.error) {
-            throw new Error('System Authentication Error: Please contact your Master Admin to verify your Auth account.');
-          }
-          authData = fallback.data;
-        } else {
-          throw new Error('System Authentication Error: Please contact your Master Admin to verify your Auth account.');
-        }
-      }
-
-      // 5. Success - Standard Login
-      if (roleData.role === 'subscriber') {
-        // Save subscriber context (matches user's navigateToDashboard logic)
-        localStorage.setItem('current_subscriber_id', roleData.id);
-        login(roleData.id, 'admin', roleData.tier, roleData.company_code, roleData.company_code, roleData.company_code);
-        if (onLogin) onLogin(roleData.id);
-      } 
-      else if (roleData.role === 'staff') {
-        // Save subscriber context (matches user's navigateToDashboard logic)
-        localStorage.setItem('current_subscriber_id', roleData.subscriber_id);
-        setStep(2);
-      } else {
-        throw new Error('Unknown role detected.');
-      }
+      // ELSE: Show 'Invalid UID or Credentials'
+      throw new Error('Invalid UID or Credentials');
 
     } catch (err: any) {
       setError(err.message || 'Verification failed.');
@@ -146,11 +127,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const handleStaffLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pin) {
-      setError('Please enter your PIN.');
+      setError('Please enter your Security PIN.');
       return;
     }
 
     setLoading(true);
+    setStatusMessage('Verifying PIN...');
     setError('');
 
     try {
@@ -158,16 +140,74 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         throw new Error('Invalid state. Please restart login.');
       }
 
-      // Verify PIN
-      if (detectedRole.pin_hash) {
+      // Step 3: The PIN & Session Isolation
+      // Compare input PIN to the pin_code retrieved in Step 1
+      if (detectedRole.pin_code) {
+        if (pin !== detectedRole.pin_code) {
+          throw new Error('Incorrect Security PIN.');
+        }
+      } else if (detectedRole.pin_hash) {
+        // Fallback to hashed PIN if using legacy staff_members table
         const hashedInputPin = await hashPin(pin);
         if (hashedInputPin !== detectedRole.pin_hash) {
-          throw new Error('Incorrect PIN.');
+          throw new Error('Incorrect Security PIN.');
+        }
+      } else {
+        throw new Error('No PIN configured for this account. Contact Admin.');
+      }
+
+      // Once PIN is verified, perform the Hidden Master Login for the staff member's company
+      const sharedUid = (detectedRole.subscriber_slug || '').toLowerCase();
+      const email = `${sharedUid}@ecafleet.com`;
+      const password = sharedUid;
+
+      let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      // THE AUTO-REPAIR LOGIC
+      if (authError && (authError.message.includes('Invalid login credentials') || authError.message.includes('User not found'))) {
+        console.log("Repairing missing Shared Auth account for:", sharedUid);
+        setStatusMessage('Setting up company access...');
+        
+        try {
+          const { error: provisionError } = await supabase.functions.invoke('auth-provisioner', {
+            body: { 
+              uid: sharedUid, 
+              subscriber_id: detectedRole.subscriber_id 
+            }
+          });
+
+          if (!provisionError) {
+            const retry = await supabase.auth.signInWithPassword({
+              email,
+              password,
+            });
+            if (!retry.error) {
+              authData = retry.data;
+              authError = null;
+            }
+          }
+        } catch (repairErr) {
+          console.error('Auth repair failed:', repairErr);
         }
       }
 
-      // Log in via Context
-      login(detectedRole.subscriber_id, 'staff', detectedRole.tier || 'tier_1', detectedRole.staff_id, detectedRole.staff_name, detectedRole.designated_uid);
+      if (authError) {
+        throw new Error('Company access failed. Please contact your Master Admin.');
+      }
+
+      // Success! Log in via Context
+      // We save the staff's specific identity to the session
+      login(
+        detectedRole.subscriber_id, 
+        'staff', 
+        detectedRole.tier || 'tier_1', 
+        detectedRole.staff_id, 
+        detectedRole.staff_name, 
+        detectedRole.staff_uid || detectedRole.designated_uid
+      );
       
       if (onLogin) {
         onLogin(detectedRole.subscriber_id);

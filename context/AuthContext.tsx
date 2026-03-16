@@ -86,6 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUserName(isSuperAdmin ? 'Super Admin' : (session.user.user_metadata?.full_name || getDisplayId(session.user)));
         
         const storedRole = localStorage.getItem('staffRole') as StaffRole;
+        const storedSubscriberId = localStorage.getItem('subscriberId');
         const storedTier = localStorage.getItem('subscriptionTier');
         const storedName = localStorage.getItem('userName');
         const storedUserId = localStorage.getItem('userId');
@@ -93,6 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (storedRole) {
           setStaffRole(storedRole);
+          if (storedSubscriberId) setSubscriberId(storedSubscriberId);
           if (storedTier) setSubscriptionTier(normalizeTier(storedTier));
           if (storedName) setUserName(storedName);
           if (storedUserId) setUserId(storedUserId);
@@ -167,6 +169,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSubscriberId(id);
     setStaffRole(role);
     setSubscriptionTier(normalizedTier);
+    localStorage.setItem('subscriberId', id);
     if (uId) {
       setUserId(uId);
       localStorage.setItem('userId', uId);
@@ -191,6 +194,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUserUid(null);
     setStaffRole(null);
     setSubscriptionTier(null);
+    localStorage.removeItem('subscriberId');
     localStorage.removeItem('staffRole');
     localStorage.removeItem('subscriptionTier');
     localStorage.removeItem('userName');

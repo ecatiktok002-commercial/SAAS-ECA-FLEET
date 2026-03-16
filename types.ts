@@ -89,7 +89,9 @@ export interface StaffMember {
   name: string;
   designated_uid: string;
   pin_hash?: string; // Hashed PIN
+  pin_code?: string; // Plain text PIN for new staff table
   role?: 'admin' | 'staff';
+  is_active?: boolean;
   created_at?: string;
   commission_tier_override?: 'auto' | 'premium' | 'prestige' | 'privilege';
 }

@@ -146,6 +146,20 @@ ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMP WITH TIME
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS subscription_start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW();
 
 -- 2. Staff Members
+CREATE TABLE IF NOT EXISTS public.staff (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    name TEXT NOT NULL,
+    staff_uid TEXT UNIQUE NOT NULL,    -- 'idmichael'
+    pin_code TEXT NOT NULL,            -- '1234'
+    subscriber_id TEXT NOT NULL,       -- 'ecateam'
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+
+CREATE INDEX IF NOT EXISTS idx_staff_lookup ON public.staff(staff_uid, subscriber_id);
+
 CREATE TABLE IF NOT EXISTS staff_members (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   subscriber_id UUID NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
@@ -437,13 +451,13 @@ CREATE POLICY "Cars access" ON cars
   );
 
 -- 4. Members (Customers)
--- Subscriber can see all. Agent can only see members where they are the assigned staff.
+-- Subscriber can see all. Agent can see all members belonging to their subscriber.
 DROP POLICY IF EXISTS "Members access" ON members;
 CREATE POLICY "Members access" ON members 
   FOR ALL USING (
     auth.uid() = subscriber_id -- Subscriber
     OR 
-    (EXISTS (SELECT 1 FROM staff_members WHERE id = members.staff_id AND id = auth.uid()) AND subscriber_id = current_subscriber_id()) -- Agent
+    subscriber_id = current_subscriber_id() -- Agent or Subscriber (via helper)
   );
 
 -- 5. Bookings
@@ -562,7 +576,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS tr_sync_staff_to_member ON staff_members;
 CREATE TRIGGER tr_sync_staff_to_member
@@ -729,14 +743,36 @@ CREATE OR REPLACE FUNCTION verify_login_uid(p_uid TEXT)
 RETURNS JSON AS $$
 DECLARE
   v_company subscribers%ROWTYPE;
-  v_staff staff_members%ROWTYPE;
+  v_staff public.staff%ROWTYPE;
 BEGIN
   IF p_uid = 'superadmin' THEN
     RETURN json_build_object('role', 'superadmin');
   END IF;
 
-  -- Check if it's a company (Subscriber)
-  -- We assume the company name/code is used as the UID
+  -- Step 1: The Identity Lookup
+  SELECT * INTO v_staff FROM public.staff WHERE staff_uid = p_uid LIMIT 1;
+  
+  IF FOUND THEN
+    IF v_staff.is_active = false THEN
+      RETURN json_build_object('role', 'disabled_staff');
+    END IF;
+
+    -- We also need the real subscriber UUID for the app's internal filtering
+    SELECT * INTO v_company FROM subscribers WHERE name ILIKE v_staff.subscriber_id LIMIT 1;
+    
+    RETURN json_build_object(
+      'role', 'staff', 
+      'subscriber_id', v_company.id, -- UUID for filtering
+      'subscriber_slug', v_staff.subscriber_id, -- 'ecateam' for login
+      'staff_id', v_staff.id, 
+      'staff_name', v_staff.name, 
+      'staff_uid', v_staff.staff_uid,
+      'pin_code', v_staff.pin_code,
+      'tier', v_company.tier
+    );
+  END IF;
+
+  -- Fallback for direct subscriber login (Master Login)
   SELECT * INTO v_company FROM subscribers WHERE name ILIKE p_uid LIMIT 1;
   IF FOUND THEN
     RETURN json_build_object(
@@ -744,23 +780,6 @@ BEGIN
       'id', v_company.id, 
       'tier', v_company.tier, 
       'company_code', v_company.name
-    );
-  END IF;
-
-  -- Check if it's a staff member
-  SELECT * INTO v_staff FROM staff_members WHERE designated_uid ILIKE p_uid LIMIT 1;
-  IF FOUND THEN
-    -- Get the company code to allow Supabase Auth login behind the scenes
-    SELECT * INTO v_company FROM subscribers WHERE id = v_staff.subscriber_id LIMIT 1;
-    RETURN json_build_object(
-      'role', 'staff', 
-      'subscriber_id', v_staff.subscriber_id, 
-      'company_code', v_company.name,
-      'staff_id', v_staff.id, 
-      'staff_name', v_staff.name, 
-      'designated_uid', v_staff.designated_uid,
-      'pin_hash', v_staff.pin_hash,
-      'tier', v_company.tier
     );
   END IF;
 
