@@ -128,6 +128,7 @@ export interface Agreement {
   details?: string;
   created_by?: string;
   created_at: string;
+  booking_id?: string | null;
 }
 
 export interface DigitalForm {

@@ -171,6 +171,8 @@ export default function SignAgreement() {
             }}
             brandSettings={{
               logoUrl: company?.logo_url,
+              ssmLogoUrl: company?.ssm_logo_url,
+              spdpLogoUrl: company?.spdp_logo_url,
               companyName: company?.name,
               address: company?.address,
               contact: company?.contact
@@ -199,18 +201,9 @@ export default function SignAgreement() {
 
         {/* 1. Header (Corporate Identity) */}
         <div className="p-8 sm:p-10 print:p-0 border-b border-slate-200 print:border-b-2 print:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white print:mb-2 print:flex-row print:items-center print:page-break-inside-avoid">
-          <div className="flex items-center w-full sm:w-auto mb-6 sm:mb-0 print:mb-0">
-            {/* Left: Company Logo Placeholder */}
-            <div className="h-20 w-20 print:h-12 print:w-12 bg-slate-100 rounded-lg flex items-center justify-center mr-6 print:mr-3 border border-slate-200 flex-shrink-0">
-              {company?.logo_url ? (
-                <img src={company.logo_url} alt="Company Logo" className="h-full w-full object-contain p-2 print:p-1" />
-              ) : (
-                <span className="text-xs text-slate-400 font-medium">LOGO</span>
-              )}
-            </div>
-            
-            {/* Center: Company Name & Details */}
-            <div>
+          <div className="flex flex-col w-full sm:w-auto mb-6 sm:mb-0 print:mb-0">
+            {/* Company Name & Details */}
+            <div className="text-center sm:text-left">
               <h1 className="text-2xl sm:text-3xl print:text-lg font-bold tracking-tight text-slate-900 mb-1 print:mb-0 uppercase">{company?.name || 'ECA GROUP TRAVEL & TOURS SDN BHD'}</h1>
               <p className="text-slate-500 text-sm print:text-[8pt] font-medium print:leading-tight">
                 {company?.address || '011-55582106 | NO 21-B, JALAN SUARASA 8/3, BANDAR TUN HUSSEIN ONN, 43200 CHERAS, SELANGOR'}
@@ -482,8 +475,15 @@ export default function SignAgreement() {
           </section>
         </div>
 
-        {/* Official Footer */}
-        <div className="bg-white border-t border-slate-200 print:border-slate-800 p-8 print:p-2 flex justify-between items-end mt-12 print:mt-auto print:page-break-inside-avoid print:mb-0">
+        {/* Official Footer with 3 Logos */}
+        <div className="bg-white border-t border-slate-200 print:border-slate-800 p-8 print:p-2 flex justify-between items-center mt-12 print:mt-auto print:page-break-inside-avoid print:mb-0">
+          <div className="h-16 w-32 print:h-8 print:w-16 bg-slate-50 print:bg-transparent border border-slate-200 print:border-none rounded-lg print:rounded-none flex items-center justify-center text-xs print:text-[6pt] font-bold text-slate-400 overflow-hidden">
+            {company?.logo_url ? (
+              <img src={company.logo_url} alt="Company Logo" className="h-full w-full object-contain p-1 print:p-0" />
+            ) : (
+              "LOGO"
+            )}
+          </div>
           <div className="h-16 w-32 print:h-8 print:w-16 bg-slate-50 print:bg-transparent border border-slate-200 print:border-none rounded-lg print:rounded-none flex items-center justify-center text-xs print:text-[6pt] font-bold text-slate-400 overflow-hidden">
             {company?.ssm_logo_url ? (
               <img src={company.ssm_logo_url} alt="SSM Logo" className="h-full w-full object-contain p-1 print:p-0" />

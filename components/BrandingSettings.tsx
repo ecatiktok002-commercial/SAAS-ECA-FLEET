@@ -45,8 +45,8 @@ export default function BrandingSettings() {
     const file = e.target.files?.[0];
     if (file) {
       // Check file size (limit to 1MB for Base64 storage in TEXT column)
-      if (file.size > 1024 * 1024) {
-        alert('Image size too large. Please upload images smaller than 1MB.');
+      if (file.size > 2 * 1024 * 1024) {
+        alert('Image size too large. Please upload images smaller than 2MB.');
         return;
       }
       const reader = new FileReader();
@@ -65,9 +65,13 @@ export default function BrandingSettings() {
       await apiService.updateCompanySettings(subscriberId, settings);
       setMessage('Branding settings saved successfully!');
       setTimeout(() => setMessage(''), 3000);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Save error', error);
-      setMessage('An error occurred while saving.');
+      if (error.message?.includes('column')) {
+        setMessage('Database error: Missing columns. Please run the SQL fix provided.');
+      } else {
+        setMessage('An error occurred while saving. Check your internet connection.');
+      }
     } finally {
       setSaving(false);
     }

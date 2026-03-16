@@ -131,6 +131,10 @@ CREATE TABLE IF NOT EXISTS subscribers (
   is_active BOOLEAN DEFAULT TRUE,
   status TEXT DEFAULT 'ACTIVE',
   is_trial BOOLEAN DEFAULT FALSE,
+  logo_url TEXT,
+  ssm_logo_url TEXT,
+  spdp_logo_url TEXT,
+  address TEXT,
   expiry_date TIMESTAMP WITH TIME ZONE,
   subscription_start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -142,6 +146,10 @@ ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS tier TEXT DEFAULT 'Tier 1';
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'ACTIVE';
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS is_trial BOOLEAN DEFAULT FALSE;
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS logo_url TEXT;
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS ssm_logo_url TEXT;
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS spdp_logo_url TEXT;
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS address TEXT;
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMP WITH TIME ZONE;
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS subscription_start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW();
 
@@ -268,7 +276,8 @@ CREATE TABLE IF NOT EXISTS agreements (
   status TEXT DEFAULT 'pending',
   signed_at TIMESTAMP WITH TIME ZONE,
   created_by TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  booking_id UUID REFERENCES bookings(id) ON DELETE SET NULL
 );
 
 -- Ensure columns exist if table was already created
@@ -276,6 +285,7 @@ ALTER TABLE agreements ADD COLUMN IF NOT EXISTS created_by TEXT;
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES subscribers(id) ON DELETE CASCADE;
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS photos_url TEXT[];
+ALTER TABLE agreements ADD COLUMN IF NOT EXISTS booking_id UUID REFERENCES bookings(id) ON DELETE SET NULL;
 
 -- 7. Digital Forms
 CREATE TABLE IF NOT EXISTS digital_forms (

@@ -1323,7 +1323,7 @@ export const apiService = {
       
       if (error) {
         logSupabaseError('createAgreement', error);
-        throw new Error('Failed to create agreement');
+        throw new Error(`Failed to create agreement: ${error.message}`);
       }
       return data;
     });
