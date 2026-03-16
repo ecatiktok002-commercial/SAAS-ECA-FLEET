@@ -97,9 +97,10 @@ const AdminDashboard: React.FC = () => {
         apiService.getStaffMembers(subscriberId!)
       ]);
 
+      let staff: any = null;
       if (userUid) {
-        const staff = staffMembers.find(s => s.designated_uid === userUid);
-        setCurrentStaff(staff || null);
+        staff = staffMembers.find(s => s.designated_uid === userUid) || null;
+        setCurrentStaff(staff);
       }
 
       const now = new Date();
@@ -218,7 +219,7 @@ const AdminDashboard: React.FC = () => {
 
       // 6. Agent Specific Metrics (Earnings & Chart)
       if (staffRole === 'staff') {
-        const tierOverride = currentStaff?.commission_tier_override || 'auto';
+        const tierOverride = staff?.commission_tier_override || 'auto';
         
         const getCommissionForAmount = (a: Agreement, runningTotal: number) => {
           // 1. Use stored commission if available
@@ -227,12 +228,11 @@ const AdminDashboard: React.FC = () => {
           }
 
           // 2. Use dynamic rate from staff profile
-          if (currentStaff?.commission_rate) {
-            return a.total_price * (currentStaff.commission_rate / 100);
+          if (staff?.commission_rate) {
+            return a.total_price * (staff.commission_rate / 100);
           }
 
           // 3. Fallback to tier override if set
-          const tierOverride = currentStaff?.commission_tier_override || 'auto';
           if (tierOverride !== 'auto') {
             const rate = tierOverride === 'premium' ? 0.20 : tierOverride === 'prestige' ? 0.25 : 0.30;
             return a.total_price * rate;

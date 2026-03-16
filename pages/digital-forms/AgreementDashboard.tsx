@@ -186,6 +186,7 @@ const AgreementDashboard: React.FC = () => {
                 <th className="px-6 py-4">Handled By</th>
                 <th className="px-6 py-4">Amount</th>
                 <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4">Date</th>
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>

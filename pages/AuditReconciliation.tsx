@@ -239,7 +239,7 @@ const AuditReconciliation: React.FC = () => {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                        <th className="pb-4 px-4">Form Date</th>
+                        <th className="pb-4 px-4">Date</th>
                         <th className="pb-4 px-4">Agent / Customer</th>
                         <th className="pb-4 px-4">Discrepancy Reason</th>
                         <th className="pb-4 px-4">Commission</th>
@@ -336,59 +336,68 @@ const AuditReconciliation: React.FC = () => {
                   <p className="text-slate-500 text-sm">All perfect matches have been processed.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {quickApprove.map((record) => (
-                    <div 
-                      key={record.form_id}
-                      onClick={() => toggleSelect(record.form_id)}
-                      className={`relative group cursor-pointer bg-white rounded-2xl border transition-all ${
-                        selectedIds.includes(record.form_id)
-                          ? 'border-blue-500 ring-4 ring-blue-500/10'
-                          : 'border-slate-200 hover:border-slate-300 shadow-sm'
-                      }`}
-                    >
-                      {/* Receipt Thumbnail */}
-                      <div className="aspect-video bg-slate-100 rounded-t-2xl overflow-hidden relative">
-                        {record.payment_receipt ? (
-                          <img 
-                            src={record.payment_receipt} 
-                            alt="Receipt" 
-                            className="w-full h-full object-cover"
-                            referrerPolicy="no-referrer"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-slate-400">
-                            <ImageIcon className="w-8 h-8" />
-                          </div>
-                        )}
-                        <div className="absolute top-3 left-3">
-                          {selectedIds.includes(record.form_id) ? (
-                            <CheckSquare className="w-6 h-6 text-blue-600 bg-white rounded-lg" />
-                          ) : (
-                            <Square className="w-6 h-6 text-white/80 bg-black/20 backdrop-blur-sm rounded-lg" />
-                          )}
-                        </div>
-                        <div className="absolute bottom-3 right-3 px-2 py-1 bg-black/50 backdrop-blur-md text-white text-[10px] font-bold rounded-lg uppercase tracking-wider">
-                          Perfect Match
-                        </div>
-                      </div>
-
-                      <div className="p-4">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <h4 className="font-bold text-slate-900 text-sm">{record.agent_name}</h4>
-                            <p className="text-xs text-slate-500">Cust: {record.customer_name}</p>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm font-bold text-slate-900">RM {record.commission_earned.toFixed(2)}</div>
-                            <div className="text-[10px] text-slate-400 font-mono uppercase">Commission</div>
-                          </div>
-                        </div>
-
-                          <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                            <div className="text-[10px] text-slate-400 font-medium">
-                              {format(new Date(record.created_at), 'MMM dd, HH:mm')}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="text-slate-400 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">
+                        <th className="pb-4 px-4 w-12"></th>
+                        <th className="pb-4 px-4">Date</th>
+                        <th className="pb-4 px-4">Agent / Customer</th>
+                        <th className="pb-4 px-4">Receipt</th>
+                        <th className="pb-4 px-4">Commission</th>
+                        <th className="pb-4 px-4 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {quickApprove.map((record) => (
+                        <tr 
+                          key={record.form_id}
+                          onClick={() => toggleSelect(record.form_id)}
+                          className={`group cursor-pointer transition-colors ${
+                            selectedIds.includes(record.form_id) ? 'bg-blue-50/50' : 'hover:bg-slate-50'
+                          }`}
+                        >
+                          <td className="py-4 px-4">
+                            <div className="flex items-center justify-center">
+                              {selectedIds.includes(record.form_id) ? (
+                                <CheckSquare className="w-5 h-5 text-blue-600" />
+                              ) : (
+                                <Square className="w-5 h-5 text-slate-300 group-hover:text-slate-400" />
+                              )}
                             </div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="text-sm font-medium text-slate-900">
+                              {format(new Date(record.created_at), 'MMM dd, yyyy')}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                              #{record.form_id.slice(0, 8)}
+                            </div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="text-sm font-bold text-slate-900">{record.agent_name}</div>
+                            <div className="text-xs text-slate-500">Cust: {record.customer_name}</div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="w-16 h-10 bg-slate-100 rounded overflow-hidden relative border border-slate-200">
+                              {record.payment_receipt ? (
+                                <img 
+                                  src={record.payment_receipt} 
+                                  alt="Receipt" 
+                                  className="w-full h-full object-cover"
+                                  referrerPolicy="no-referrer"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                  <ImageIcon className="w-4 h-4" />
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="text-sm font-bold text-slate-900">RM {record.commission_earned.toFixed(2)}</div>
+                          </td>
+                          <td className="py-4 px-4 text-right">
                             <button 
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -397,14 +406,15 @@ const AuditReconciliation: React.FC = () => {
                                   setIsPreviewOpen(true);
                                 }
                               }}
-                              className="text-blue-600 hover:text-blue-700 text-[10px] font-bold flex items-center gap-1"
+                              className="text-blue-600 hover:text-blue-700 text-xs font-bold flex items-center justify-end gap-1 ml-auto"
                             >
-                              View Full Receipt <ExternalLink className="w-3 h-3" />
+                              View Receipt <ExternalLink className="w-3 h-3" />
                             </button>
-                          </div>
-                      </div>
-                    </div>
-                  ))}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

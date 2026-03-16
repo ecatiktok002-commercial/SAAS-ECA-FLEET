@@ -1342,12 +1342,17 @@ export const apiService = {
         finalAgreement.subscriber_id = subscriberId;
       }
 
-      // Calculate commission earned based on agent's dynamic rate
+      // Calculate commission earned based on agent's dynamic rate or tier override
       if (finalAgreement.agent_id) {
         try {
           const staffMember = await this.getStaffMemberById(finalAgreement.agent_id, finalAgreement.subscriber_id);
-          if (staffMember && staffMember.commission_rate) {
-            finalAgreement.commission_earned = finalAgreement.total_price * (staffMember.commission_rate / 100);
+          if (staffMember) {
+            if (staffMember.commission_rate) {
+              finalAgreement.commission_earned = finalAgreement.total_price * (staffMember.commission_rate / 100);
+            } else if (staffMember.commission_tier_override && staffMember.commission_tier_override !== 'auto') {
+              const rate = staffMember.commission_tier_override === 'premium' ? 0.20 : staffMember.commission_tier_override === 'prestige' ? 0.25 : 0.30;
+              finalAgreement.commission_earned = finalAgreement.total_price * rate;
+            }
           }
         } catch (err) {
           console.error('Error calculating commission for new agreement:', err);
@@ -1403,8 +1408,13 @@ export const apiService = {
 
           if (agentId) {
             const staffMember = await this.getStaffMemberById(agentId, subscriberId);
-            if (staffMember && staffMember.commission_rate) {
-              finalUpdates.commission_earned = finalUpdates.total_price * (staffMember.commission_rate / 100);
+            if (staffMember) {
+              if (staffMember.commission_rate) {
+                finalUpdates.commission_earned = finalUpdates.total_price * (staffMember.commission_rate / 100);
+              } else if (staffMember.commission_tier_override && staffMember.commission_tier_override !== 'auto') {
+                const rate = staffMember.commission_tier_override === 'premium' ? 0.20 : staffMember.commission_tier_override === 'prestige' ? 0.25 : 0.30;
+                finalUpdates.commission_earned = finalUpdates.total_price * rate;
+              }
             }
           }
         } catch (err) {
