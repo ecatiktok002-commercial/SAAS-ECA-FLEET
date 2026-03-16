@@ -1138,30 +1138,14 @@ export const apiService = {
       const email = `${sanitizedName}@ecafleet.com`;
       const password = `${sanitizedName}Eca123!`; // Use strong password to avoid length/complexity errors
 
-      // 1. Call the Edge Function to provision the account (bypasses rate limits)
-      const { data: provisionData, error: provisionError } = await supabase.functions.invoke('auth-provisioner', {
-        body: { 
-          uid: sanitizedName, 
-          subscriber_id: sanitizedName // For new subscribers, we use their name as initial ID/context
-        }
-      });
-
-      if (provisionError) {
-        let errorMsg = provisionError.message;
-        try {
-          const body = await provisionError.context?.json();
-          if (body && body.error) errorMsg = body.error;
-        } catch (e) {}
-        throw new Error(`Auth Provisioning Failed: ${errorMsg}`);
-      }
-
-      // 2. Get the confirmed user ID (handles existing users too)
+      // 1. Get the confirmed user ID (handles existing users too)
       const { data: confirmedId, error: rpcError } = await supabase.rpc('auto_confirm_user', { p_email: email });
       if (rpcError) {
+        console.error('RPC Error in auto_confirm_user:', rpcError);
         console.warn('Failed to auto-confirm user.', rpcError);
       }
 
-      const userId = confirmedId || (provisionData && provisionData.user?.id);
+      const userId = confirmedId;
       if (!userId) {
         throw new Error('Failed to create auth user: No user ID returned');
       }

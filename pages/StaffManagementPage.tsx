@@ -57,45 +57,11 @@ const StaffManagementPage: React.FC = () => {
         await apiService.updateStaffMember(editingStaff.id, subscriberId, updates);
       } else {
         // Create new
-        setStatusMessage('Setting up your account...');
-
-        // 1. Call the Edge Function using the official Supabase helper
-        let provisionError = null;
-        try {
-          const { data: provisionData, error: functionError } = await supabase.functions.invoke('auth-provisioner', {
-            body: { 
-              uid: cleanUid, 
-              subscriber_id: subscriberId 
-            }
-          });
-          if (functionError) provisionError = functionError;
-        } catch (e: any) {
-          console.warn('Edge Function call failed, attempting to proceed anyway:', e);
-          // If it's a network error, we might still be able to proceed if the user already exists
-          if (!e.message?.includes('Failed to send a request')) {
-            throw e;
-          }
-        }
-
-        // 2. Check for Function Errors
-        if (provisionError) {
-          let errorMsg = provisionError.message;
-          try {
-            const body = await provisionError.context?.json();
-            if (body && body.error) errorMsg = body.error;
-          } catch (e) {}
-          
-          // If the error is "User already exists", we can safely ignore it and proceed
-          if (!errorMsg.toLowerCase().includes('already exists')) {
-            throw new Error(`Auth Provisioning Failed: ${errorMsg}`);
-          }
-        }
-
-        // 3. If Auth is successful (or user already exists), save to the Staff Table
-        // We use apiService.addStaffMember which now uses the provisioned account
+        // We no longer use Edge Functions for Auth Provisioning.
+        // We just save to the Staff Table which handles Virtual Login.
         await apiService.addStaffMember(formData.name, subscriberId, 'staff', formData.pin, cleanUid, formData.commission_tier_override);
         
-        alert('Staff member created successfully in both Auth and Database!');
+        alert('Staff member created successfully!');
       }
       
       await loadStaff();

@@ -50,10 +50,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       }
 
       // 1. The Parallel Check
-      // Task A: Query the staff table (via RPC)
-      // Task B: Attempt Master Login
+      // Check A (Staff): Search the staff table for a record where staff_uid matches the input and is_active is true.
+      // Check B (Subscriber): Attempt a standard supabase.auth.signInWithPassword using {input}@ecafleet.com and the password {input}.
       const [staffCheck, authCheck] = await Promise.all([
-        supabase.rpc('verify_login_uid', { p_uid: uid }),
+        supabase.from('staff').select('*').eq('staff_uid', uid).eq('is_active', true).single(),
         supabase.auth.signInWithPassword({
           email: `${uid}@ecafleet.com`,
           password: uid,
@@ -64,28 +64,22 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       const authData = authCheck.data;
       const authError = authCheck.error;
 
-      // 2. Handling the Results
-      if (staffData && staffData.role === 'disabled_staff') {
-        throw new Error('Account disabled. Please contact your manager.');
-      }
-
-      // IF Task A (Staff) is found
-      if (staffData && staffData.role === 'staff') {
-        setDetectedRole(staffData);
+      // 2. Execution Flow
+      // If a Staff record is found: Halt the Auth login attempt. Show a PIN Input Overlay.
+      if (staffData) {
+        // We need the subscriber metadata (tier, id)
+        const { data: subData } = await supabase.rpc('verify_login_uid', { p_uid: uid });
+        setDetectedRole(subData);
         setStep(2); // Show the PIN Input Overlay
         setLoading(false);
         return;
       }
 
-      // ELSE IF Task B (Master Login) is successful
+      // If the Auth Login (Subscriber) succeeds first: Redirect immediately to the Admin Dashboard.
       if (authData?.user && !authError) {
         // This is a Subscriber.
         // We need the subscriber metadata (tier, id)
-        let subData = staffData;
-        if (!subData || subData.role !== 'subscriber') {
-          const { data } = await supabase.rpc('verify_login_uid', { p_uid: uid });
-          subData = data;
-        }
+        const { data: subData } = await supabase.rpc('verify_login_uid', { p_uid: uid });
 
         if (subData && subData.role === 'subscriber') {
           localStorage.setItem('current_subscriber_id', subData.id);
@@ -96,8 +90,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       }
 
       // Special case for subscribers who might have a different password (legacy)
-      if (staffData && staffData.role === 'subscriber') {
-        const sharedUid = staffData.company_code.toLowerCase();
+      const { data: legacySubData } = await supabase.rpc('verify_login_uid', { p_uid: uid });
+      if (legacySubData && legacySubData.role === 'subscriber') {
+        const sharedUid = legacySubData.company_code.toLowerCase();
         const email = `${sharedUid}@ecafleet.com`;
         const subscriberPassword = `${sharedUid}Eca123!`;
         const fallback = await supabase.auth.signInWithPassword({
@@ -106,14 +101,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         });
         
         if (!fallback.error) {
-          localStorage.setItem('current_subscriber_id', staffData.id);
-          login(staffData.id, 'admin', staffData.tier, staffData.id, staffData.company_code, staffData.company_code);
-          if (onLogin) onLogin(staffData.id);
+          localStorage.setItem('current_subscriber_id', legacySubData.id);
+          login(legacySubData.id, 'admin', legacySubData.tier, legacySubData.id, legacySubData.company_code, legacySubData.company_code);
+          if (onLogin) onLogin(legacySubData.id);
           return;
         }
       }
 
-      // ELSE: Show 'Invalid UID or Credentials'
+      // If both fail: Show 'Invalid UID or Credentials'
       throw new Error('Invalid UID or Credentials');
 
     } catch (err: any) {
@@ -161,38 +156,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       const email = `${sharedUid}@ecafleet.com`;
       const password = sharedUid;
 
-      let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-
-      // THE AUTO-REPAIR LOGIC
-      if (authError && (authError.message.includes('Invalid login credentials') || authError.message.includes('User not found'))) {
-        console.log("Repairing missing Shared Auth account for:", sharedUid);
-        setStatusMessage('Setting up company access...');
-        
-        try {
-          const { error: provisionError } = await supabase.functions.invoke('auth-provisioner', {
-            body: { 
-              uid: sharedUid, 
-              subscriber_id: detectedRole.subscriber_id 
-            }
-          });
-
-          if (!provisionError) {
-            const retry = await supabase.auth.signInWithPassword({
-              email,
-              password,
-            });
-            if (!retry.error) {
-              authData = retry.data;
-              authError = null;
-            }
-          }
-        } catch (repairErr) {
-          console.error('Auth repair failed:', repairErr);
-        }
-      }
 
       if (authError) {
         throw new Error('Company access failed. Please contact your Master Admin.');
