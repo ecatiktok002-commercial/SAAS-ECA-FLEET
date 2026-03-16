@@ -211,7 +211,7 @@ export default function SignAgreement() {
         {/* Printable Template (Hidden from screen) */}
         {agreement && (
           <MalayPrintableAgreementTemplate
-            agreementId={agreement.booking_reference || agreement.id}
+            agreementId={agreement.reference_number || ""}
             customer={{
               name: agreement.customer_name || agreement.full_name,
               ic: agreement.identity_number || agreement.ic_number,
@@ -276,7 +276,7 @@ export default function SignAgreement() {
           {/* Right: Booking Reference Badge */}
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 print:p-2 text-right self-start sm:self-center flex-shrink-0 min-w-[150px] print:min-w-0 print:bg-transparent print:border-none">
             <p className="text-[10px] print:text-[7pt] text-slate-500 uppercase tracking-wider font-bold mb-0.5 print:mb-0">Booking Reference</p>
-            <p className="text-xl print:text-sm font-mono font-bold text-slate-900 tracking-widest">{agreement.booking_reference || 'PENDING'}</p>
+            <p className="text-xl print:text-sm font-mono font-bold text-slate-900 tracking-widest">{agreement.reference_number}</p>
           </div>
         </div>
 

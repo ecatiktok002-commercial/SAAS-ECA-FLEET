@@ -389,7 +389,9 @@ ALTER TABLE customers ADD COLUMN IF NOT EXISTS acquired_by_agent TEXT;
 
 -- Add customer_id to agreements and digital_forms
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS customer_id UUID REFERENCES customers(id) ON DELETE SET NULL;
+ALTER TABLE agreements ADD COLUMN IF NOT EXISTS reference_number TEXT;
 ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS customer_id UUID REFERENCES customers(id) ON DELETE SET NULL;
+ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS reference_number TEXT;
 
 -- 12. Marketing Events
 CREATE TABLE IF NOT EXISTS marketing_events (

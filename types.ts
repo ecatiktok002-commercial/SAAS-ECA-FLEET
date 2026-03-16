@@ -101,6 +101,7 @@ export interface StaffMember {
 
 export interface Agreement {
   id: string;
+  reference_number?: string;
   subscriber_id: string;
   agent_id: string;
   agent_name: string;

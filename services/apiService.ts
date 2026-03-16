@@ -1315,6 +1315,19 @@ export const apiService = {
         finalAgreement.subscriber_id = subscriberId;
       }
 
+      // Generate unique reference number (DDMMYY-XXXXXX)
+      const date = new Date();
+      const dd = String(date.getDate()).padStart(2, '0');
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const yy = String(date.getFullYear()).slice(-2);
+      
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Excluded O, 0, I, 1
+      let randomStr = '';
+      for (let i = 0; i < 6; i++) {
+        randomStr += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      finalAgreement.reference_number = `${dd}${mm}${yy}-${randomStr}`;
+
       const { data, error } = await supabase
         .from('agreements')
         .insert([finalAgreement])

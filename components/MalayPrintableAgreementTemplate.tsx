@@ -34,7 +34,7 @@ interface MalayPrintableAgreementTemplateProps {
 }
 
 const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateProps> = ({ 
-  agreementId = "PENDING", 
+  agreementId = "", 
   customer = {}, 
   vehicle = {}, 
   payment = {}, 

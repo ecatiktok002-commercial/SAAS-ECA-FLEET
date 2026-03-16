@@ -26,7 +26,7 @@ const AgreementDashboard: React.FC = () => {
   
   const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (subscriberId) {
@@ -78,10 +78,14 @@ const AgreementDashboard: React.FC = () => {
     }
   };
 
-  const filteredAgreements = agreements.filter(a => 
-    a.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    a.agent_name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredForms = agreements.filter(a => {
+    const query = searchQuery.toLowerCase();
+    return (
+      a.reference_number?.toLowerCase().includes(query) ||
+      a.customer_name?.toLowerCase().includes(query) ||
+      a.car_plate_number?.toLowerCase().includes(query)
+    );
+  });
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
@@ -152,9 +156,9 @@ const AgreementDashboard: React.FC = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input 
               type="text"
-              placeholder="Search by customer or agent..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by Reference, Name, or Plate..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
             />
           </div>
@@ -180,7 +184,7 @@ const AgreementDashboard: React.FC = () => {
                     Loading agreements...
                   </td>
                 </tr>
-              ) : filteredAgreements.length === 0 ? (
+              ) : filteredForms.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
                     {staffRole === 'staff' ? (
@@ -194,11 +198,11 @@ const AgreementDashboard: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredAgreements.map((agreement) => (
+                filteredForms.map((agreement) => (
                   <tr key={agreement.id} className="hover:bg-slate-50 transition-colors group">
                     <td className="px-6 py-4">
                       <div className="font-bold text-slate-900">{agreement.customer_name || 'Unnamed Customer'}</div>
-                      <div className="text-xs text-slate-500">{agreement.id.substring(0, 8)}</div>
+                      <div className="text-xs text-slate-500">{agreement.reference_number || agreement.id.substring(0, 8)}</div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm text-slate-700 font-mono">{agreement.identity_number || 'N/A'}</div>
