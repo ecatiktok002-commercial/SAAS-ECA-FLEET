@@ -475,29 +475,23 @@ export default function SignAgreement() {
           </section>
         </div>
 
-        {/* Official Footer with 3 Logos */}
-        <div className="bg-white border-t border-slate-200 print:border-slate-800 p-8 print:p-2 flex justify-between items-center mt-12 print:mt-auto print:page-break-inside-avoid print:mb-0">
-          <div className="h-16 w-32 print:h-8 print:w-16 bg-slate-50 print:bg-transparent border border-slate-200 print:border-none rounded-lg print:rounded-none flex items-center justify-center text-xs print:text-[6pt] font-bold text-slate-400 overflow-hidden">
-            {company?.logo_url ? (
-              <img src={company.logo_url} alt="Company Logo" className="h-full w-full object-contain p-1 print:p-0" />
-            ) : (
-              "LOGO"
-            )}
-          </div>
-          <div className="h-16 w-32 print:h-8 print:w-16 bg-slate-50 print:bg-transparent border border-slate-200 print:border-none rounded-lg print:rounded-none flex items-center justify-center text-xs print:text-[6pt] font-bold text-slate-400 overflow-hidden">
-            {company?.ssm_logo_url ? (
-              <img src={company.ssm_logo_url} alt="SSM Logo" className="h-full w-full object-contain p-1 print:p-0" />
-            ) : (
-              "SSM LOGO"
-            )}
-          </div>
-          <div className="h-16 w-32 print:h-8 print:w-16 bg-slate-50 print:bg-transparent border border-slate-200 print:border-none rounded-lg print:rounded-none flex items-center justify-center text-xs print:text-[6pt] font-bold text-slate-400 overflow-hidden">
-            {company?.spdp_logo_url ? (
-              <img src={company.spdp_logo_url} alt="SPDP Logo" className="h-full w-full object-contain p-1 print:p-0" />
-            ) : (
-              "SPDP LOGO"
-            )}
-          </div>
+        {/* Official Footer with Partner Logos */}
+        <div className="bg-white border-t border-slate-200 print:border-slate-800 p-8 print:p-4 flex justify-center items-center gap-8 mt-12 print:mt-auto print:page-break-inside-avoid print:mb-0">
+          {company?.logo_url && (
+            <div className="h-16 print:h-12 flex items-center justify-center bg-transparent border-none shadow-none overflow-hidden">
+              <img src={company.logo_url} alt="Company Logo" className="h-full w-auto object-contain" />
+            </div>
+          )}
+          {company?.ssm_logo_url && (
+            <div className="h-16 print:h-12 flex items-center justify-center bg-transparent border-none shadow-none overflow-hidden">
+              <img src={company.ssm_logo_url} alt="SSM Logo" className="h-full w-auto object-contain" />
+            </div>
+          )}
+          {company?.spdp_logo_url && (
+            <div className="h-16 print:h-12 flex items-center justify-center bg-transparent border-none shadow-none overflow-hidden">
+              <img src={company.spdp_logo_url} alt="SPDP Logo" className="h-full w-auto object-contain" />
+            </div>
+          )}
         </div>
       </div>
 
