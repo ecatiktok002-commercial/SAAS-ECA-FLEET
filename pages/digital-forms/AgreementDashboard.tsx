@@ -115,7 +115,7 @@ const AgreementDashboard: React.FC = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-3 mb-2">
             <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
@@ -147,6 +147,19 @@ const AgreementDashboard: React.FC = () => {
             {agreements.filter(a => a.status === 'pending').length}
           </div>
         </div>
+        {staffRole === 'admin' && (
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="bg-red-50 p-2 rounded-lg text-red-600">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <span className="text-sm font-medium text-slate-500">Pending Requests</span>
+            </div>
+            <div className="text-2xl font-bold text-slate-900">
+              {agreements.filter(a => a.has_pending_changes).length}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Search and List */}
@@ -213,33 +226,41 @@ const AgreementDashboard: React.FC = () => {
                       RM {agreement.total_price.toLocaleString()}
                     </td>
                     <td className="px-6 py-4">
-                      {(() => {
-                        const isCompleted = agreement.status === 'signed' && !!agreement.payment_receipt;
-                        const isSigned = agreement.status === 'signed' && !agreement.payment_receipt;
-                        
-                        if (isCompleted) {
-                          return (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
-                              <CheckCircle2 className="w-3 h-3" />
-                              Completed
-                            </span>
-                          );
-                        } else if (isSigned) {
-                          return (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
-                              <CheckCircle2 className="w-3 h-3" />
-                              Signed
-                            </span>
-                          );
-                        } else {
-                          return (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
-                              <Clock className="w-3 h-3" />
-                              Pending
-                            </span>
-                          );
-                        }
-                      })()}
+                      <div className="flex flex-col gap-2 items-start">
+                        {(() => {
+                          const isCompleted = agreement.status === 'signed' && !!agreement.payment_receipt;
+                          const isSigned = agreement.status === 'signed' && !agreement.payment_receipt;
+                          
+                          if (isCompleted) {
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                                <CheckCircle2 className="w-3 h-3" />
+                                Completed
+                              </span>
+                            );
+                          } else if (isSigned) {
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                                <CheckCircle2 className="w-3 h-3" />
+                                Signed
+                              </span>
+                            );
+                          } else {
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
+                                <Clock className="w-3 h-3" />
+                                Pending
+                              </span>
+                            );
+                          }
+                        })()}
+                        {agreement.has_pending_changes && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">
+                            <Clock className="w-3 h-3" />
+                            Pending Request
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-slate-500 text-sm">
                       {new Date(agreement.created_at).toLocaleDateString()}

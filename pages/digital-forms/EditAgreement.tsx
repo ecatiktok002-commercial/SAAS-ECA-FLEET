@@ -11,6 +11,8 @@ export default function EditAgreement() {
   const { subscriberId, staffRole, userId, userUid } = useAuth();
   const navigate = useNavigate();
   const isAdmin = staffRole === 'admin';
+  const [agreement, setAgreement] = useState<any>(null);
+  const [requestAmendmentMode, setRequestAmendmentMode] = useState(false);
   const [formData, setFormData] = useState({
     customer_name: '',
     identity_number: '',
@@ -38,6 +40,8 @@ export default function EditAgreement() {
   const [highlightReturnTime, setHighlightReturnTime] = useState(false);
   const [customerFound, setCustomerFound] = useState(false);
   const [receiptRemoved, setReceiptRemoved] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const triggerHighlight = (type: 'date' | 'time') => {
     if (type === 'date') {
@@ -47,6 +51,24 @@ export default function EditAgreement() {
       setHighlightReturnTime(true);
       setTimeout(() => setHighlightReturnTime(false), 1000);
     }
+  };
+
+  const isLocked = agreement?.status === 'completed' && !isAdmin && !requestAmendmentMode;
+
+  const renderLabel = (label: string, fieldName: string) => {
+    const pendingValue = agreement?.pending_changes?.[fieldName];
+    const currentValue = (formData as any)[fieldName];
+    if (agreement?.has_pending_changes && pendingValue !== undefined && String(pendingValue) !== String(currentValue)) {
+      return (
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-sm font-medium text-slate-700">{label}</label>
+          <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-100">
+            Requested: {pendingValue}
+          </span>
+        </div>
+      );
+    }
+    return <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>;
   };
 
   const handleICBlur = async () => {
@@ -85,6 +107,8 @@ export default function EditAgreement() {
         if (staffRole === 'staff' && data.created_by !== userUid && data.created_by !== userId && data.agent_id !== userId) {
           throw new Error('You do not have permission to edit this agreement.');
         }
+
+        setAgreement(data);
 
         setFormData({
           customer_name: data.customer_name || '',
@@ -220,9 +244,17 @@ export default function EditAgreement() {
         ...(receiptData !== undefined && { payment_receipt: receiptData }),
       };
 
-      await apiService.updateAgreement(id, subscriberId, updates);
+      if (requestAmendmentMode && !isAdmin) {
+        await apiService.updateAgreement(id, subscriberId, {
+          has_pending_changes: true,
+          pending_changes: updates
+        });
+        alert('Amendment requested successfully!');
+      } else {
+        await apiService.updateAgreement(id, subscriberId, updates);
+        alert('Agreement updated successfully!');
+      }
 
-      alert('Agreement updated successfully!');
       navigate('/forms');
     } catch (err: any) {
       setError(err.message);
@@ -242,11 +274,71 @@ export default function EditAgreement() {
   return (
     <div className="min-h-screen bg-slate-50 font-sans py-10 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
-        <div className="mb-8 flex items-center">
-          <Link to="/forms" className="text-slate-400 hover:text-slate-900 mr-4 transition-colors">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Edit Agreement</h1>
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center">
+            <Link to="/forms" className="text-slate-400 hover:text-slate-900 mr-4 transition-colors">
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+            <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Edit Agreement</h1>
+          </div>
+          {agreement?.status === 'completed' && !isAdmin && !requestAmendmentMode && (
+            <button
+              type="button"
+              onClick={() => setRequestAmendmentMode(true)}
+              className="inline-flex items-center px-4 py-2 border border-slate-300 shadow-sm text-sm font-medium rounded-lg text-slate-700 bg-white hover:bg-slate-50 transition-colors"
+            >
+              Request Amendment
+            </button>
+          )}
+          {agreement?.has_pending_changes && isAdmin && (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!window.confirm('Approve these changes?')) return;
+                  try {
+                    setLoading(true);
+                    await apiService.updateAgreement(id!, subscriberId!, {
+                      ...agreement.pending_changes,
+                      has_pending_changes: false,
+                      pending_changes: null
+                    });
+                    alert('Changes approved!');
+                    navigate('/forms');
+                  } catch (e: any) {
+                    alert(e.message);
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 transition-colors"
+              >
+                Approve Changes
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!window.confirm('Reject these changes?')) return;
+                  try {
+                    setLoading(true);
+                    await apiService.updateAgreement(id!, subscriberId!, {
+                      has_pending_changes: false,
+                      pending_changes: null
+                    });
+                    alert('Changes rejected!');
+                    navigate('/forms');
+                  } catch (e: any) {
+                    alert(e.message);
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                className="inline-flex items-center px-4 py-2 border border-red-200 shadow-sm text-sm font-medium rounded-lg text-red-700 bg-white hover:bg-red-50 transition-colors"
+              >
+                Reject Request
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="bg-white shadow-sm rounded-xl border border-slate-200 overflow-hidden mb-24">
@@ -269,76 +361,82 @@ export default function EditAgreement() {
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-slate-700">Identity Number (IC/Passport)</label>
+                {renderLabel('Identity Number (IC/Passport)', 'identity_number')}
                 <input
                   type="text"
                   name="identity_number"
                   required
+                  disabled={isLocked}
                   value={formData.identity_number}
                   onChange={handleChange}
                   onBlur={handleICBlur}
-                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm disabled:bg-slate-100 disabled:text-slate-500"
                   placeholder="Enter IC to auto-fill details"
                 />
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-slate-700">Customer Name</label>
+                {renderLabel('Customer Name', 'customer_name')}
                 <input
                   type="text"
                   name="customer_name"
                   required
+                  disabled={isLocked}
                   value={formData.customer_name}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm disabled:bg-slate-100 disabled:text-slate-500"
                 />
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-slate-700">Phone Number</label>
+                {renderLabel('Phone Number', 'customer_phone')}
                 <input
                   type="tel"
                   name="customer_phone"
                   required
+                  disabled={isLocked}
                   value={formData.customer_phone}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm disabled:bg-slate-100 disabled:text-slate-500"
                 />
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-slate-700">Billing Address</label>
+                {renderLabel('Billing Address', 'billing_address')}
                 <textarea
                   name="billing_address"
                   rows={3}
                   required
+                  disabled={isLocked}
                   value={formData.billing_address}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm disabled:bg-slate-100 disabled:text-slate-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">Emergency Contact Number</label>
+                {renderLabel('Emergency Contact Number', 'emergency_contact_name')}
                 <input
                   type="text"
                   name="emergency_contact_name"
                   required
+                  disabled={isLocked}
                   value={formData.emergency_contact_name}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm disabled:bg-slate-100 disabled:text-slate-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">Relationship</label>
+                {renderLabel('Relationship', 'emergency_contact_relation')}
                 <input
                   type="text"
                   name="emergency_contact_relation"
                   required
+                  disabled={isLocked}
                   value={formData.emergency_contact_relation}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm disabled:bg-slate-100 disabled:text-slate-500"
                 />
               </div>
 
@@ -347,9 +445,10 @@ export default function EditAgreement() {
                   id="need_einvoice"
                   name="need_einvoice"
                   type="checkbox"
+                  disabled={isLocked}
                   checked={formData.need_einvoice}
                   onChange={handleChange}
-                  className="h-4 w-4 text-slate-900 focus:ring-slate-900 border-slate-300 rounded"
+                  className="h-4 w-4 text-slate-900 focus:ring-slate-900 border-slate-300 rounded disabled:opacity-50"
                 />
                 <label htmlFor="need_einvoice" className="ml-2 block text-sm text-slate-900">
                   Adakah Perlu E-invoice: Ya
@@ -361,76 +460,82 @@ export default function EditAgreement() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">Car Plate Number</label>
+                {renderLabel('Car Plate Number', 'car_plate_number')}
                 <input
                   type="text"
                   name="car_plate_number"
                   required
+                  disabled={isLocked}
                   value={formData.car_plate_number}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm uppercase"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm uppercase disabled:bg-slate-100 disabled:text-slate-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">Car Model</label>
+                {renderLabel('Car Model', 'car_model')}
                 <input
                   type="text"
                   name="car_model"
                   required
+                  disabled={isLocked}
                   value={formData.car_model}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm disabled:bg-slate-100 disabled:text-slate-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">Total Price (RM)</label>
+                {renderLabel('Total Price (RM)', 'total_price')}
                 <input
                   type="number"
                   step="0.01"
                   name="total_price"
                   required
+                  disabled={isLocked}
                   value={formData.total_price}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm disabled:bg-slate-100 disabled:text-slate-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">Deposit (RM)</label>
+                {renderLabel('Deposit (RM)', 'deposit')}
                 <input
                   type="number"
                   step="0.01"
                   name="deposit"
                   required
+                  disabled={isLocked}
                   value={formData.deposit}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm disabled:bg-slate-100 disabled:text-slate-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">Start Date</label>
+                {renderLabel('Start Date', 'start_date')}
                 <input
                   type="date"
                   name="start_date"
                   required
+                  disabled={isLocked}
                   value={formData.start_date}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm disabled:bg-slate-100 disabled:text-slate-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">End Date</label>
+                {renderLabel('End Date', 'end_date')}
                 <input
                   type="date"
                   name="end_date"
                   required
+                  disabled={isLocked}
                   value={formData.end_date}
                   onChange={handleChange}
-                  className={`mt-1 block w-full rounded-lg shadow-sm sm:text-sm transition-colors duration-300 ${
+                  className={`mt-1 block w-full rounded-lg shadow-sm sm:text-sm transition-colors duration-300 disabled:bg-slate-100 disabled:text-slate-500 ${
                     highlightReturnDate 
                       ? 'border-emerald-500 ring-2 ring-emerald-500 bg-emerald-50' 
                       : 'border-slate-300 focus:border-slate-900 focus:ring-slate-900'
@@ -439,39 +544,42 @@ export default function EditAgreement() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">Duration (Days)</label>
+                {renderLabel('Duration (Days)', 'duration_days')}
                 <input
                   type="number"
                   name="duration_days"
                   required
                   min="1"
+                  disabled={isLocked}
                   value={formData.duration_days}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm disabled:bg-slate-100 disabled:text-slate-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">Pickup Time</label>
+                {renderLabel('Pickup Time', 'pickup_time')}
                 <input
                   type="time"
                   name="pickup_time"
                   required
+                  disabled={isLocked}
                   value={formData.pickup_time}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm disabled:bg-slate-100 disabled:text-slate-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">Return Time</label>
+                {renderLabel('Return Time', 'return_time')}
                 <input
                   type="time"
                   name="return_time"
                   required
+                  disabled={isLocked}
                   value={formData.return_time}
                   onChange={handleChange}
-                  className={`mt-1 block w-full rounded-lg shadow-sm sm:text-sm transition-colors duration-300 ${
+                  className={`mt-1 block w-full rounded-lg shadow-sm sm:text-sm transition-colors duration-300 disabled:bg-slate-100 disabled:text-slate-500 ${
                     highlightReturnTime 
                       ? 'border-emerald-500 ring-2 ring-emerald-500 bg-emerald-50' 
                       : 'border-slate-300 focus:border-slate-900 focus:ring-slate-900'
@@ -497,7 +605,10 @@ export default function EditAgreement() {
                       <div className="flex items-center space-x-2">
                         <button
                           type="button"
-                          onClick={() => openDataURL(existingReceipt)}
+                          onClick={() => {
+                            setPreviewUrl(existingReceipt);
+                            setIsPreviewOpen(true);
+                          }}
                           className="inline-flex items-center px-3 py-1.5 border border-slate-200 shadow-sm text-xs font-medium rounded-lg text-slate-700 bg-white hover:bg-slate-50 transition-colors"
                         >
                           <Eye className="w-3.5 h-3.5 mr-1.5" />
@@ -521,7 +632,7 @@ export default function EditAgreement() {
                       </div>
                     </div>
                     
-                    {isAdmin && (
+                    {isAdmin && !isLocked && (
                       <div className="mt-4 pt-4 border-t border-slate-200">
                         <p className="text-xs text-slate-500 mb-2">Or replace with a new file:</p>
                         <input 
@@ -540,10 +651,10 @@ export default function EditAgreement() {
                       <div className="flex text-sm text-slate-600 justify-center">
                         <label
                           htmlFor="file-upload"
-                          className="relative cursor-pointer bg-white rounded-lg font-medium text-slate-900 hover:text-slate-700 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-slate-900"
+                          className={`relative cursor-pointer bg-white rounded-lg font-medium text-slate-900 hover:text-slate-700 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-slate-900 ${isLocked ? 'pointer-events-none opacity-50' : ''}`}
                         >
                           <span>{receiptRemoved ? 'Upload a new file' : 'Upload a file'}</span>
-                          <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept="image/*,.pdf" />
+                          <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept="image/*,.pdf" disabled={isLocked} />
                         </label>
                         <p className="pl-1">or drag and drop</p>
                       </div>
@@ -566,7 +677,7 @@ export default function EditAgreement() {
               </Link>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || isLocked}
                 className="inline-flex justify-center items-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 disabled:opacity-50 transition-colors"
               >
                 {loading ? (
@@ -574,7 +685,7 @@ export default function EditAgreement() {
                 ) : (
                   <Save className="h-4 w-4 mr-2" />
                 )}
-                Save Changes
+                {requestAmendmentMode ? 'Submit Request' : 'Save Changes'}
               </button>
             </div>
           </form>
@@ -582,16 +693,56 @@ export default function EditAgreement() {
       </div>
 
       {/* Sticky Footer */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-200 sm:hidden z-50">
-        <button
-          type="submit"
-          form="edit-agreement-form"
-          disabled={loading}
-          className="w-full inline-flex justify-center items-center py-3 px-4 border border-transparent shadow-sm text-base font-medium rounded-lg text-white bg-slate-900 hover:bg-slate-800 transition-colors"
-        >
-          {loading ? 'Saving...' : 'Save Changes'}
-        </button>
-      </div>
+      {!isLocked && (
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-200 sm:hidden z-50">
+          <button
+            type="submit"
+            form="edit-agreement-form"
+            disabled={loading || isLocked}
+            className="w-full inline-flex justify-center items-center py-3 px-4 border border-transparent shadow-sm text-base font-medium rounded-lg text-white bg-slate-900 hover:bg-slate-800 transition-colors disabled:opacity-50"
+          >
+            {loading ? 'Saving...' : (requestAmendmentMode ? 'Submit Request' : 'Save Changes')}
+          </button>
+        </div>
+      )}
+
+      {/* Preview Modal */}
+      {isPreviewOpen && previewUrl && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-4xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+              <h3 className="text-lg font-bold text-slate-900">Receipt Preview</h3>
+              <button 
+                onClick={() => {
+                  setIsPreviewOpen(false);
+                  setPreviewUrl(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 p-2 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div className="p-6 overflow-auto flex-1 bg-slate-50 flex items-center justify-center">
+              {previewUrl.startsWith('data:application/pdf') ? (
+                <iframe src={previewUrl} className="w-full h-full min-h-[60vh] rounded-lg border border-slate-200" title="PDF Preview" />
+              ) : (
+                <img src={previewUrl} alt="Receipt Preview" className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-sm" />
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-slate-100 bg-white flex justify-end">
+              <button
+                onClick={() => {
+                  setIsPreviewOpen(false);
+                  setPreviewUrl(null);
+                }}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -97,6 +97,7 @@ export interface StaffMember {
   is_active?: boolean;
   created_at?: string;
   commission_tier_override?: 'auto' | 'premium' | 'prestige' | 'privilege';
+  commission_rate?: number;
 }
 
 export interface Agreement {
@@ -130,6 +131,9 @@ export interface Agreement {
   created_by?: string;
   created_at: string;
   booking_id?: string | null;
+  commission_earned?: number;
+  has_pending_changes?: boolean;
+  pending_changes?: any;
 }
 
 export interface DigitalForm {
@@ -164,6 +168,8 @@ export interface DigitalForm {
   commission_earned?: number;
   payout_status?: 'pending' | 'approved' | 'paid';
   is_receipt_verified?: boolean;
+  has_pending_changes?: boolean;
+  pending_changes?: any;
 }
 
 export interface MarketingEvent {

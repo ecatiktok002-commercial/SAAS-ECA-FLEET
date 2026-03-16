@@ -117,7 +117,7 @@ const AdminDashboard: React.FC = () => {
       let lastMonthEarnings = 0;
 
       // 1. Sales Metrics (Completed/Signed Agreements)
-      const completedAgreements = agreements.filter(a => a.status === 'signed' || a.status === 'completed');
+      const completedAgreements = agreements.filter(a => a.status === 'completed');
       
       let salesToday = 0;
       let salesThisWeek = 0;
@@ -220,19 +220,32 @@ const AdminDashboard: React.FC = () => {
       if (staffRole === 'staff') {
         const tierOverride = currentStaff?.commission_tier_override || 'auto';
         
-        const getCommissionForAmount = (amount: number, runningTotal: number) => {
+        const getCommissionForAmount = (a: Agreement, runningTotal: number) => {
+          // 1. Use stored commission if available
+          if (a.commission_earned !== undefined && a.commission_earned !== null) {
+            return a.commission_earned;
+          }
+
+          // 2. Use dynamic rate from staff profile
+          if (currentStaff?.commission_rate) {
+            return a.total_price * (currentStaff.commission_rate / 100);
+          }
+
+          // 3. Fallback to tier override if set
+          const tierOverride = currentStaff?.commission_tier_override || 'auto';
           if (tierOverride !== 'auto') {
             const rate = tierOverride === 'premium' ? 0.20 : tierOverride === 'prestige' ? 0.25 : 0.30;
-            return amount * rate;
+            return a.total_price * rate;
           }
           
+          // 4. Default tier logic
           const getTotalCommission = (total: number) => {
             if (total <= 5000) return total * 0.20;
             if (total <= 8000) return (5000 * 0.20) + ((total - 5000) * 0.25);
             return (5000 * 0.20) + (3000 * 0.25) + ((total - 8000) * 0.30);
           };
 
-          return getTotalCommission(runningTotal + amount) - getTotalCommission(runningTotal);
+          return getTotalCommission(runningTotal + a.total_price) - getTotalCommission(runningTotal);
         };
 
         // Calculate Weekly Commissions for last 90 days (Quarterly)
@@ -272,7 +285,7 @@ const AdminDashboard: React.FC = () => {
 
           let runningTotal = 0;
           monthAgreements.forEach(a => {
-            const commission = getCommissionForAmount(a.total_price, runningTotal);
+            const commission = getCommissionForAmount(a, runningTotal);
             runningTotal += a.total_price;
             lifetime += commission;
 

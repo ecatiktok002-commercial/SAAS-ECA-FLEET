@@ -241,7 +241,8 @@ const mapStaffFromDB = (dbStaff: any): StaffMember => ({
   role: dbStaff.role || 'staff',
   is_active: dbStaff.is_active,
   created_at: dbStaff.created_at,
-  commission_tier_override: dbStaff.commission_tier_override
+  commission_tier_override: dbStaff.commission_tier_override,
+  commission_rate: dbStaff.commission_rate
 });
 
 const mapStaffToDB = (staff: any) => {
@@ -256,6 +257,7 @@ const mapStaffToDB = (staff: any) => {
   if (staff.role !== undefined) db.role = staff.role;
   if (staff.is_active !== undefined) db.is_active = staff.is_active;
   if (staff.commission_tier_override !== undefined) db.commission_tier_override = staff.commission_tier_override;
+  if (staff.commission_rate !== undefined) db.commission_rate = staff.commission_rate;
   return db;
 };
 
@@ -923,6 +925,27 @@ export const apiService = {
     });
   },
 
+  async getStaffMemberById(id: string, subscriberId: string): Promise<StaffMember | null> {
+    validateSubscriber(subscriberId);
+    return withRetry(async () => {
+      const { data: subData } = await supabase.from('subscribers').select('name').eq('id', subscriberId).single();
+      const slug = subData?.name || subscriberId;
+
+      const { data, error } = await supabase
+        .from('staff')
+        .select('*')
+        .eq('id', id)
+        .eq('subscriber_id', slug)
+        .maybeSingle();
+      
+      if (error) {
+        logSupabaseError('getStaffMemberById', error);
+        return null;
+      }
+      return data ? mapStaffFromDB(data) : null;
+    });
+  },
+
   async getStaffMemberByName(name: string, subscriberId: string): Promise<StaffMember | null> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
@@ -947,7 +970,7 @@ export const apiService = {
     });
   },
 
-  async addStaffMember(name: string, subscriberId: string, role: 'admin' | 'staff' = 'staff', pin?: string, designatedUid?: string, commissionTierOverride: 'auto' | 'premium' | 'prestige' | 'privilege' = 'auto'): Promise<StaffMember> {
+  async addStaffMember(name: string, subscriberId: string, role: 'admin' | 'staff' = 'staff', pin?: string, designatedUid?: string, commissionTierOverride: 'auto' | 'premium' | 'prestige' | 'privilege' = 'auto', commissionRate?: number): Promise<StaffMember> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let targetSubscriberId = subscriberId;
@@ -978,7 +1001,8 @@ export const apiService = {
         staff_uid: uid,
         pin_code: pin || '1234', 
         is_active: true,
-        commission_tier_override: commissionTierOverride
+        commission_tier_override: commissionTierOverride,
+        commission_rate: commissionRate
       };
 
       if (confirmedId) {
@@ -1009,7 +1033,8 @@ export const apiService = {
           subscriber_id: targetSubscriberId, 
           role, 
           designated_uid: uid,
-          commission_tier_override: commissionTierOverride
+          commission_tier_override: commissionTierOverride,
+          commission_rate: commissionRate
         }]);
       
       if (legacyError) {
@@ -1030,6 +1055,7 @@ export const apiService = {
       if (updates.pin_code !== undefined) dbUpdates.pin_code = updates.pin_code;
       if (updates.is_active !== undefined) dbUpdates.is_active = updates.is_active;
       if (updates.commission_tier_override !== undefined) dbUpdates.commission_tier_override = updates.commission_tier_override;
+      if (updates.commission_rate !== undefined) dbUpdates.commission_rate = updates.commission_rate;
 
       // Update 'staff' table
       const { data, error } = await supabase
@@ -1045,6 +1071,7 @@ export const apiService = {
       if (updates.designated_uid !== undefined) legacyUpdates.designated_uid = updates.designated_uid;
       if (updates.role !== undefined) legacyUpdates.role = updates.role;
       if (updates.commission_tier_override !== undefined) legacyUpdates.commission_tier_override = updates.commission_tier_override;
+      if (updates.commission_rate !== undefined) legacyUpdates.commission_rate = updates.commission_rate;
       
       if (Object.keys(legacyUpdates).length > 0) {
         await supabase
@@ -1302,7 +1329,7 @@ export const apiService = {
   async createAgreement(agreement: Omit<Agreement, 'id' | 'created_at'>, subscriberId: string): Promise<Agreement> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
-      let finalAgreement = { ...agreement };
+      let finalAgreement: any = { ...agreement };
       if (subscriberId === 'superadmin') {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
@@ -1313,6 +1340,18 @@ export const apiService = {
         }
       } else {
         finalAgreement.subscriber_id = subscriberId;
+      }
+
+      // Calculate commission earned based on agent's dynamic rate
+      if (finalAgreement.agent_id) {
+        try {
+          const staffMember = await this.getStaffMemberById(finalAgreement.agent_id, finalAgreement.subscriber_id);
+          if (staffMember && staffMember.commission_rate) {
+            finalAgreement.commission_earned = finalAgreement.total_price * (staffMember.commission_rate / 100);
+          }
+        } catch (err) {
+          console.error('Error calculating commission for new agreement:', err);
+        }
       }
 
       // Generate unique reference number (DDMMYY-XXXXXX)
@@ -1344,9 +1383,38 @@ export const apiService = {
 
   async updateAgreement(id: string, subscriberId: string | null | undefined, updates: Partial<Agreement>): Promise<void> {
     return withRetry(async () => {
+      let finalUpdates = { ...updates };
+
+      // If price or agent changes, we might need to recalculate commission
+      // This is a bit complex because we might not have the full agreement data here
+      // But if total_price is provided, we should try to update commission_earned
+      if (finalUpdates.total_price !== undefined && subscriberId) {
+        try {
+          // We need the agent_id to calculate commission
+          let agentId = finalUpdates.agent_id;
+          if (!agentId) {
+            const { data: currentAgreement } = await supabase
+              .from('agreements')
+              .select('agent_id')
+              .eq('id', id)
+              .single();
+            agentId = currentAgreement?.agent_id;
+          }
+
+          if (agentId) {
+            const staffMember = await this.getStaffMemberById(agentId, subscriberId);
+            if (staffMember && staffMember.commission_rate) {
+              finalUpdates.commission_earned = finalUpdates.total_price * (staffMember.commission_rate / 100);
+            }
+          }
+        } catch (err) {
+          console.error('Error recalculating commission on update:', err);
+        }
+      }
+
       let query = supabase
         .from('agreements')
-        .update(updates)
+        .update(finalUpdates)
         .eq('id', id);
         
       if (subscriberId) {

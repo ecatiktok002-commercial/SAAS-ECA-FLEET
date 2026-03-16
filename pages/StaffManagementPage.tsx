@@ -15,7 +15,7 @@ const StaffManagementPage: React.FC = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
-  const [formData, setFormData] = useState({ name: '', designated_uid: '', pin: '', commission_tier_override: 'auto' as 'auto' | 'premium' | 'prestige' | 'privilege' });
+  const [formData, setFormData] = useState({ name: '', designated_uid: '', pin: '', commission_tier_override: 'auto' as 'auto' | 'premium' | 'prestige' | 'privilege', commission_rate: '' });
 
   useEffect(() => {
     if (subscriberId) {
@@ -49,7 +49,8 @@ const StaffManagementPage: React.FC = () => {
         const updates: Partial<StaffMember> = { 
           name: formData.name, 
           designated_uid: cleanUid,
-          commission_tier_override: formData.commission_tier_override
+          commission_tier_override: formData.commission_tier_override,
+          commission_rate: formData.commission_rate ? parseFloat(formData.commission_rate) : undefined
         };
         if (formData.pin) {
           updates.pin_code = formData.pin; 
@@ -59,7 +60,7 @@ const StaffManagementPage: React.FC = () => {
         // Create new
         // We no longer use Edge Functions for Auth Provisioning.
         // We just save to the Staff Table which handles Virtual Login.
-        await apiService.addStaffMember(formData.name, subscriberId, 'staff', formData.pin, cleanUid, formData.commission_tier_override);
+        await apiService.addStaffMember(formData.name, subscriberId, 'staff', formData.pin, cleanUid, formData.commission_tier_override, formData.commission_rate ? parseFloat(formData.commission_rate) : undefined);
         
         alert('Staff member created successfully!');
       }
@@ -67,7 +68,7 @@ const StaffManagementPage: React.FC = () => {
       await loadStaff();
       setIsModalOpen(false);
       setEditingStaff(null);
-      setFormData({ name: '', designated_uid: '', pin: '', commission_tier_override: 'auto' });
+      setFormData({ name: '', designated_uid: '', pin: '', commission_tier_override: 'auto', commission_rate: '' });
     } catch (err: any) {
       console.error('Handshake Error:', err);
       alert(`Error: ${err.message}`);
@@ -96,7 +97,8 @@ const StaffManagementPage: React.FC = () => {
       name: member.name, 
       designated_uid: member.designated_uid || '', 
       pin: '',
-      commission_tier_override: member.commission_tier_override || 'auto'
+      commission_tier_override: member.commission_tier_override || 'auto',
+      commission_rate: member.commission_rate?.toString() || ''
     });
     setIsModalOpen(true);
   };
@@ -121,7 +123,7 @@ const StaffManagementPage: React.FC = () => {
         <button
           onClick={() => {
             setEditingStaff(null);
-            setFormData({ name: '', designated_uid: '', pin: '', commission_tier_override: 'auto' });
+            setFormData({ name: '', designated_uid: '', pin: '', commission_tier_override: 'auto', commission_rate: '' });
             setIsModalOpen(true);
           }}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-medium flex items-center gap-2 transition-colors"
@@ -144,6 +146,7 @@ const StaffManagementPage: React.FC = () => {
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Name</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Designated UID</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Commission Tier</th>
+              <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Custom Rate</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
             </tr>
           </thead>
@@ -179,6 +182,15 @@ const StaffManagementPage: React.FC = () => {
                        member.commission_tier_override === 'privilege' ? 'Privilege (30%)' :
                        'Auto-Calculate'}
                     </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    {member.commission_rate ? (
+                      <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-purple-100 text-purple-700">
+                        {member.commission_rate}%
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400">-</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -281,6 +293,21 @@ const StaffManagementPage: React.FC = () => {
                   <option value="privilege">Privilege Base (30%)</option>
                 </select>
                 <p className="text-[10px] text-slate-500 mt-1">Select 'Auto-Calculate' to use RM threshold logic based on current month sales.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Custom Commission Rate (%)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  value={formData.commission_rate}
+                  onChange={e => setFormData({ ...formData, commission_rate: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  placeholder="e.g. 15.5"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">If set, this percentage overrides both Auto-Calculate and Commission Tier.</p>
               </div>
 
               <div className="pt-4 flex justify-end gap-3">

@@ -286,6 +286,9 @@ ALTER TABLE agreements ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES su
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS photos_url TEXT[];
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS booking_id UUID REFERENCES bookings(id) ON DELETE SET NULL;
+ALTER TABLE agreements ADD COLUMN IF NOT EXISTS commission_earned NUMERIC DEFAULT 0;
+ALTER TABLE agreements ADD COLUMN IF NOT EXISTS has_pending_changes BOOLEAN DEFAULT FALSE;
+ALTER TABLE agreements ADD COLUMN IF NOT EXISTS pending_changes JSONB;
 
 -- 7. Digital Forms
 CREATE TABLE IF NOT EXISTS digital_forms (
@@ -326,6 +329,8 @@ ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS booking_id UUID REFERENCES bo
 ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS commission_earned NUMERIC DEFAULT 0;
 ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS payout_status TEXT DEFAULT 'pending';
 ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS is_receipt_verified BOOLEAN DEFAULT FALSE;
+ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS has_pending_changes BOOLEAN DEFAULT FALSE;
+ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS pending_changes JSONB;
 
 -- 8. Expenses
 CREATE TABLE IF NOT EXISTS expenses (
