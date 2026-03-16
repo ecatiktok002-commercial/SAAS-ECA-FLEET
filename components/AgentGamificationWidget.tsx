@@ -53,7 +53,15 @@ export const AgentGamificationWidget: React.FC<AgentGamificationWidgetProps> = (
 
   if (commissionTierOverride !== 'auto') {
     activeTier = { ...tiers[commissionTierOverride], name: `${tiers[commissionTierOverride].name} (Locked)` };
+    // If manually assigned to the top tier, ensure progress is 100% and nextTier is null
+    if (commissionTierOverride === 'privilege') {
+      nextTier = null;
+      remainingToNext = 0;
+      progressPercent = 100;
+    }
   }
+
+  const isMaxTier = !nextTier || activeTier.name.includes('Privilege');
 
   const formatRM = (amount: number) => `RM ${amount.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -132,21 +140,21 @@ export const AgentGamificationWidget: React.FC<AgentGamificationWidgetProps> = (
 
           <div className="relative w-full h-4 bg-slate-100 rounded-full overflow-hidden my-4">
             <div 
-              className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ease-out ${activeTier.color}`}
-              style={{ width: `${Math.max(progressPercent, 2)}%` }}
+              className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ease-out ${isMaxTier ? 'bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-400 animate-shimmer bg-[length:200%_100%]' : activeTier.color}`}
+              style={{ width: `${isMaxTier ? 100 : Math.max(progressPercent, 2)}%` }}
             ></div>
           </div>
 
           <div className="mt-4 text-center">
-            {nextTier ? (
+            {isMaxTier ? (
+              <p className="text-sm font-bold text-amber-600 animate-pulse">
+                🔥 Elite Status Unlocked. You've reached the top tier! Keep setting the standard for the rest of the team.
+              </p>
+            ) : nextTier ? (
               <p className="text-sm text-slate-500 font-medium">
                 Just <span className={`font-bold ${nextTier.text}`}>{formatRM(remainingToNext)}</span> more to unlock <span className="font-bold text-slate-900">{nextTier.name}</span>!
               </p>
-            ) : (
-              <p className="text-sm font-bold text-yellow-600 animate-pulse">
-                🏆 Maximum Commission Tier Reached! Outstanding Work!
-              </p>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
