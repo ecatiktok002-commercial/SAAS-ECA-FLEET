@@ -1,5 +1,5 @@
 
-import { Booking, Car, Member, LogEntry, Expense, StaffMember, Agreement, DigitalForm, Company, MarketingEvent } from '../types';
+import { Booking, Car, Member, LogEntry, Expense, StaffMember, Agreement, DigitalForm, Company, MarketingEvent, AuditRecord } from '../types';
 import { supabase } from './supabase';
 
 // Service for managing fleet data
@@ -149,7 +149,10 @@ const mapBookingFromDB = (dbBooking: any): Booking => ({
   actual_end_time: dbBooking.actual_end_time,
   status: dbBooking.status,
   total_price: dbBooking.total_price,
-  created_by: dbBooking.created_by
+  created_by: dbBooking.created_by,
+  is_dates_matched: dbBooking.is_dates_matched,
+  has_discrepancy: dbBooking.has_discrepancy,
+  discrepancy_reason: dbBooking.discrepancy_reason
 });
 
 const mapBookingToDB = (booking: any) => ({
@@ -161,7 +164,10 @@ const mapBookingToDB = (booking: any) => ({
   actual_end_time: booking.actual_end_time,
   status: booking.status,
   total_price: booking.total_price,
-  created_by: booking.created_by
+  created_by: booking.created_by,
+  is_dates_matched: booking.is_dates_matched,
+  has_discrepancy: booking.has_discrepancy,
+  discrepancy_reason: booking.discrepancy_reason
 });
 
 const mapMemberFromDB = (dbMember: any): Member => ({
@@ -508,6 +514,40 @@ export const apiService = {
         throw new Error(error.message || 'Failed to fetch bookings');
       }
       return (data || []).map(mapBookingFromDB);
+    });
+  },
+
+  async getBookingById(id: string, subscriberId: string): Promise<Booking | null> {
+    validateSubscriber(subscriberId);
+    return withRetry(async () => {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('id', id)
+        .eq('subscriber_id', subscriberId)
+        .single();
+      
+      if (error) {
+        logSupabaseError('getBookingById', error);
+        return null;
+      }
+      return data ? mapBookingFromDB(data) : null;
+    });
+  },
+
+  async updateBookingAuditStatus(id: string, subscriberId: string, auditData: { is_dates_matched: boolean, has_discrepancy: boolean, discrepancy_reason: string }): Promise<void> {
+    validateSubscriber(subscriberId);
+    return withRetry(async () => {
+      const { error } = await supabase
+        .from('bookings')
+        .update(auditData)
+        .eq('id', id)
+        .eq('subscriber_id', subscriberId);
+      
+      if (error) {
+        logSupabaseError('updateBookingAuditStatus', error);
+        throw new Error('Failed to update booking audit status');
+      }
     });
   },
 
@@ -1467,6 +1507,84 @@ export const apiService = {
   },
 
   // Marketing Events
+  async getAuditRecords(subscriberId: string): Promise<AuditRecord[]> {
+    validateSubscriber(subscriberId);
+    return withRetry(async () => {
+      const { data, error } = await supabase
+        .from('subscriber_audit_view')
+        .select('*')
+        .eq('subscriber_id', subscriberId);
+      
+      if (error) {
+        logSupabaseError('getAuditRecords', error);
+        throw new Error('Failed to fetch audit records');
+      }
+      return data || [];
+    });
+  },
+
+  async approveAuditRecord(formId: string, bookingId: string | null, subscriberId: string): Promise<void> {
+    validateSubscriber(subscriberId);
+    return withRetry(async () => {
+      // Update Digital Form
+      const { error: formError } = await supabase
+        .from('digital_forms')
+        .update({ payout_status: 'approved', is_receipt_verified: true })
+        .eq('id', formId)
+        .eq('subscriber_id', subscriberId);
+      
+      if (formError) {
+        logSupabaseError('approveAuditRecord:form', formError);
+        throw new Error('Failed to approve digital form');
+      }
+
+      // Update Booking if exists
+      if (bookingId) {
+        const { error: bookingError } = await supabase
+          .from('bookings')
+          .update({ has_discrepancy: false })
+          .eq('id', bookingId)
+          .eq('subscriber_id', subscriberId);
+        
+        if (bookingError) {
+          logSupabaseError('approveAuditRecord:booking', bookingError);
+        }
+      }
+    });
+  },
+
+  async approveSelectedAuditRecords(formIds: string[], subscriberId: string): Promise<void> {
+    validateSubscriber(subscriberId);
+    return withRetry(async () => {
+      const { error } = await supabase
+        .from('digital_forms')
+        .update({ payout_status: 'approved', is_receipt_verified: true })
+        .in('id', formIds)
+        .eq('subscriber_id', subscriberId);
+      
+      if (error) {
+        logSupabaseError('approveSelectedAuditRecords', error);
+        throw new Error('Failed to approve selected records');
+      }
+    });
+  },
+
+  async closeMonthPayouts(subscriberId: string): Promise<void> {
+    validateSubscriber(subscriberId);
+    return withRetry(async () => {
+      const { error } = await supabase
+        .from('digital_forms')
+        .update({ payout_status: 'paid' })
+        .eq('payout_status', 'approved')
+        .eq('subscriber_id', subscriberId);
+      
+      if (error) {
+        logSupabaseError('closeMonthPayouts', error);
+        throw new Error('Failed to close month payouts');
+      }
+    });
+  },
+
   async getMarketingEvents(subscriberId: string): Promise<MarketingEvent[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {

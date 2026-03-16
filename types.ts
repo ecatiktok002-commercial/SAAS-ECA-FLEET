@@ -55,6 +55,9 @@ export interface Booking {
   status?: 'active' | 'completed' | 'cancelled';
   total_price?: number;
   created_by?: string;
+  is_dates_matched?: boolean;
+  has_discrepancy?: boolean;
+  discrepancy_reason?: string;
 }
 
 export interface Expense {
@@ -155,6 +158,10 @@ export interface DigitalForm {
   signed_at?: string;
   created_by?: string;
   created_at: string;
+  booking_id?: string;
+  commission_earned?: number;
+  payout_status?: 'pending' | 'approved' | 'paid';
+  is_receipt_verified?: boolean;
 }
 
 export interface MarketingEvent {
@@ -167,6 +174,30 @@ export interface MarketingEvent {
   start_date: string;
   end_date: string;
   created_at: string;
+}
+
+export interface AuditRecord {
+  form_id: string;
+  subscriber_id: string;
+  agent_id: string;
+  agent_name: string;
+  customer_name: string;
+  car_plate_number: string;
+  form_price: number;
+  form_start: string;
+  form_end: string;
+  payment_receipt: string | null;
+  commission_earned: number;
+  payout_status: 'pending' | 'approved' | 'paid';
+  is_receipt_verified: boolean;
+  created_at: string;
+  booking_id: string | null;
+  booking_price: number | null;
+  booking_start: string | null;
+  booking_duration: number | null;
+  has_discrepancy: boolean;
+  is_dates_matched: boolean;
+  discrepancy_reason: string | null;
 }
 
 export interface Company {

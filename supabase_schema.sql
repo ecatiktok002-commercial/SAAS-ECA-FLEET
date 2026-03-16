@@ -229,8 +229,16 @@ CREATE TABLE IF NOT EXISTS bookings (
   status TEXT DEFAULT 'active',
   total_price NUMERIC DEFAULT 0,
   created_by TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  is_dates_matched BOOLEAN DEFAULT FALSE,
+  has_discrepancy BOOLEAN DEFAULT FALSE,
+  discrepancy_reason TEXT
 );
+
+-- Ensure columns exist if table was already created
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS is_dates_matched BOOLEAN DEFAULT FALSE;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS has_discrepancy BOOLEAN DEFAULT FALSE;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS discrepancy_reason TEXT;
 
 -- 6. Agreements (Sales)
 CREATE TABLE IF NOT EXISTS agreements (
@@ -296,8 +304,18 @@ CREATE TABLE IF NOT EXISTS digital_forms (
   status TEXT DEFAULT 'pending',
   signed_at TIMESTAMP WITH TIME ZONE,
   created_by TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  booking_id UUID REFERENCES bookings(id) ON DELETE SET NULL,
+  commission_earned NUMERIC DEFAULT 0,
+  payout_status TEXT DEFAULT 'pending',
+  is_receipt_verified BOOLEAN DEFAULT FALSE
 );
+
+-- Ensure columns exist if table was already created
+ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS booking_id UUID REFERENCES bookings(id) ON DELETE SET NULL;
+ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS commission_earned NUMERIC DEFAULT 0;
+ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS payout_status TEXT DEFAULT 'pending';
+ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS is_receipt_verified BOOLEAN DEFAULT FALSE;
 
 -- 8. Expenses
 CREATE TABLE IF NOT EXISTS expenses (
@@ -984,14 +1002,30 @@ SELECT cron.schedule(
   $$
 );
 
-SELECT cron.schedule(
-  'cleanup-storage-daily',
-  '0 1 * * *', -- Run at 1 AM every day
-  $$
-    SELECT net.http_post(
-      url:='https://' || current_setting('request.headers', true)::json->>'host' || '/functions/v1/cleanup-storage',
-      headers:='{"Content-Type": "application/json", "Authorization": "Bearer ' || current_setting('request.headers', true)::json->>'apikey' || '"}'::jsonb,
-      body:='{}'::jsonb
-    );
-  $$
-);
+-- 17. Subscriber Audit View
+DROP VIEW IF EXISTS subscriber_audit_view;
+CREATE OR REPLACE VIEW subscriber_audit_view AS
+SELECT 
+    f.id as form_id,
+    f.subscriber_id,
+    f.agent_id,
+    f.agent_name,
+    f.customer_name,
+    f.car_plate_number,
+    f.total_price as form_price,
+    f.start_date as form_start,
+    f.end_date as form_end,
+    f.payment_receipt,
+    f.commission_earned,
+    f.payout_status,
+    f.is_receipt_verified,
+    f.created_at,
+    b.id as booking_id,
+    b.total_price as booking_price,
+    b.start as booking_start,
+    b.duration as booking_duration,
+    b.has_discrepancy,
+    b.is_dates_matched,
+    b.discrepancy_reason
+FROM digital_forms f
+LEFT JOIN bookings b ON f.booking_id = b.id;

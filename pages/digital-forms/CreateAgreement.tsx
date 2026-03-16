@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Save, Upload, CheckCircle2 } from 'lucide-react';
 import { addDays, differenceInDays, parseISO, format, isValid } from 'date-fns';
 import { apiService } from '../../services/apiService';
@@ -8,6 +8,10 @@ import { useAuth } from '../../context/AuthContext';
 export default function CreateAgreement() {
   const { subscriberId, userId, userName, userUid, staffRole } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const bookingId = queryParams.get('booking_id');
+
   const [formData, setFormData] = useState({
     customer_name: '',
     identity_number: '',
@@ -25,6 +29,7 @@ export default function CreateAgreement() {
     pickup_time: '',
     return_time: '',
     need_einvoice: false,
+    booking_id: bookingId || '',
   });
   const [paymentReceipt, setPaymentReceipt] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -49,6 +54,54 @@ export default function CreateAgreement() {
       }
     }
   };
+
+  // Pre-fill from booking if bookingId is present
+  useEffect(() => {
+    const fetchBookingData = async () => {
+      if (bookingId && subscriberId) {
+        try {
+          const booking = await apiService.getBookingById(bookingId, subscriberId);
+          if (booking) {
+            // Fetch member details
+            const member = await apiService.getMembers(subscriberId).then(members => 
+              members.find(m => m.id === booking.memberId)
+            );
+
+            // Fetch car details
+            const car = await apiService.getCars(subscriberId).then(cars => 
+              cars.find(c => c.id === booking.carId)
+            );
+
+            if (member && car) {
+              setFormData(prev => ({
+                ...prev,
+                customer_name: member.name,
+                identity_number: member.identity_number || '',
+                customer_phone: member.phone || '',
+                billing_address: member.billing_address || '',
+                emergency_contact_name: member.emergency_contact_name || '',
+                emergency_contact_relation: member.emergency_contact_relation || '',
+                car_plate_number: car.plateNumber || car.plate || '',
+                car_model: `${car.make} ${car.model}`.trim(),
+                start_date: booking.start.split('T')[0],
+                duration_days: booking.duration.toString(),
+                total_price: booking.total_price?.toString() || '',
+                pickup_time: booking.start.split('T')[1]?.substring(0, 5) || '10:00',
+              }));
+              
+              // Trigger auto-calculations
+              updateReturnDate(booking.start.split('T')[0], booking.duration.toString());
+              setCustomerFound(true);
+            }
+          }
+        } catch (err) {
+          console.error('Error pre-filling from booking:', err);
+        }
+      }
+    };
+
+    fetchBookingData();
+  }, [bookingId, subscriberId]);
 
   const updateDuration = (startDateStr: string, endDateStr: string) => {
     if (startDateStr && endDateStr) {
@@ -228,8 +281,49 @@ export default function CreateAgreement() {
         return_time: formData.return_time,
         need_einvoice: formData.need_einvoice,
         payment_receipt: receiptData,
-        status: 'pending'
+        status: 'pending',
+        booking_id: formData.booking_id || null
       };
+
+      // 2. Auto-Audit Background Check
+      if (formData.booking_id) {
+        try {
+          const booking = await apiService.getBookingById(formData.booking_id, subscriberId);
+          if (booking) {
+            const bookingStartDate = booking.start.split('T')[0];
+            const bookingDuration = booking.duration;
+            const bookingEndDate = format(addDays(parseISO(bookingStartDate), bookingDuration), 'yyyy-MM-dd');
+            const bookingTotalPrice = booking.total_price || 0;
+
+            const formStartDate = formData.start_date;
+            const formEndDate = formData.end_date;
+            const formTotalPrice = parseFloat(formData.total_price);
+
+            const isDatesMatched = (bookingStartDate === formStartDate) && (bookingEndDate === formEndDate);
+            const isPriceMatched = bookingTotalPrice === formTotalPrice;
+            
+            let hasDiscrepancy = false;
+            let discrepancyReason = '';
+
+            if (!isDatesMatched || !isPriceMatched) {
+              hasDiscrepancy = true;
+              const reasons = [];
+              if (!isDatesMatched) reasons.push('Date mismatch');
+              if (!isPriceMatched) reasons.push('Price mismatch');
+              discrepancyReason = reasons.join(' & ');
+            }
+
+            await apiService.updateBookingAuditStatus(formData.booking_id, subscriberId, {
+              is_dates_matched: isDatesMatched,
+              has_discrepancy: hasDiscrepancy,
+              discrepancy_reason: discrepancyReason
+            });
+          }
+        } catch (auditErr) {
+          console.error('Audit check failed:', auditErr);
+          // We don't block the agreement creation if audit fails, but we log it
+        }
+      }
 
       const newAgreement = await apiService.createAgreement(agreementData, subscriberId);
       

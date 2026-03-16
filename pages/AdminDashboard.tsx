@@ -52,6 +52,7 @@ const AdminDashboard: React.FC = () => {
   const [currentStaff, setCurrentStaff] = useState<any>(null);
   const [dailyCommissions, setDailyCommissions] = useState<{ date: string, amount: number }[]>([]);
   const [totalEarnedToday, setTotalEarnedToday] = useState(0);
+  const [lastMonthEarnings, setLastMonthEarnings] = useState(0);
   const [lifetimeEarnings, setLifetimeEarnings] = useState(0);
   const [recentAgreements, setRecentAgreements] = useState<Agreement[]>([]);
   
@@ -110,6 +111,10 @@ const AdminDashboard: React.FC = () => {
       
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const startOfMonthStr = startOfMonth.toISOString().split('T')[0];
+
+      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastMonthKey = lastMonth.toISOString().substring(0, 7);
+      let lastMonthEarnings = 0;
 
       // 1. Sales Metrics (Completed/Signed Agreements)
       const completedAgreements = agreements.filter(a => a.status === 'signed' || a.status === 'completed');
@@ -271,6 +276,10 @@ const AdminDashboard: React.FC = () => {
             runningTotal += a.total_price;
             lifetime += commission;
 
+            if (monthKey === lastMonthKey) {
+              lastMonthEarnings += commission;
+            }
+
             const dateStr = a.created_at.split('T')[0];
             if (dateStr === todayStr) {
               earnedToday += commission;
@@ -297,6 +306,7 @@ const AdminDashboard: React.FC = () => {
 
         setDailyCommissions(chartData);
         setTotalEarnedToday(earnedToday);
+        setLastMonthEarnings(lastMonthEarnings);
         setLifetimeEarnings(lifetime);
       }
 
@@ -467,13 +477,24 @@ const AdminDashboard: React.FC = () => {
                   <p className="text-emerald-100 text-sm font-medium">Total Earned Today</p>
                   <p className="text-5xl font-black tracking-tighter">{currencyFormatter.format(totalEarnedToday)}</p>
                 </div>
+                
+                <div className="mt-4 flex items-center gap-2 text-emerald-100/80">
+                  <Clock className="w-4 h-4" />
+                  <p className="text-xs font-bold uppercase tracking-widest">Last Month's Payout:</p>
+                  <p className="text-sm font-black">
+                    {lastMonthEarnings > 0 
+                      ? currencyFormatter.format(lastMonthEarnings) 
+                      : "RM 0.00 — Let's make this your first payout month!"}
+                  </p>
+                </div>
+
                 <div className="mt-6 pt-6 border-t border-white/10 flex justify-between items-end">
                   <div>
                     <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1">Current Sales</p>
                     <p className="text-2xl font-bold">{currencyFormatter.format(stats.salesToday)}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1">YOUR TOTAL EARNINGS</p>
+                    <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1">LIFETIME EARNINGS 🏆</p>
                     <p className="text-2xl font-bold">{currencyFormatter.format(lifetimeEarnings)}</p>
                   </div>
                 </div>
