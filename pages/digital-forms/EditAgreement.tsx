@@ -53,7 +53,8 @@ export default function EditAgreement() {
     }
   };
 
-  const isLocked = agreement?.status === 'completed' && !isAdmin && !requestAmendmentMode;
+  const isCompleted = agreement?.status === 'signed' && !!agreement?.payment_receipt;
+  const isLocked = isCompleted && !isAdmin && !requestAmendmentMode;
 
   const renderLabel = (label: string, fieldName: string) => {
     const pendingValue = agreement?.pending_changes?.[fieldName];
@@ -281,7 +282,7 @@ export default function EditAgreement() {
             </Link>
             <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Edit Agreement</h1>
           </div>
-          {agreement?.status === 'completed' && !isAdmin && !requestAmendmentMode && (
+          {isCompleted && !isAdmin && !requestAmendmentMode && (
             <button
               type="button"
               onClick={() => setRequestAmendmentMode(true)}

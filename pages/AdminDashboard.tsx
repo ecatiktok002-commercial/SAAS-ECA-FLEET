@@ -117,7 +117,7 @@ const AdminDashboard: React.FC = () => {
       let lastMonthEarnings = 0;
 
       // 1. Sales Metrics (Completed/Signed Agreements)
-      const completedAgreements = agreements.filter(a => a.status === 'completed');
+      const completedAgreements = agreements.filter(a => a.status === 'signed' && !!a.payment_receipt);
       
       let salesToday = 0;
       let salesThisWeek = 0;
