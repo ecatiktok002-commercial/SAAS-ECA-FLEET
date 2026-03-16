@@ -1144,22 +1144,26 @@ export const apiService = {
     });
   },
 
-  async addCompany(name: string, tier: string, isTrial: boolean = false, expiryDate: string | null = null): Promise<Company> {
+  async addCompany(name: string, tier: string, isTrial: boolean = false, expiryDate: string | null = null, manualUid?: string): Promise<Company> {
     return withRetry(async () => {
       const sanitizedName = name.toLowerCase().replace(/\s+/g, '');
       const email = `${sanitizedName}@ecafleet.com`;
       const password = `${sanitizedName}Eca123!`; // Use strong password to avoid length/complexity errors
 
-      // 1. Get the confirmed user ID (handles existing users too)
-      const { data: confirmedId, error: rpcError } = await supabase.rpc('auto_confirm_user', { p_email: email });
-      if (rpcError) {
-        console.error('RPC Error in auto_confirm_user:', rpcError);
-        console.warn('Failed to auto-confirm user.', rpcError);
+      let userId = manualUid;
+
+      // 1. Get the confirmed user ID (handles existing users too) if no manual UID provided
+      if (!userId) {
+        const { data: confirmedId, error: rpcError } = await supabase.rpc('auto_confirm_user', { p_email: email });
+        if (rpcError) {
+          console.error('RPC Error in auto_confirm_user:', rpcError);
+          console.warn('Failed to auto-confirm user.', rpcError);
+        }
+        userId = confirmedId;
       }
 
-      const userId = confirmedId;
       if (!userId) {
-        throw new Error(`User account for "${email}" not found in Supabase Auth. Please create the user manually in Supabase first.`);
+        throw new Error(`User account for "${email}" not found in Supabase Auth. Please create the user manually in Supabase first, or provide the UID directly.`);
       }
 
       // 3. Upsert into subscribers table with the new user ID

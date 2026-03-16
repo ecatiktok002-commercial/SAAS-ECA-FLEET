@@ -700,24 +700,23 @@ DECLARE
   v_id UUID;
 BEGIN
   -- Only allow if the email is in @ecafleet.com
-  IF NOT (LOWER(p_email) LIKE '%@ecafleet.com') THEN
+  IF NOT (LOWER(TRIM(p_email)) LIKE '%@ecafleet.com') THEN
     RAISE EXCEPTION 'Invalid email domain';
   END IF;
 
-  -- Try to update and confirm (case-insensitive)
-  UPDATE auth.users
-  SET email_confirmed_at = NOW()
-  WHERE LOWER(email) = LOWER(p_email)
-  RETURNING id INTO v_id;
+  -- Try to find the user (case-insensitive and trimmed)
+  SELECT id INTO v_id FROM auth.users WHERE LOWER(email) = LOWER(TRIM(p_email)) LIMIT 1;
   
-  -- If update didn't return an ID (maybe already confirmed or no match), try a select
-  IF v_id IS NULL THEN
-    SELECT id INTO v_id FROM auth.users WHERE LOWER(email) = LOWER(p_email) LIMIT 1;
+  -- If found, ensure it is confirmed
+  IF v_id IS NOT NULL THEN
+    UPDATE auth.users
+    SET email_confirmed_at = COALESCE(email_confirmed_at, NOW())
+    WHERE id = v_id;
   END IF;
   
   RETURN v_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = auth, public;
 
 -- RPC to synchronize staff_members.id with auth.users.id during migration
 CREATE OR REPLACE FUNCTION repair_staff_auth_link(p_uid TEXT, p_new_id UUID)

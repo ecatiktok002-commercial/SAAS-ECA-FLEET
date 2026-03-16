@@ -61,6 +61,7 @@ const SubscriberManager: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
+  const [manualUid, setManualUid] = useState('');
   const [newCompanyTier, setNewCompanyTier] = useState<Company['tier']>('Tier 1');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -142,8 +143,9 @@ const SubscriberManager: React.FC = () => {
         expiryDate = date.toISOString();
       }
 
-      await apiService.addCompany(newCompanyName, tier, isTrial, expiryDate);
+      await apiService.addCompany(newCompanyName, tier, isTrial, expiryDate, manualUid.trim() || undefined);
       setNewCompanyName('');
+      setManualUid('');
       setShowAddModal(false);
       await fetchData();
     } catch (err: any) {
@@ -677,6 +679,21 @@ const SubscriberManager: React.FC = () => {
                     placeholder="e.g. EcaFleet Rentals"
                     className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-900 focus:ring-2 focus:ring-[#0F172A] outline-none transition-all"
                   />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-sm font-medium text-slate-700">Auth UID (Optional)</label>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Manual Link</span>
+                  </div>
+                  <input 
+                    type="text"
+                    value={manualUid}
+                    onChange={(e) => setManualUid(e.target.value)}
+                    placeholder="Paste Supabase User UID here"
+                    className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-900 focus:ring-2 focus:ring-[#0F172A] outline-none transition-all font-mono text-xs"
+                  />
+                  <p className="mt-1 text-[10px] text-slate-500">Only use if automatic detection fails. Found in Supabase Auth table.</p>
                 </div>
 
                 <div>
