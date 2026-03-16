@@ -97,10 +97,9 @@ const AdminDashboard: React.FC = () => {
         apiService.getStaffMembers(subscriberId!)
       ]);
 
-      let staff: any = null;
       if (userUid) {
-        staff = staffMembers.find(s => s.designated_uid === userUid) || null;
-        setCurrentStaff(staff);
+        const staff = staffMembers.find(s => s.designated_uid === userUid);
+        setCurrentStaff(staff || null);
       }
 
       const now = new Date();
@@ -126,9 +125,10 @@ const AdminDashboard: React.FC = () => {
       
       completedAgreements.forEach(a => {
         const createdDate = a.created_at.split('T')[0];
-        if (createdDate === todayStr) salesToday += a.total_price;
-        if (createdDate >= startOfWeekStr) salesThisWeek += a.total_price;
-        if (createdDate >= startOfMonthStr) salesThisMonth += a.total_price;
+        const price = Number(a.total_price || 0);
+        if (createdDate === todayStr) salesToday += price;
+        if (createdDate >= startOfWeekStr) salesThisWeek += price;
+        if (createdDate >= startOfMonthStr) salesThisMonth += price;
       });
 
       // 2. Idle Vehicles
@@ -199,7 +199,7 @@ const AdminDashboard: React.FC = () => {
         if (createdDate >= startOfMonthStr) {
           const key = a.created_by || a.agent_name || 'Unknown';
           const current = agentMap.get(key) || { name: a.agent_name || 'Unknown', total: 0 };
-          current.total += a.total_price;
+          current.total += Number(a.total_price || 0);
           agentMap.set(key, current);
         }
       });
@@ -219,23 +219,25 @@ const AdminDashboard: React.FC = () => {
 
       // 6. Agent Specific Metrics (Earnings & Chart)
       if (staffRole === 'staff') {
-        const tierOverride = staff?.commission_tier_override || 'auto';
+        const tierOverride = currentStaff?.commission_tier_override || 'auto';
         
         const getCommissionForAmount = (a: Agreement, runningTotal: number) => {
+          const totalPrice = Number(a.total_price || 0);
           // 1. Use stored commission if available
           if (a.commission_earned !== undefined && a.commission_earned !== null) {
-            return a.commission_earned;
+            return Number(a.commission_earned);
           }
 
           // 2. Use dynamic rate from staff profile
-          if (staff?.commission_rate) {
-            return a.total_price * (staff.commission_rate / 100);
+          if (currentStaff?.commission_rate) {
+            return totalPrice * (currentStaff.commission_rate / 100);
           }
 
           // 3. Fallback to tier override if set
+          const tierOverride = currentStaff?.commission_tier_override || 'auto';
           if (tierOverride !== 'auto') {
             const rate = tierOverride === 'premium' ? 0.20 : tierOverride === 'prestige' ? 0.25 : 0.30;
-            return a.total_price * rate;
+            return totalPrice * rate;
           }
           
           // 4. Default tier logic
@@ -245,7 +247,7 @@ const AdminDashboard: React.FC = () => {
             return (5000 * 0.20) + (3000 * 0.25) + ((total - 8000) * 0.30);
           };
 
-          return getTotalCommission(runningTotal + a.total_price) - getTotalCommission(runningTotal);
+          return getTotalCommission(runningTotal + totalPrice) - getTotalCommission(runningTotal);
         };
 
         // Calculate Weekly Commissions for last 90 days (Quarterly)
@@ -286,7 +288,7 @@ const AdminDashboard: React.FC = () => {
           let runningTotal = 0;
           monthAgreements.forEach(a => {
             const commission = getCommissionForAmount(a, runningTotal);
-            runningTotal += a.total_price;
+            runningTotal += Number(a.total_price || 0);
             lifetime += commission;
 
             if (monthKey === lastMonthKey) {
@@ -314,7 +316,7 @@ const AdminDashboard: React.FC = () => {
 
         const chartData = Object.entries(weeklyData).map(([label, amount]) => ({
           date: label,
-          amount: Number(amount.toFixed(2))
+          amount: Number(Number(amount).toFixed(2))
         }));
 
         setDailyCommissions(chartData);

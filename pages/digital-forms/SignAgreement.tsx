@@ -356,16 +356,16 @@ export default function SignAgreement() {
               <div className="flex space-x-6 print:space-x-4 w-auto">
                 <div>
                   <p className="text-[10px] print:text-[7pt] font-medium text-slate-400 print:text-slate-500 uppercase tracking-wider">Rental Price</p>
-                  <p className="text-base print:text-[9pt] font-medium">RM {agreement.total_price.toFixed(2)}</p>
+                  <p className="text-base print:text-[9pt] font-medium">RM {Number(agreement.total_price || 0).toFixed(2)}</p>
                 </div>
                 <div>
                   <p className="text-[10px] print:text-[7pt] font-medium text-slate-400 print:text-slate-500 uppercase tracking-wider">Deposit</p>
-                  <p className="text-base print:text-[9pt] font-medium">RM {(agreement.deposit || 0).toFixed(2)}</p>
+                  <p className="text-base print:text-[9pt] font-medium">RM {Number(agreement.deposit || 0).toFixed(2)}</p>
                 </div>
               </div>
               <div className="w-auto text-right border-l border-slate-700 print:border-slate-300 pl-4">
                 <p className="text-[10px] print:text-[7pt] font-bold text-emerald-400 print:text-slate-700 uppercase tracking-widest">Grand Total</p>
-                <p className="text-2xl print:text-[10pt] font-bold text-white print:text-slate-900">RM {(agreement.total_price + (agreement.deposit || 0)).toFixed(2)}</p>
+                <p className="text-2xl print:text-[10pt] font-bold text-white print:text-slate-900">RM {(Number(agreement.total_price || 0) + Number(agreement.deposit || 0)).toFixed(2)}</p>
               </div>
             </div>
           </div>

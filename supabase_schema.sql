@@ -167,6 +167,7 @@ CREATE TABLE IF NOT EXISTS public.staff (
 
 ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS commission_tier_override TEXT DEFAULT 'auto';
+ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS commission_rate NUMERIC;
 
 -- Sync existing commission_tier_override from staff_members to staff
 UPDATE public.staff s
@@ -190,6 +191,7 @@ CREATE TABLE IF NOT EXISTS staff_members (
 
 -- Ensure columns exist if table was already created
 ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS commission_tier_override TEXT DEFAULT 'auto';
+ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS commission_rate NUMERIC;
 
 -- 3. Cars Table
 CREATE TABLE IF NOT EXISTS cars (

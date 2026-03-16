@@ -152,7 +152,7 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
                   </tr>
                   <tr className="font-bold">
                     <td className="border border-black p-2 text-right">JUMLAH KESELURUHAN</td>
-                    <td className="border border-black p-2 text-right bg-gray-100">{Number((payment.rentalPrice || 0) + (payment.deposit || 0)).toFixed(2)}</td>
+                    <td className="border border-black p-2 text-right bg-gray-100">{(Number(payment.rentalPrice || 0) + Number(payment.deposit || 0)).toFixed(2)}</td>
                   </tr>
                 </tbody>
               </table>

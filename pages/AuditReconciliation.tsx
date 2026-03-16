@@ -133,11 +133,11 @@ const AuditReconciliation: React.FC = () => {
 
   const pendingPayoutsSum = records
     .filter(r => r.payout_status === 'pending')
-    .reduce((sum, r) => sum + (r.commission_earned || 0), 0);
+    .reduce((sum, r) => sum + Number(r.commission_earned || 0), 0);
 
   const readyForPayoutSum = records
     .filter(r => r.payout_status === 'approved')
-    .reduce((sum, r) => sum + (r.commission_earned || 0), 0);
+    .reduce((sum, r) => sum + Number(r.commission_earned || 0), 0);
 
   if (loading) {
     return (
@@ -275,7 +275,7 @@ const AuditReconciliation: React.FC = () => {
                             )}
                           </td>
                           <td className="py-4 px-4">
-                            <div className="text-sm font-bold text-slate-900">RM {record.commission_earned.toFixed(2)}</div>
+                            <div className="text-sm font-bold text-slate-900">RM {Number(record.commission_earned || 0).toFixed(2)}</div>
                           </td>
                           <td className="py-4 px-4 text-right">
                             <button
@@ -395,7 +395,7 @@ const AuditReconciliation: React.FC = () => {
                             </div>
                           </td>
                           <td className="py-4 px-4">
-                            <div className="text-sm font-bold text-slate-900">RM {record.commission_earned.toFixed(2)}</div>
+                            <div className="text-sm font-bold text-slate-900">RM {Number(record.commission_earned || 0).toFixed(2)}</div>
                           </td>
                           <td className="py-4 px-4 text-right">
                             <button 
