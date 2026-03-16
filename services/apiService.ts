@@ -937,7 +937,8 @@ export const apiService = {
         subscriber_id: slug, 
         staff_uid: uid,
         pin_code: pin || '1234', 
-        is_active: true
+        is_active: true,
+        commission_tier_override: commissionTierOverride
       };
 
       if (confirmedId) {
@@ -988,6 +989,7 @@ export const apiService = {
       if (updates.designated_uid !== undefined) dbUpdates.staff_uid = updates.designated_uid;
       if (updates.pin_code !== undefined) dbUpdates.pin_code = updates.pin_code;
       if (updates.is_active !== undefined) dbUpdates.is_active = updates.is_active;
+      if (updates.commission_tier_override !== undefined) dbUpdates.commission_tier_override = updates.commission_tier_override;
 
       // Update 'staff' table
       const { data, error } = await supabase

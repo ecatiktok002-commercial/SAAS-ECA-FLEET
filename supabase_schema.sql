@@ -153,10 +153,18 @@ CREATE TABLE IF NOT EXISTS public.staff (
     pin_code TEXT NOT NULL,            -- '1234'
     subscriber_id TEXT NOT NULL,       -- 'ecateam'
     is_active BOOLEAN DEFAULT true,
+    commission_tier_override TEXT DEFAULT 'auto',
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
 ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS commission_tier_override TEXT DEFAULT 'auto';
+
+-- Sync existing commission_tier_override from staff_members to staff
+UPDATE public.staff s
+SET commission_tier_override = sm.commission_tier_override
+FROM staff_members sm
+WHERE s.id = sm.id AND s.commission_tier_override = 'auto' AND sm.commission_tier_override != 'auto';
 
 CREATE INDEX IF NOT EXISTS idx_staff_lookup ON public.staff(staff_uid, subscriber_id);
 
