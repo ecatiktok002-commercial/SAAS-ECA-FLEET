@@ -797,10 +797,14 @@ BEGIN
     -- We also need the real subscriber UUID for the app's internal filtering
     SELECT * INTO v_company FROM subscribers WHERE name ILIKE v_staff.subscriber_id LIMIT 1;
     
+    IF NOT FOUND THEN
+      RETURN json_build_object('role', 'orphaned_staff', 'message', 'Company record not found for this staff member.');
+    END IF;
+
     RETURN json_build_object(
       'role', 'staff', 
-      'subscriber_id', v_company.id, -- UUID for filtering
-      'subscriber_slug', v_staff.subscriber_id, -- 'ecateam' for login
+      'subscriber_id', v_company.id, 
+      'subscriber_slug', v_staff.subscriber_id, 
       'staff_id', v_staff.id, 
       'staff_name', v_staff.name, 
       'staff_uid', v_staff.staff_uid,

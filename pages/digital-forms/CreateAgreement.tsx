@@ -428,7 +428,7 @@ export default function CreateAgreement() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Emergency Contact Name</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Emergency Contact Number</label>
                 <input
                   type="text"
                   name="emergency_contact_name"
