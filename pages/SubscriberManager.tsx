@@ -146,8 +146,8 @@ const SubscriberManager: React.FC = () => {
       setNewCompanyName('');
       setShowAddModal(false);
       await fetchData();
-    } catch (err) {
-      setError('Failed to create new subscriber');
+    } catch (err: any) {
+      setError(err.message || 'Failed to create new subscriber');
     } finally {
       setLoading(false);
     }

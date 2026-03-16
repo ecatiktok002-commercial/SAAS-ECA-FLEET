@@ -700,17 +700,19 @@ DECLARE
   v_id UUID;
 BEGIN
   -- Only allow if the email is in @ecafleet.com
-  IF NOT (p_email LIKE '%@ecafleet.com') THEN
+  IF NOT (LOWER(p_email) LIKE '%@ecafleet.com') THEN
     RAISE EXCEPTION 'Invalid email domain';
   END IF;
 
+  -- Try to update and confirm (case-insensitive)
   UPDATE auth.users
   SET email_confirmed_at = NOW()
-  WHERE email = p_email
+  WHERE LOWER(email) = LOWER(p_email)
   RETURNING id INTO v_id;
   
+  -- If update didn't return an ID (maybe already confirmed or no match), try a select
   IF v_id IS NULL THEN
-    SELECT id INTO v_id FROM auth.users WHERE email = p_email LIMIT 1;
+    SELECT id INTO v_id FROM auth.users WHERE LOWER(email) = LOWER(p_email) LIMIT 1;
   END IF;
   
   RETURN v_id;

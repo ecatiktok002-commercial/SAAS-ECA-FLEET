@@ -1159,13 +1159,14 @@ export const apiService = {
 
       const userId = confirmedId;
       if (!userId) {
-        throw new Error('Failed to create auth user: No user ID returned');
+        throw new Error(`User account for "${email}" not found in Supabase Auth. Please create the user manually in Supabase first.`);
       }
 
-      // 3. Insert into subscribers table with the new user ID
+      // 3. Upsert into subscribers table with the new user ID
+      // Using upsert handles cases where the record might partially exist from previous attempts
       const { data, error } = await supabase
         .from('subscribers')
-        .insert([{ 
+        .upsert([{ 
           id: userId,
           name, 
           tier, 
@@ -1174,12 +1175,15 @@ export const apiService = {
           is_trial: isTrial,
           expiry_date: expiryDate,
           subscription_start_date: new Date().toISOString()
-        }])
+        }], { onConflict: 'id' })
         .select()
         .single();
       
       if (error) {
         logSupabaseError('addCompany', error);
+        if (error.code === '23505') {
+          throw new Error(`A subscriber with the name "${name}" or ID already exists.`);
+        }
         throw new Error(error.message || 'Failed to add company');
       }
       return data;
