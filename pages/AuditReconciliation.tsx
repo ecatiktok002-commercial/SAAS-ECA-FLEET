@@ -18,6 +18,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { openDataURL } from '../utils/fileUtils';
 
 const AuditReconciliation: React.FC = () => {
   const { subscriberId } = useAuth();
@@ -382,20 +383,20 @@ const AuditReconciliation: React.FC = () => {
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                          <div className="text-[10px] text-slate-400 font-medium">
-                            {format(new Date(record.created_at), 'MMM dd, HH:mm')}
+                          <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                            <div className="text-[10px] text-slate-400 font-medium">
+                              {format(new Date(record.created_at), 'MMM dd, HH:mm')}
+                            </div>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (record.payment_receipt) openDataURL(record.payment_receipt);
+                              }}
+                              className="text-blue-600 hover:text-blue-700 text-[10px] font-bold flex items-center gap-1"
+                            >
+                              View Full Receipt <ExternalLink className="w-3 h-3" />
+                            </button>
                           </div>
-                          <a 
-                            href={record.payment_receipt || '#'} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-blue-600 hover:text-blue-700 text-[10px] font-bold flex items-center gap-1"
-                          >
-                            View Full Receipt <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </div>
                       </div>
                     </div>
                   ))}

@@ -4,6 +4,7 @@ import { ArrowLeft, Save, Upload, CheckCircle2, Eye, Trash2 } from 'lucide-react
 import { addDays, differenceInDays, parseISO, format, isValid } from 'date-fns';
 import { apiService } from '../../services/apiService';
 import { useAuth } from '../../context/AuthContext';
+import { openDataURL } from '../../utils/fileUtils';
 
 export default function EditAgreement() {
   const { id } = useParams();
@@ -496,7 +497,7 @@ export default function EditAgreement() {
                       <div className="flex items-center space-x-2">
                         <button
                           type="button"
-                          onClick={() => window.open(existingReceipt, '_blank')}
+                          onClick={() => openDataURL(existingReceipt)}
                           className="inline-flex items-center px-3 py-1.5 border border-slate-200 shadow-sm text-xs font-medium rounded-lg text-slate-700 bg-white hover:bg-slate-50 transition-colors"
                         >
                           <Eye className="w-3.5 h-3.5 mr-1.5" />
