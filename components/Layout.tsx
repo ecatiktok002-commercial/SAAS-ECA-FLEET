@@ -39,11 +39,11 @@ const Layout: React.FC = () => {
       }
     }
 
-    // Tier 2: /calendar and /vehicles
+    // Tier 2: Only /calendar
     if (subscriptionTier === 'tier_2') {
-      const allowedPaths = ['/', '/calendar', '/vehicles'];
+      const allowedPaths = ['/', '/calendar'];
       const isAllowed = allowedPaths.some(p => path === p || path.startsWith(p + '/'));
-      if (!isAllowed && path !== '/staff') {
+      if (!isAllowed) {
         navigate(isStaff ? '/calendar' : '/', { replace: true });
       }
     }

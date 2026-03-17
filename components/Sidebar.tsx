@@ -107,25 +107,19 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
 
     // Fleet Guardian / Vehicles
     if (isAdmin) {
-      if (subscriptionTier === 'tier_2') {
+      if (subscriptionTier === 'tier_3') {
+        items.push({ 
+          name: 'Fleet Guardian', 
+          path: '/fleet', 
+          icon: <Car className="w-5 h-5" />,
+          isLocked: false
+        });
+      } else {
         items.push({ 
           name: 'Vehicles', 
           path: '/vehicles', 
           icon: <Car className="w-5 h-5" />,
-          isLocked: false
-        });
-        items.push({ 
-          name: 'Fleet Guardian', 
-          path: '/fleet', 
-          icon: <Lock className="w-5 h-5" />,
           isLocked: true
-        });
-      } else {
-        items.push({ 
-          name: 'Fleet Guardian', 
-          path: '/fleet', 
-          icon: <Car className="w-5 h-5" />,
-          isLocked: subscriptionTier === 'tier_1'
         });
       }
     }
@@ -146,7 +140,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
         name: 'Staff Management', 
         path: '/staff', 
         icon: <Settings className="w-5 h-5" />,
-        isLocked: false
+        isLocked: subscriptionTier === 'tier_2'
       });
     }
 

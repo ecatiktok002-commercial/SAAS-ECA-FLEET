@@ -102,22 +102,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUserId(getDisplayId(session.user));
         setUserName(isSuperAdmin ? 'Super Admin' : (session.user.user_metadata?.full_name || getDisplayId(session.user)));
         
-        // Self-Provisioning: Ensure subscriber record exists for Tier 1 users
-        if (!isSuperAdmin && finalSubscriberId === session.user.id) {
-          try {
-            const { error: upsertError } = await supabase
-              .from('subscribers')
-              .upsert({
-                id: session.user.id,
-                name: session.user.user_metadata?.full_name || getDisplayId(session.user),
-                tier: 'Tier 1',
-                status: 'ACTIVE'
-              }, { onConflict: 'id' });
-            
-            if (upsertError) console.warn('Self-provisioning subscriber record failed:', upsertError);
-          } catch (e) {
-            console.warn('Self-provisioning error:', e);
+        // Fetch latest tier from DB for non-superadmins
+        if (!isSuperAdmin) {
+          const { data: companyData } = await supabase
+            .from('subscribers')
+            .select('tier')
+            .eq('id', finalSubscriberId)
+            .single();
+          
+          if (companyData?.tier) {
+            const normalizedTier = normalizeTier(companyData.tier);
+            setSubscriptionTier(normalizedTier);
+            localStorage.setItem('subscriptionTier', normalizedTier);
+          } else if (finalSubscriberId === session.user.id) {
+            // Self-Provisioning: Only if record is missing and it's their own ID
+            try {
+              const { error: upsertError } = await supabase
+                .from('subscribers')
+                .insert({
+                  id: session.user.id,
+                  name: session.user.user_metadata?.full_name || getDisplayId(session.user),
+                  tier: 'Tier 1',
+                  status: 'ACTIVE'
+                });
+              
+              if (upsertError && upsertError.code !== '23505') { // Ignore duplicate key error
+                console.warn('Self-provisioning subscriber record failed:', upsertError);
+              } else {
+                setSubscriptionTier('tier_1');
+                localStorage.setItem('subscriptionTier', 'tier_1');
+              }
+            } catch (e) {
+              console.warn('Self-provisioning error:', e);
+            }
           }
+        } else {
+          setSubscriptionTier('tier_3');
         }
 
         const storedRole = localStorage.getItem('staffRole') as StaffRole;
@@ -151,23 +171,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } else if (isSuperAdmin) {
           setStaffRole('admin');
-        }
-
-        // Always fetch latest tier from DB for non-superadmins
-        if (!isSuperAdmin) {
-          const { data: companyData } = await supabase
-            .from('subscribers')
-            .select('tier')
-            .eq('id', finalSubscriberId)
-            .single();
-          
-          if (companyData?.tier) {
-            const normalizedTier = normalizeTier(companyData.tier);
-            setSubscriptionTier(normalizedTier);
-            localStorage.setItem('subscriptionTier', normalizedTier);
-          }
-        } else {
-          setSubscriptionTier('tier_3');
         }
       }
     } catch (err) {
