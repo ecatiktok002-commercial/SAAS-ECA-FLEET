@@ -112,9 +112,9 @@ const AppRoutes: React.FC = () => {
           <StrictTierGate allowedTiers={['tier_3']} allowStaff={false}><FleetGuardianPage /></StrictTierGate>
         } />
 
-        {/* Staff Management: Tier 1 and Tier 3, but Admin only */}
+        {/* Staff Management: All Tiers, but Admin only */}
         <Route path="staff" element={
-          <StrictTierGate allowedTiers={['tier_1', 'tier_3']} allowStaff={false}><StaffManagementPage /></StrictTierGate>
+          <StrictTierGate allowedTiers={['tier_1', 'tier_2', 'tier_3']} allowStaff={false}><StaffManagementPage /></StrictTierGate>
         } />
         
         {/* Subscribers: Superadmin only */}

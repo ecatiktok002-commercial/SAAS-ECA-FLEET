@@ -198,7 +198,11 @@ const BookingModal: React.FC<BookingModalProps> = ({
           const ownMember = members.find(m => m.staff_id === currentStaff.id);
           if (ownMember) setMemberId(ownMember.id);
         } else {
-          setMemberId('');
+          // Fallback: If no currentStaff (e.g. Subscriber/Admin logged in directly),
+          // pre-select the subscriber member (Owner)
+          const subscriberMember = members.find(m => m.is_subscriber);
+          if (subscriberMember) setMemberId(subscriberMember.id);
+          else setMemberId('');
         }
         
         // If a car was clicked on the calendar row (preselectedCarId), select its model

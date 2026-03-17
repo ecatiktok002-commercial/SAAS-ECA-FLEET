@@ -140,7 +140,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
         name: 'Staff Management', 
         path: '/staff', 
         icon: <Settings className="w-5 h-5" />,
-        isLocked: subscriptionTier === 'tier_2'
+        isLocked: false
       });
     }
 
