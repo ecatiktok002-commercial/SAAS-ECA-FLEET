@@ -505,8 +505,8 @@ const AdminDashboard: React.FC = () => {
 
                 <div className="mt-6 pt-6 border-t border-white/10 flex justify-between items-end">
                   <div>
-                    <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1">Current Sales</p>
-                    <p className="text-2xl font-bold">{currencyFormatter.format(stats.salesToday)}</p>
+                    <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1">Monthly Sales</p>
+                    <p className="text-2xl font-bold">{currencyFormatter.format(stats.salesThisMonth)}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1">LIFETIME EARNINGS 🏆</p>
