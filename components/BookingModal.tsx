@@ -627,7 +627,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
               </button>
             )}
 
-            {editingBooking && (
+            {editingBooking && isEditable && (
               <button 
                 type="button" 
                 onClick={() => setIsHandoverOpen(true)}

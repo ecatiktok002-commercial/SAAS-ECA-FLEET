@@ -105,14 +105,29 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
       });
     }
 
-    // Fleet Guardian
+    // Fleet Guardian / Vehicles
     if (isAdmin) {
-      items.push({ 
-        name: 'Fleet Guardian', 
-        path: '/fleet', 
-        icon: <Car className="w-5 h-5" />,
-        isLocked: subscriptionTier !== 'tier_3'
-      });
+      if (subscriptionTier === 'tier_2') {
+        items.push({ 
+          name: 'Vehicles', 
+          path: '/vehicles', 
+          icon: <Car className="w-5 h-5" />,
+          isLocked: false
+        });
+        items.push({ 
+          name: 'Fleet Guardian', 
+          path: '/fleet', 
+          icon: <Lock className="w-5 h-5" />,
+          isLocked: true
+        });
+      } else {
+        items.push({ 
+          name: 'Fleet Guardian', 
+          path: '/fleet', 
+          icon: <Car className="w-5 h-5" />,
+          isLocked: subscriptionTier === 'tier_1'
+        });
+      }
     }
 
     // Customers / CRM

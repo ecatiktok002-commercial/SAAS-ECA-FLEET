@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Car as CarIcon, AlertCircle, CheckCircle2, Trash2, Edit, Search } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
+import { Plus, Car as CarIcon, AlertCircle, CheckCircle2, Trash2, Edit, Search, Lock } from 'lucide-react';
 import { Car, CarStatus, ExpiryStatus } from '../types';
 import { useAuth } from '../context/AuthContext';
 import * as Storage from '../services/storageService';
@@ -7,7 +8,15 @@ import CarForm from '../components/CarForm';
 import AlertModal from '../components/AlertModal';
 
 const FleetGuardianPage: React.FC = () => {
-  const { subscriberId } = useAuth();
+  const { subscriberId, subscriptionTier } = useAuth();
+  const location = useLocation();
+  const isVehiclesPath = location.pathname === '/vehicles';
+  const isTier2 = subscriptionTier === 'tier_2';
+  
+  // Determine if we should show the "Guardian" features (Expiry tracking)
+  // Only Tier 3 on the /fleet path gets the full Guardian experience
+  const showGuardianFeatures = !isTier2 && !isVehiclesPath;
+  
   const [cars, setCars] = useState<Car[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingCar, setEditingCar] = useState<Car | null>(null);
@@ -103,10 +112,10 @@ const FleetGuardianPage: React.FC = () => {
     });
 
     setUrgentAlerts(alerts);
-    if (alerts.length > 0) {
+    if (alerts.length > 0 && showGuardianFeatures) {
       setShowAlertModal(true);
     }
-  }, [cars, getCarStatus]);
+  }, [cars, getCarStatus, showGuardianFeatures]);
 
   const handleSaveCar = async (car: Car) => {
     if (!subscriberId) return;
@@ -209,8 +218,12 @@ const FleetGuardianPage: React.FC = () => {
               <CarIcon className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight">Eca Fleet Guardian</h1>
-              <p className="text-xs text-slate-400">Fleet Expiry Tracker</p>
+              <h1 className="text-xl font-bold tracking-tight">
+                {showGuardianFeatures ? 'Eca Fleet Guardian' : 'Vehicle Management'}
+              </h1>
+              <p className="text-xs text-slate-400">
+                {showGuardianFeatures ? 'Fleet Expiry Tracker' : 'Manage your fleet for calendar bookings'}
+              </p>
             </div>
           </div>
           
@@ -242,7 +255,20 @@ const FleetGuardianPage: React.FC = () => {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-5xl mx-auto px-4 py-8">
+      <main className="max-w-5xl mx-auto px-4 py-8 relative">
+        {!showGuardianFeatures && (
+          <div className="mb-8 bg-blue-50 border border-blue-100 rounded-2xl p-4 flex items-start gap-3 shadow-sm">
+            <div className="bg-blue-100 p-2 rounded-lg shrink-0">
+              <CarIcon className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="text-blue-900 font-bold text-sm">Vehicle Management Active</h3>
+              <p className="text-blue-700 text-xs mt-0.5">
+                You can add and manage your vehicles for the calendar. <span className="font-bold">Automated Expiry Tracking</span> is a Tier 3 "Fleet Guardian" feature.
+              </p>
+            </div>
+          </div>
+        )}
         
         {/* Loading State */}
         {isLoading && (
@@ -276,11 +302,16 @@ const FleetGuardianPage: React.FC = () => {
             <div className="text-slate-500 text-sm font-medium mb-1">Total Vehicles</div>
             <div className="text-2xl font-bold text-slate-900">{cars.length}</div>
           </div>
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
             <div className="text-slate-500 text-sm font-medium mb-1">Total Alerts</div>
-            <div className={`text-2xl font-bold ${urgentAlerts.length > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+            <div className={`text-2xl font-bold ${urgentAlerts.length > 0 ? 'text-red-600' : 'text-emerald-600'} ${!showGuardianFeatures ? 'blur-sm select-none' : ''}`}>
               {urgentAlerts.length}
             </div>
+            {!showGuardianFeatures && (
+              <div className="absolute inset-0 bg-white/40 flex items-center justify-center">
+                <Lock className="w-4 h-4 text-slate-400" />
+              </div>
+            )}
           </div>
         </div>
 
@@ -347,7 +378,14 @@ const FleetGuardianPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="p-5 space-y-4">
+                  <div className={`p-5 space-y-4 relative ${!showGuardianFeatures ? 'min-h-[120px]' : ''}`}>
+                    {!showGuardianFeatures ? (
+                      <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center p-4 text-center">
+                        <Lock className="w-5 h-5 text-slate-400 mb-2" />
+                        <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Expiry Tracking Locked</p>
+                        <p className="text-[9px] text-slate-400 mt-0.5">Upgrade to Tier 3 to unlock Guardian features</p>
+                      </div>
+                    ) : null}
                     {/* Expiry Rows */}
                     {(['roadtax', 'insurance', 'inspection'] as const).map(type => {
                       const item = status[type];

@@ -627,6 +627,18 @@ export const apiService = {
           if (user) finalBooking.agent_id = user.id;
         }
 
+        // Logical Linking: Verify car belongs to subscriber
+        const { data: carData, error: carError } = await supabase
+          .from('cars')
+          .select('id')
+          .eq('id', finalBooking.carId)
+          .eq('subscriber_id', subscriberId)
+          .single();
+        
+        if (carError || !carData) {
+          throw new Error('Unauthorized: The selected vehicle does not belong to your fleet.');
+        }
+
         const { data, error } = await supabase
           .from('bookings')
           .insert([{ ...mapBookingToDB(finalBooking), subscriber_id: subscriberId }])

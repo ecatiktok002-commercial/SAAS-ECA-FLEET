@@ -48,6 +48,7 @@ export interface Booking {
   carId: string;
   memberId: string; // Link to Member
   agent_id?: string; // The staff member who created it
+  subscriber_id?: string;
   start: string; // ISO string
   duration: number; // in days
   actual_end_time?: string | null; // ISO string

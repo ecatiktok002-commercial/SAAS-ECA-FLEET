@@ -32,16 +32,16 @@ const Layout: React.FC = () => {
     // Layer 1: Tier Gate (Feature Access)
     // Tier 1: Only /forms
     if (subscriptionTier === 'tier_1') {
-      const allowedPaths = ['/', '/forms', '/customers'];
+      const allowedPaths = ['/', '/forms'];
       const isAllowed = allowedPaths.some(p => path === p || path.startsWith(p + '/'));
       if (!isAllowed && path !== '/staff') { // Staff is handled by Role Gate
         navigate(isStaff ? '/forms' : '/', { replace: true });
       }
     }
 
-    // Tier 2: /calendar and /forms
+    // Tier 2: /calendar and /vehicles
     if (subscriptionTier === 'tier_2') {
-      const allowedPaths = ['/', '/calendar', '/forms', '/customers'];
+      const allowedPaths = ['/', '/calendar', '/vehicles'];
       const isAllowed = allowedPaths.some(p => path === p || path.startsWith(p + '/'));
       if (!isAllowed && path !== '/staff') {
         navigate(isStaff ? '/calendar' : '/', { replace: true });
