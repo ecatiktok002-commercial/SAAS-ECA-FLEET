@@ -622,6 +622,17 @@ export const apiService = {
         logSupabaseError('updateBookingStatus', error);
         throw new Error('Failed to update booking status');
       }
+
+      // If completed, also update linked agreement status to 'completed'
+      // but only if it's not already 'reconciled'
+      if (status === 'completed') {
+        await supabase
+          .from('agreements')
+          .update({ status: 'completed' })
+          .eq('booking_id', id)
+          .eq('subscriber_id', subscriberId)
+          .neq('status', 'reconciled');
+      }
     });
   },
 

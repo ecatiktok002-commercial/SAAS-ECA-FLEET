@@ -289,6 +289,8 @@ ALTER TABLE agreements ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS photos_url TEXT[];
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS booking_id UUID REFERENCES bookings(id) ON DELETE SET NULL;
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS commission_earned NUMERIC DEFAULT 0;
+ALTER TABLE agreements ADD COLUMN IF NOT EXISTS payout_status TEXT DEFAULT 'pending';
+ALTER TABLE agreements ADD COLUMN IF NOT EXISTS is_receipt_verified BOOLEAN DEFAULT FALSE;
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS has_pending_changes BOOLEAN DEFAULT FALSE;
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS pending_changes JSONB;
 
@@ -1099,7 +1101,11 @@ SELECT
     a.commission_earned,
     a.payout_status,
     a.is_receipt_verified,
-    a.status,
+    CASE 
+        WHEN a.status = 'reconciled' THEN 'reconciled'
+        WHEN a.status = 'completed' OR b.status = 'completed' THEN 'completed'
+        ELSE a.status 
+    END as status,
     a.reference_number,
     a.created_at,
     b.id as booking_id,
@@ -1110,6 +1116,7 @@ SELECT
     b.is_dates_matched,
     b.discrepancy_reason
 FROM agreements a
-LEFT JOIN bookings b ON a.booking_id = b.id
+LEFT JOIN bookings b ON a.booking_id::uuid = b.id
 WHERE a.status IN ('completed', 'reconciled')
-   OR (a.status = 'signed' AND a.payment_receipt IS NOT NULL AND a.payment_receipt != '');
+   OR (a.status = 'signed' AND a.payment_receipt IS NOT NULL AND a.payment_receipt != '')
+   OR b.status = 'completed';
