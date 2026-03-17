@@ -60,28 +60,15 @@ const CalendarPage: React.FC = () => {
       ]);
       
       // Filter members to only include those that are staff OR the subscriber
-      let staffOnlyMembers = fetchedMembers.filter(m => m.staff_id);
+      let staffOnlyMembers = fetchedMembers.filter(m => m.staff_id || m.name.includes('(Owner)'));
       
-      // Identify or create subscriber member
-      const subscriberMember = fetchedMembers.find(m => !m.staff_id && (m.name === userUid || m.subscriber_id === currentSubscriberId));
+      // Identify subscriber member
+      const subscriberMember = fetchedMembers.find(m => !m.staff_id && (m.name.includes('(Owner)') || m.subscriber_id === currentSubscriberId));
       
       if (subscriberMember) {
         subscriberMember.is_subscriber = true;
         // Ensure it's at the top
         staffOnlyMembers = [subscriberMember, ...staffOnlyMembers.filter(m => m.id !== subscriberMember.id)];
-      } else if (staffRole === 'admin') {
-        // Auto-create member for subscriber if missing
-        try {
-          const newSubMember = await apiService.addMember({
-            name: userUid || 'Owner',
-            color: 'bg-slate-900',
-            subscriber_id: currentSubscriberId
-          }, currentSubscriberId);
-          newSubMember.is_subscriber = true;
-          staffOnlyMembers = [newSubMember, ...staffOnlyMembers];
-        } catch (e) {
-          console.error('Failed to auto-sync subscriber to member', e);
-        }
       }
       
       setCars(fetchedCars);
@@ -95,20 +82,6 @@ const CalendarPage: React.FC = () => {
         const found = fetchedStaff.find(s => s.designated_uid === currentUserId || s.id === currentUserId);
         if (found) {
           setCurrentStaff(found);
-          // Auto-sync if missing
-          const hasMember = fetchedMembers.some(m => m.staff_id === found.id);
-          if (!hasMember) {
-            try {
-              const newMember = await apiService.addMember({
-                name: found.name,
-                color: 'bg-blue-600',
-                staff_id: found.id
-              }, currentSubscriberId);
-              setMembers(prev => [...prev, newMember]);
-            } catch (e) {
-              console.error('Failed to auto-sync staff to member', e);
-            }
-          }
         }
       }
     } catch (err: any) {

@@ -82,10 +82,54 @@ const validateSubscriber = (id: string | null | undefined) => {
   }
 };
 
+/**
+ * Universal Key Logic: Retrieves the subscriber_id from the logged-in user's profile.
+ * This ensures the frontend is Tier-Agnostic.
+ */
+const getTenantId = async (): Promise<string> => {
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
+  
+  if (!user) throw new Error('Not authenticated');
+  
+  // Try metadata first
+  let sId = user.user_metadata?.subscriber_id;
+  
+  if (!sId) {
+    // Try profiles table
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('subscriber_id')
+      .eq('id', user.id)
+      .single();
+    
+    if (profile?.subscriber_id) {
+      sId = profile.subscriber_id;
+    }
+  }
+  
+  const finalId = sId || user.id;
+  validateSubscriber(finalId);
+  return finalId;
+};
+
 const withRetry = async <T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> => {
   try {
     return await fn();
   } catch (error: any) {
+    // Fix the 42501 Error: Refresh session and retry once if permission denied
+    if (error.code === '42501' || error.status === 403 || error.message?.includes('42501')) {
+      console.warn('Permission denied (42501). Attempting to refresh session and retry...');
+      const { error: refreshError } = await supabase.auth.refreshSession();
+      if (!refreshError) {
+        try {
+          return await fn();
+        } catch (retryError) {
+          throw retryError;
+        }
+      }
+    }
+
     const isNetworkError = error.message?.includes('Failed to fetch') || 
                           error.name === 'TypeError' || 
                           error.message?.includes('NetworkError') ||
@@ -266,8 +310,7 @@ export const apiService = {
   // Helper to ensure we have a UUID for subscriber_id
   async resolveSubscriberId(id: string): Promise<string> {
     if (!id || id === 'superadmin') {
-      const { data: { user } } = await supabase.auth.getUser();
-      return user?.id || id;
+      return await getTenantId();
     }
     
     // Check if it's already a UUID
@@ -316,8 +359,7 @@ export const apiService = {
   },
 
   async addCar(car: Omit<Car, 'id'>, subscriberId: string): Promise<Car> {
-    validateSubscriber(subscriberId);
-    const targetSubscriberId = await this.resolveSubscriberId(subscriberId);
+    const targetSubscriberId = await getTenantId();
     
     console.log(`[apiService] addCar: plate=${car.plateNumber}, targetSubscriberId=${targetSubscriberId}`);
 
@@ -346,14 +388,14 @@ export const apiService = {
   },
 
   async updateCar(car: Partial<Car>, subscriberId: string): Promise<Car> {
-    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       let query = supabase
         .from('cars')
         .update(mapCarToDB(car))
         .eq('id', car.id);
       
-      query = query.eq('subscriber_id', subscriberId);
+      query = query.eq('subscriber_id', targetSubscriberId);
 
       const { data, error } = await query.select();
 
@@ -371,15 +413,15 @@ export const apiService = {
   },
 
   async saveCars(cars: Car[], subscriberId: string): Promise<void> {
-    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       // Delete all existing cars for this company
-      await supabase.from('cars').delete().eq('subscriber_id', subscriberId);
+      await supabase.from('cars').delete().eq('subscriber_id', targetSubscriberId);
       
       // Insert new ones
       const carsToInsert = cars.map(c => ({
         ...mapCarToDB(c),
-        subscriber_id: subscriberId
+        subscriber_id: targetSubscriberId
       }));
       
       const { error } = await supabase.from('cars').insert(carsToInsert);
@@ -391,14 +433,14 @@ export const apiService = {
   },
 
   async deleteCar(id: string, subscriberId: string): Promise<void> {
-    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       let query = supabase
         .from('cars')
         .delete()
         .eq('id', id);
       
-      query = query.eq('subscriber_id', subscriberId);
+      query = query.eq('subscriber_id', targetSubscriberId);
 
       const { error } = await query;
       
@@ -431,8 +473,7 @@ export const apiService = {
   },
 
   async addMember(member: Omit<Member, 'id'>, subscriberId: string): Promise<Member> {
-    validateSubscriber(subscriberId);
-    const targetSubscriberId = await this.resolveSubscriberId(subscriberId);
+    const targetSubscriberId = await getTenantId();
     
     return withRetry(async () => {
       const { data, error } = await supabase
@@ -441,6 +482,26 @@ export const apiService = {
         .select();
 
       if (error) {
+        if (error.code === '23503' && error.message?.includes('members_subscriber_id_fkey')) {
+          console.error('Foreign Key Error: The subscriber_id does not exist in the subscribers table.');
+          console.error('Attempting to self-provision subscriber record...');
+          // This is a last-resort attempt if AuthContext self-provisioning failed
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user && session.user.id === targetSubscriberId) {
+             await supabase.from('subscribers').upsert({
+               id: session.user.id,
+               name: session.user.user_metadata?.full_name || session.user.email,
+               tier: 'Tier 1',
+               status: 'ACTIVE'
+             });
+             // Retry the insert once
+             const { data: retryData, error: retryError } = await supabase
+               .from('members')
+               .insert([{ ...mapMemberToDB(member), subscriber_id: targetSubscriberId }])
+               .select();
+             if (!retryError) return mapMemberFromDB(retryData?.[0]);
+          }
+        }
         logSupabaseError('addMember', error);
         throw new Error(error.message || 'Failed to add member');
       }
@@ -449,33 +510,33 @@ export const apiService = {
   },
 
   async deleteMember(id: string, subscriberId: string): Promise<void> {
-    validateSubscriber(subscriberId);
-    let query = supabase
-      .from('members')
-      .delete()
-      .eq('id', id);
-    
-    if (subscriberId !== 'superadmin') {
-      query = query.eq('subscriber_id', subscriberId);
-    }
+    const targetSubscriberId = await getTenantId();
+    return withRetry(async () => {
+      let query = supabase
+        .from('members')
+        .delete()
+        .eq('id', id);
+      
+      query = query.eq('subscriber_id', targetSubscriberId);
 
-    const { error } = await query;
-    
-    if (error) {
-      logSupabaseError('deleteMember', error);
-      throw new Error(error.message || 'Failed to delete member');
-    }
+      const { error } = await query;
+      
+      if (error) {
+        logSupabaseError('deleteMember', error);
+        throw new Error(error.message || 'Failed to delete member');
+      }
+    });
   },
 
   async updateMember(id: string, subscriberId: string, updates: Partial<Member>): Promise<Member> {
-    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       let query = supabase
         .from('members')
         .update(mapMemberToDB(updates))
         .eq('id', id);
       
-      query = query.eq('subscriber_id', subscriberId);
+      query = query.eq('subscriber_id', targetSubscriberId);
 
       const { data, error } = await query
         .select()
@@ -561,13 +622,13 @@ export const apiService = {
   },
 
   async updateBookingAuditStatus(id: string, subscriberId: string, auditData: { is_dates_matched: boolean, has_discrepancy: boolean, discrepancy_reason: string }): Promise<void> {
-    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       const { error } = await supabase
         .from('bookings')
         .update(auditData)
         .eq('id', id)
-        .eq('subscriber_id', subscriberId);
+        .eq('subscriber_id', targetSubscriberId);
       
       if (error) {
         logSupabaseError('updateBookingAuditStatus', error);
@@ -610,13 +671,13 @@ export const apiService = {
   },
 
   async updateBookingStatus(id: string, subscriberId: string, status: 'pending' | 'active' | 'completed' | 'cancelled'): Promise<void> {
-    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       const { error } = await supabase
         .from('bookings')
         .update({ status })
         .eq('id', id)
-        .eq('subscriber_id', subscriberId);
+        .eq('subscriber_id', targetSubscriberId);
       
       if (error) {
         logSupabaseError('updateBookingStatus', error);
@@ -630,21 +691,21 @@ export const apiService = {
           .from('agreements')
           .update({ status: 'completed' })
           .eq('booking_id', id)
-          .eq('subscriber_id', subscriberId)
+          .eq('subscriber_id', targetSubscriberId)
           .neq('status', 'reconciled');
       }
     });
   },
 
   async saveBooking(booking: Omit<Booking, 'id'>, subscriberId: string, id?: string): Promise<Booking> {
-    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       if (id) {
         const { data, error } = await supabase
           .from('bookings')
-          .update({ ...mapBookingToDB(booking), subscriber_id: subscriberId })
+          .update({ ...mapBookingToDB(booking), subscriber_id: targetSubscriberId })
           .eq('id', id)
-          .eq('subscriber_id', subscriberId)
+          .eq('subscriber_id', targetSubscriberId)
           .select();
         
         if (error) {
@@ -666,7 +727,7 @@ export const apiService = {
           .from('cars')
           .select('id')
           .eq('id', finalBooking.carId)
-          .eq('subscriber_id', subscriberId)
+          .eq('subscriber_id', targetSubscriberId)
           .single();
         
         if (carError || !carData) {
@@ -675,7 +736,7 @@ export const apiService = {
 
         const { data, error } = await supabase
           .from('bookings')
-          .insert([{ ...mapBookingToDB(finalBooking), subscriber_id: subscriberId }])
+          .insert([{ ...mapBookingToDB(finalBooking), subscriber_id: targetSubscriberId }])
           .select();
         
         if (error) {
@@ -689,14 +750,14 @@ export const apiService = {
   },
 
   async deleteBooking(id: string, subscriberId: string): Promise<void> {
-    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       // 1. Fetch all handover records for this booking to get photo URLs
       const { data: handoverRecords, error: fetchError } = await supabase
         .from('handover_records')
         .select('photos_url')
         .eq('booking_id', id)
-        .eq('subscriber_id', subscriberId);
+        .eq('subscriber_id', targetSubscriberId);
 
       if (fetchError) {
         logSupabaseError('deleteBooking_fetchHandover', fetchError);
@@ -734,7 +795,7 @@ export const apiService = {
           .from('handover_records')
           .delete()
           .eq('booking_id', id)
-          .eq('subscriber_id', subscriberId);
+          .eq('subscriber_id', targetSubscriberId);
 
         if (handoverDeleteError) {
           logSupabaseError('deleteBooking_deleteHandover', handoverDeleteError);
@@ -747,7 +808,7 @@ export const apiService = {
         .from('bookings')
         .delete()
         .eq('id', id)
-        .eq('subscriber_id', subscriberId);
+        .eq('subscriber_id', targetSubscriberId);
       
       if (error) {
         logSupabaseError('deleteBooking', error);
@@ -779,14 +840,8 @@ export const apiService = {
   },
 
   async addExpense(expense: Omit<Expense, 'id'>, subscriberId: string): Promise<Expense> {
-    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
-      let targetSubscriberId = subscriberId;
-      if (subscriberId === 'superadmin') {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) targetSubscriberId = user.id;
-      }
-
       const { data, error } = await supabase
         .from('expenses')
         .insert([{ ...mapExpenseToDB(expense), subscriber_id: targetSubscriberId }])
@@ -801,14 +856,14 @@ export const apiService = {
   },
 
   async deleteExpense(id: string, subscriberId: string): Promise<void> {
-    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       let query = supabase
         .from('expenses')
         .delete()
         .eq('id', id);
       
-      query = query.eq('subscriber_id', subscriberId);
+      query = query.eq('subscriber_id', targetSubscriberId);
 
       const { error } = await query;
       
@@ -847,14 +902,8 @@ export const apiService = {
   },
 
   async addLog(entry: Omit<LogEntry, 'id' | 'timestamp'>, subscriberId: string): Promise<void> {
-    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
-      let targetSubscriberId = subscriberId;
-      if (subscriberId === 'superadmin') {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) targetSubscriberId = user.id;
-      }
-
       const { error } = await supabase
         .from('logs')
         .insert([{
@@ -1033,8 +1082,7 @@ export const apiService = {
   },
 
   async addStaffMember(name: string, subscriberId: string, role: 'admin' | 'staff' = 'staff', pin?: string, designatedUid?: string, commissionTierOverride: 'auto' | 'premium' | 'prestige' | 'privilege' = 'auto', commissionRate?: number): Promise<StaffMember> {
-    validateSubscriber(subscriberId);
-    const targetSubscriberId = await this.resolveSubscriberId(subscriberId);
+    const targetSubscriberId = await getTenantId();
     
     return withRetry(async () => {
       const uid = (designatedUid || name.toLowerCase().replace(/\s+/g, '')).trim().toLowerCase();
@@ -1050,7 +1098,7 @@ export const apiService = {
       // 2. Insert into both tables for compatibility
       // We need the subscriber slug
       const { data: subData } = await supabase.from('subscribers').select('name').eq('id', targetSubscriberId).single();
-      const slug = subData?.name || subscriberId; // Use original if lookup fails (might be slug already)
+      const slug = subData?.name || targetSubscriberId; 
 
       // Construct the staff record dynamically to avoid sending 'id: null'
       const staffRecord: any = { 
@@ -1104,7 +1152,7 @@ export const apiService = {
   },
 
   async updateStaffMember(staffId: string, subscriberId: string, updates: Partial<StaffMember>): Promise<StaffMember> {
-    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       // Map StaffMember updates to DB fields
       const dbUpdates: any = {};
@@ -1135,7 +1183,8 @@ export const apiService = {
         await supabase
           .from('staff_members')
           .update(legacyUpdates)
-          .eq('id', staffId);
+          .eq('id', staffId)
+          .eq('subscriber_id', targetSubscriberId);
       }
 
       if (error) {
@@ -1147,7 +1196,7 @@ export const apiService = {
   },
 
   async deleteStaffMember(staffId: string, subscriberId: string): Promise<void> {
-    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       const { error } = await supabase
         .from('staff')
@@ -1252,6 +1301,7 @@ export const apiService = {
   },
 
   async updateCompanySettings(subscriberId: string, settings: any): Promise<void> {
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       const { error } = await supabase
         .from('subscribers')
@@ -1262,7 +1312,7 @@ export const apiService = {
           ssm_logo_url: settings.ssm_logo_url,
           spdp_logo_url: settings.spdp_logo_url
         })
-        .eq('id', subscriberId);
+        .eq('id', targetSubscriberId);
       
       if (error) {
         logSupabaseError('updateCompanySettings', error);
@@ -1385,25 +1435,15 @@ export const apiService = {
   },
 
   async createAgreement(agreement: Omit<Agreement, 'id' | 'created_at'>, subscriberId: string): Promise<Agreement> {
-    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       let finalAgreement: any = { ...agreement };
-      if (subscriberId === 'superadmin') {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          finalAgreement.subscriber_id = user.id;
-          if (finalAgreement.agent_id === 'superadmin' || !finalAgreement.agent_id) {
-            finalAgreement.agent_id = user.id;
-          }
-        }
-      } else {
-        finalAgreement.subscriber_id = subscriberId;
-      }
+      finalAgreement.subscriber_id = targetSubscriberId;
 
       // Calculate commission earned based on agent's dynamic rate or tier override
       if (finalAgreement.agent_id) {
         try {
-          const staffMember = await this.getStaffMemberById(finalAgreement.agent_id, finalAgreement.subscriber_id);
+          const staffMember = await this.getStaffMemberById(finalAgreement.agent_id, targetSubscriberId);
           if (staffMember) {
             if (staffMember.commission_rate) {
               finalAgreement.commission_earned = finalAgreement.total_price * (staffMember.commission_rate / 100);
@@ -1445,6 +1485,7 @@ export const apiService = {
   },
 
   async updateAgreement(id: string, subscriberId: string | null | undefined, updates: Partial<Agreement>): Promise<void> {
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       let finalUpdates = { ...updates };
 
@@ -1453,14 +1494,15 @@ export const apiService = {
         .from('agreements')
         .select('*')
         .eq('id', id)
+        .eq('subscriber_id', targetSubscriberId)
         .single();
 
       // If price or agent changes, we might need to recalculate commission
-      if (finalUpdates.total_price !== undefined && subscriberId) {
+      if (finalUpdates.total_price !== undefined) {
         try {
           let agentId = finalUpdates.agent_id || currentAgreement?.agent_id;
           if (agentId) {
-            const staffMember = await this.getStaffMemberById(agentId, subscriberId);
+            const staffMember = await this.getStaffMemberById(agentId, targetSubscriberId);
             if (staffMember) {
               if (staffMember.commission_rate) {
                 finalUpdates.commission_earned = finalUpdates.total_price * (staffMember.commission_rate / 100);
@@ -1483,11 +1525,8 @@ export const apiService = {
       let query = supabase
         .from('agreements')
         .update(finalUpdates)
-        .eq('id', id);
-        
-      if (subscriberId) {
-        query = query.eq('subscriber_id', subscriberId);
-      }
+        .eq('id', id)
+        .eq('subscriber_id', targetSubscriberId);
       
       const { error } = await query;
       
@@ -1499,13 +1538,13 @@ export const apiService = {
   },
 
   async deleteAgreement(id: string, subscriberId: string): Promise<void> {
-    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       const { error } = await supabase
         .from('agreements')
         .delete()
         .eq('id', id)
-        .eq('subscriber_id', subscriberId);
+        .eq('subscriber_id', targetSubscriberId);
       
       if (error) {
         logSupabaseError('deleteAgreement', error);
@@ -1566,7 +1605,7 @@ export const apiService = {
     emergency_contact_name?: string,
     emergency_contact_relation?: string
   }): Promise<string> {
-    validateSubscriber(customer.subscriber_id);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       // Use ic_passport as unique identifier within the subscriber's scope
       const { data, error } = await supabase
@@ -1576,10 +1615,11 @@ export const apiService = {
             full_name: customer.full_name, 
             phone_number: customer.phone_number, 
             ic_passport: customer.ic_passport, 
-            subscriber_id: customer.subscriber_id,
+            subscriber_id: targetSubscriberId,
             billing_address: customer.billing_address,
             emergency_contact_name: customer.emergency_contact_name,
-            emergency_contact_relation: customer.emergency_contact_relation
+            emergency_contact_relation: customer.emergency_contact_relation,
+            updated_at: new Date().toISOString()
           }, 
           { onConflict: 'subscriber_id,ic_passport' }
         )
@@ -1673,14 +1713,14 @@ export const apiService = {
   },
 
   async approveAuditRecord(formId: string, bookingId: string | null, subscriberId: string): Promise<void> {
-    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       // Update Agreement
       const { error: formError } = await supabase
         .from('agreements')
         .update({ payout_status: 'approved', is_receipt_verified: true })
         .eq('id', formId)
-        .eq('subscriber_id', subscriberId);
+        .eq('subscriber_id', targetSubscriberId);
       
       if (formError) {
         logSupabaseError('approveAuditRecord:form', formError);
@@ -1693,7 +1733,7 @@ export const apiService = {
           .from('bookings')
           .update({ has_discrepancy: false })
           .eq('id', bookingId)
-          .eq('subscriber_id', subscriberId);
+          .eq('subscriber_id', targetSubscriberId);
         
         if (bookingError) {
           logSupabaseError('approveAuditRecord:booking', bookingError);
@@ -1703,13 +1743,13 @@ export const apiService = {
   },
 
   async approveSelectedAuditRecords(formIds: string[], subscriberId: string): Promise<void> {
-    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       const { error } = await supabase
         .from('agreements')
         .update({ payout_status: 'approved', is_receipt_verified: true })
         .in('id', formIds)
-        .eq('subscriber_id', subscriberId);
+        .eq('subscriber_id', targetSubscriberId);
       
       if (error) {
         logSupabaseError('approveSelectedAuditRecords', error);
@@ -1719,13 +1759,13 @@ export const apiService = {
   },
 
   async closeMonthPayouts(subscriberId: string): Promise<void> {
-    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       const { error } = await supabase
         .from('agreements')
         .update({ payout_status: 'paid', status: 'reconciled' })
         .eq('payout_status', 'approved')
-        .eq('subscriber_id', subscriberId);
+        .eq('subscriber_id', targetSubscriberId);
       
       if (error) {
         logSupabaseError('closeMonthPayouts', error);
@@ -1752,7 +1792,7 @@ export const apiService = {
   },
 
   async processMonthlyPayout(subscriberId: string, monthYear: string, records: AuditRecord[]): Promise<void> {
-    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       if (records.length === 0) return;
 
@@ -1783,7 +1823,7 @@ export const apiService = {
       const { error: historyError } = await supabase
         .from('payout_history')
         .insert({
-          subscriber_id: subscriberId,
+          subscriber_id: targetSubscriberId,
           total_amount: totalAmount,
           month_year: monthYear,
           breakdown: breakdown,
@@ -1801,7 +1841,7 @@ export const apiService = {
         .from('agreements')
         .update({ status: 'reconciled', payout_status: 'paid' })
         .in('id', formIds)
-        .eq('subscriber_id', subscriberId);
+        .eq('subscriber_id', targetSubscriberId);
 
       if (updateError) {
         logSupabaseError('processMonthlyPayout:update', updateError);
@@ -1828,11 +1868,11 @@ export const apiService = {
   },
 
   async addMarketingEvent(event: Omit<MarketingEvent, 'id' | 'created_at' | 'subscriber_id'>, subscriberId: string): Promise<MarketingEvent> {
-    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       const { data, error } = await supabase
         .from('marketing_events')
-        .insert([{ ...event, subscriber_id: subscriberId }])
+        .insert([{ ...event, subscriber_id: targetSubscriberId }])
         .select()
         .single();
       
@@ -1845,13 +1885,13 @@ export const apiService = {
   },
 
   async deleteMarketingEvent(id: string, subscriberId: string): Promise<void> {
-    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       const { error } = await supabase
         .from('marketing_events')
         .delete()
         .eq('id', id)
-        .eq('subscriber_id', subscriberId);
+        .eq('subscriber_id', targetSubscriberId);
       
       if (error) {
         logSupabaseError('deleteMarketingEvent', error);

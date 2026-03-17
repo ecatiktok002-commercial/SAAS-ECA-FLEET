@@ -671,6 +671,54 @@ AFTER INSERT ON staff_members
 FOR EACH ROW
 EXECUTE FUNCTION sync_staff_to_member();
 
+-- Trigger to sync subscribers to members (so they appear in the calendar)
+CREATE OR REPLACE FUNCTION sync_subscriber_to_member()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Check if member already exists for this subscriber (as the owner/root member)
+    IF NOT EXISTS (SELECT 1 FROM members WHERE subscriber_id = NEW.id AND staff_id IS NULL) THEN
+        INSERT INTO members (name, color, subscriber_id)
+        VALUES (NEW.name || ' (Owner)', 'bg-slate-900', NEW.id);
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS tr_sync_subscriber_to_member ON subscribers;
+CREATE TRIGGER tr_sync_subscriber_to_member
+AFTER INSERT ON subscribers
+FOR EACH ROW
+EXECUTE FUNCTION sync_subscriber_to_member();
+
+-- Trigger to automatically create a subscriber record when a new user signs up in auth.users
+-- This ensures the foreign key constraint is satisfied for Tier 1 users
+CREATE OR REPLACE FUNCTION public.handle_new_user_subscriber()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Only create a subscriber record if it's an @ecafleet.com email 
+  -- and doesn't already have a subscriber_id in metadata (which would imply they are staff)
+  IF (NEW.email LIKE '%@ecafleet.com') AND (NEW.raw_user_meta_data->>'subscriber_id' IS NULL) THEN
+    INSERT INTO public.subscribers (id, name, tier, status)
+    VALUES (
+      NEW.id, 
+      INITCAP(SPLIT_PART(NEW.email, '@', 1)), 
+      'Tier 1', 
+      'ACTIVE'
+    )
+    ON CONFLICT (id) DO NOTHING;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Note: This trigger on auth.users must be created manually in the Supabase SQL Editor 
+-- if the 'auth' schema is not accessible via this migration script.
+-- However, we include it here for completeness.
+-- DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+-- CREATE TRIGGER on_auth_user_created
+--   AFTER INSERT ON auth.users
+--   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user_subscriber();
+
 -- Trigger to automatically create/link customer on agreement insert
 CREATE OR REPLACE FUNCTION sync_agreement_to_customer()
 RETURNS TRIGGER AS $$

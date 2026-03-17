@@ -102,6 +102,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUserId(getDisplayId(session.user));
         setUserName(isSuperAdmin ? 'Super Admin' : (session.user.user_metadata?.full_name || getDisplayId(session.user)));
         
+        // Self-Provisioning: Ensure subscriber record exists for Tier 1 users
+        if (!isSuperAdmin && finalSubscriberId === session.user.id) {
+          try {
+            const { error: upsertError } = await supabase
+              .from('subscribers')
+              .upsert({
+                id: session.user.id,
+                name: session.user.user_metadata?.full_name || getDisplayId(session.user),
+                tier: 'Tier 1',
+                status: 'ACTIVE'
+              }, { onConflict: 'id' });
+            
+            if (upsertError) console.warn('Self-provisioning subscriber record failed:', upsertError);
+          } catch (e) {
+            console.warn('Self-provisioning error:', e);
+          }
+        }
+
         const storedRole = localStorage.getItem('staffRole') as StaffRole;
         const storedSubscriberId = localStorage.getItem('subscriberId');
         const storedTier = localStorage.getItem('subscriptionTier');
