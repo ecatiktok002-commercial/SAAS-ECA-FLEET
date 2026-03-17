@@ -73,6 +73,11 @@ export default function CreateAgreement() {
             );
 
             if (member && car) {
+              const startDate = booking.start.split('T')[0];
+              const duration = booking.duration;
+              const endDate = format(addDays(parseISO(startDate), duration), 'yyyy-MM-dd');
+              const time = booking.start.split('T')[1]?.substring(0, 5) || '10:00';
+
               setFormData(prev => ({
                 ...prev,
                 customer_name: member.name,
@@ -83,14 +88,14 @@ export default function CreateAgreement() {
                 emergency_contact_relation: member.emergency_contact_relation || '',
                 car_plate_number: car.plateNumber || car.plate || '',
                 car_model: `${car.make} ${car.model}`.trim(),
-                start_date: booking.start.split('T')[0],
-                duration_days: booking.duration.toString(),
+                start_date: startDate,
+                end_date: endDate,
+                duration_days: duration.toString(),
                 total_price: booking.total_price?.toString() || '',
-                pickup_time: booking.start.split('T')[1]?.substring(0, 5) || '10:00',
+                pickup_time: time,
+                return_time: time,
               }));
               
-              // Trigger auto-calculations
-              updateReturnDate(booking.start.split('T')[0], booking.duration.toString());
               setCustomerFound(true);
             }
           }
@@ -495,7 +500,7 @@ export default function CreateAgreement() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Car Model</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Model Name</label>
                 <input
                   type="text"
                   name="car_model"

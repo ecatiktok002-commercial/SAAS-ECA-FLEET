@@ -474,7 +474,7 @@ export default function EditAgreement() {
               </div>
 
               <div>
-                {renderLabel('Car Model', 'car_model')}
+                {renderLabel('Model Name', 'car_model')}
                 <input
                   type="text"
                   name="car_model"
