@@ -455,28 +455,64 @@ const AdminDashboard: React.FC = () => {
                   return <div className="p-6 text-center text-slate-500 italic">No urgent missions today. Keep hunting!</div>;
                 }
 
-                return missions.map((m, idx) => (
-                  <div key={idx} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${m.type === 'pickup' ? 'bg-blue-100 text-blue-600' : 'bg-rose-100 text-rose-600'}`}>
-                        {m.type === 'pickup' ? <ArrowRight className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                return missions.map((m) => (
+                  <div 
+                    key={m.id} 
+                    className={`p-4 hover:bg-slate-50 transition-colors ${m.type === 'return' ? 'cursor-pointer' : ''}`}
+                    onClick={() => {
+                      if (m.type === 'return') setConfirmReturnId(m.id);
+                    }}
+                  >
+                    {confirmReturnId === m.id && m.type === 'return' ? (
+                      <div className="flex flex-col items-center justify-center py-2">
+                        <p className="text-sm font-semibold text-slate-800 mb-3">Is the Vehicle Returned?</p>
+                        <div className="flex gap-3">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleConfirmReturn(m.id);
+                            }}
+                            disabled={isConfirmingReturn}
+                            className="flex items-center gap-1 px-4 py-1.5 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50"
+                          >
+                            <CheckCircle2 className="w-4 h-4" /> Yes
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConfirmReturnId(null);
+                            }}
+                            disabled={isConfirmingReturn}
+                            className="flex items-center gap-1 px-4 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300 transition-colors disabled:opacity-50"
+                          >
+                            <X className="w-4 h-4" /> No
+                          </button>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-bold text-slate-900">{m.carPlate}</p>
-                        <p className="text-sm text-slate-500">{m.customerName}</p>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${m.type === 'pickup' ? 'bg-blue-100 text-blue-600' : 'bg-rose-100 text-rose-600'}`}>
+                            {m.type === 'pickup' ? <ArrowRight className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-900">{m.carPlate}</p>
+                            <p className="text-sm text-slate-500">{m.customerName}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          {m.type === 'pickup' ? (
+                            <p className="font-bold text-blue-600 uppercase text-sm">
+                              {m.carPlate} OUT IN {formatTimeDiff((m as any).pickupTime).toUpperCase()}
+                            </p>
+                          ) : (
+                            <p className="font-bold text-rose-600 uppercase text-sm">
+                              {m.carPlate} LATE RETURN ({formatTimeDiff((m as any).returnTime).toUpperCase()} LATE)
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      {m.type === 'pickup' ? (
-                        <p className="font-bold text-blue-600 uppercase text-sm">
-                          {m.carPlate} OUT IN {formatTimeDiff((m as any).pickupTime).toUpperCase()}
-                        </p>
-                      ) : (
-                        <p className="font-bold text-rose-600 uppercase text-sm">
-                          {m.carPlate} LATE RETURN ({formatTimeDiff((m as any).returnTime).toUpperCase()} LATE)
-                        </p>
-                      )}
-                    </div>
+                    )}
                   </div>
                 ));
               })()}
