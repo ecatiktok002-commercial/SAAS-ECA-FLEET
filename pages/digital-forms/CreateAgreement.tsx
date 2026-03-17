@@ -73,10 +73,15 @@ export default function CreateAgreement() {
             );
 
             if (member && car) {
-              const startDate = booking.start.split('T')[0];
+              const d = new Date(booking.start);
+              const startDate = format(d, 'yyyy-MM-dd');
+              const time = format(d, 'HH:mm');
               const duration = booking.duration;
               const endDate = format(addDays(parseISO(startDate), duration), 'yyyy-MM-dd');
-              const time = booking.start.split('T')[1]?.substring(0, 5) || '10:00';
+
+              const modelName = (car.make && car.model) 
+                ? `${car.make} ${car.model}`.trim() 
+                : car.name;
 
               setFormData(prev => ({
                 ...prev,
@@ -87,7 +92,7 @@ export default function CreateAgreement() {
                 emergency_contact_name: member.emergency_contact_name || '',
                 emergency_contact_relation: member.emergency_contact_relation || '',
                 car_plate_number: car.plateNumber || car.plate || '',
-                car_model: `${car.make} ${car.model}`.trim(),
+                car_model: modelName,
                 start_date: startDate,
                 end_date: endDate,
                 duration_days: duration.toString(),
