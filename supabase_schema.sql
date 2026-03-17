@@ -445,22 +445,22 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Helper to get subscriber_id for the current authenticated user
 CREATE OR REPLACE FUNCTION current_subscriber_id()
 RETURNS UUID AS $$
-DECLARE
-  comp_id UUID;
 BEGIN
-  -- 1. Check if user is a subscriber (their UID is a subscriber ID)
-  SELECT id INTO comp_id FROM subscribers WHERE id = auth.uid();
-  IF comp_id IS NOT NULL THEN
-    RETURN comp_id;
-  END IF;
-  
-  -- 2. Check if user is an agent (linked via id OR designated_uid)
-  -- We check both 'id' (UUID) and 'designated_uid' (slug/text) for maximum compatibility
-  SELECT subscriber_id INTO comp_id FROM staff_members 
-  WHERE id = auth.uid() OR designated_uid = auth.uid()::text 
-  LIMIT 1;
-  
-  RETURN comp_id;
+  RETURN (
+    -- 1. Check if user is a subscriber
+    SELECT id FROM public.subscribers WHERE id = auth.uid()
+    UNION ALL
+    -- 2. Check if user is an agent in staff_members
+    SELECT subscriber_id FROM public.staff_members 
+    WHERE id = auth.uid() OR designated_uid = auth.uid()::text 
+    UNION ALL
+    -- 3. Fallback: check staff table (slug-based)
+    SELECT s.id 
+    FROM public.staff st
+    JOIN public.subscribers s ON s.name ILIKE st.subscriber_id
+    WHERE st.id = auth.uid() OR st.staff_uid = auth.uid()::text
+    LIMIT 1
+  );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
 
@@ -487,6 +487,8 @@ CREATE POLICY "Staff members access" ON staff_members
     auth.uid() = subscriber_id -- Subscriber
     OR 
     designated_uid = auth.uid()::text -- Agent (can see/update self)
+    OR
+    (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
   );
 
 -- 3. Cars
@@ -497,11 +499,15 @@ CREATE POLICY "Cars access" ON cars
     auth.uid() = subscriber_id -- Subscriber
     OR
     subscriber_id = current_subscriber_id() -- Agent
+    OR
+    (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
   )
   WITH CHECK (
     auth.uid() = subscriber_id -- Subscriber
     OR
     subscriber_id = current_subscriber_id() -- Agent
+    OR
+    (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
   );
 
 -- 4. Members (Customers)
@@ -511,12 +517,16 @@ CREATE POLICY "Members access" ON members
   FOR ALL USING (
     auth.uid() = subscriber_id -- Subscriber
     OR 
-    subscriber_id = current_subscriber_id() -- Agent or Subscriber (via helper)
+    subscriber_id = current_subscriber_id() -- Agent
+    OR
+    (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
   )
   WITH CHECK (
     auth.uid() = subscriber_id -- Subscriber
     OR 
-    subscriber_id = current_subscriber_id() -- Agent or Subscriber (via helper)
+    subscriber_id = current_subscriber_id() -- Agent
+    OR
+    (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
   );
 
 -- 5. Bookings
@@ -527,6 +537,8 @@ CREATE POLICY "Bookings view access" ON bookings
     auth.uid() = subscriber_id -- Subscriber
     OR 
     subscriber_id = current_subscriber_id() -- Agent
+    OR
+    (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
   );
 
 DROP POLICY IF EXISTS "Bookings modify access" ON bookings;
@@ -535,6 +547,8 @@ CREATE POLICY "Bookings modify access" ON bookings
     auth.uid() = subscriber_id -- Subscriber
     OR 
     (agent_id = auth.uid() AND subscriber_id = current_subscriber_id()) -- Agent
+    OR
+    (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
   );
 
 -- 6. Agreements
@@ -546,6 +560,8 @@ CREATE POLICY "Agreements access" ON agreements
     auth.uid() = subscriber_id -- Subscriber
     OR 
     (agent_id = auth.uid() AND subscriber_id = current_subscriber_id()) -- Agent
+    OR
+    (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
   );
 
 DROP POLICY IF EXISTS "Public read agreements" ON agreements;
@@ -564,6 +580,8 @@ CREATE POLICY "Digital forms access" ON digital_forms
     auth.uid() = subscriber_id -- Subscriber
     OR 
     (agent_id = auth.uid() AND subscriber_id = current_subscriber_id()) -- Agent
+    OR
+    (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
   );
 
 DROP POLICY IF EXISTS "Public read digital forms" ON digital_forms;
@@ -575,12 +593,16 @@ CREATE POLICY "Public sign pending digital forms" ON digital_forms
   FOR UPDATE USING (status = 'pending') WITH CHECK (status IN ('pending', 'signed'));
 
 -- 8. Expenses
--- Subscriber can see all. Agent can see expenses for cars they are managing? 
--- The user said "In every other module (Forms, Calendar, Fleet), they can ONLY query records where agent_id == auth.uid()."
--- Expenses don't have agent_id. I'll restrict to Subscriber only for now as it's "Business Dashboard" related.
+-- Subscriber can see all. Agent can see expenses for cars they are managing.
 DROP POLICY IF EXISTS "Expenses access" ON expenses;
 CREATE POLICY "Expenses access" ON expenses 
-  FOR ALL USING (auth.uid() = subscriber_id);
+  FOR ALL USING (
+    auth.uid() = subscriber_id -- Subscriber
+    OR
+    subscriber_id = current_subscriber_id() -- Agent
+    OR
+    (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
+  );
 
 -- 9. Logs
 -- Subscriber can see all. Agent can only see their own logs.
@@ -590,6 +612,8 @@ CREATE POLICY "Logs access" ON logs
     auth.uid() = subscriber_id -- Subscriber
     OR 
     (auth.uid() = user_id AND current_subscriber_id() = subscriber_id) -- Agent
+    OR
+    (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
   );
 
 -- 10. Handover Records
@@ -604,6 +628,8 @@ CREATE POLICY "Handover records access" ON handover_records
       WHERE bookings.id = handover_records.booking_id 
       AND bookings.agent_id = auth.uid()
     ) -- Agent
+    OR
+    (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
   );
 
 -- 11. Customers (CRM)

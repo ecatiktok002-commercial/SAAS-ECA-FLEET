@@ -319,6 +319,8 @@ export const apiService = {
     validateSubscriber(subscriberId);
     const targetSubscriberId = await this.resolveSubscriberId(subscriberId);
     
+    console.log(`[apiService] addCar: plate=${car.plateNumber}, targetSubscriberId=${targetSubscriberId}`);
+
     return withRetry(async () => {
       const { data, error } = await supabase
         .from('cars')
