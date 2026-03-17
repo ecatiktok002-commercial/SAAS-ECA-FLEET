@@ -454,11 +454,15 @@ BEGIN
     RETURN comp_id;
   END IF;
   
-  -- 2. Check if user is an agent (linked via designated_uid)
-  SELECT subscriber_id INTO comp_id FROM staff_members WHERE designated_uid = auth.uid()::text LIMIT 1;
+  -- 2. Check if user is an agent (linked via id OR designated_uid)
+  -- We check both 'id' (UUID) and 'designated_uid' (slug/text) for maximum compatibility
+  SELECT subscriber_id INTO comp_id FROM staff_members 
+  WHERE id = auth.uid() OR designated_uid = auth.uid()::text 
+  LIMIT 1;
+  
   RETURN comp_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
 
 -- 1. Subscribers
 DROP POLICY IF EXISTS "Subscribers access" ON subscribers;
@@ -493,6 +497,11 @@ CREATE POLICY "Cars access" ON cars
     auth.uid() = subscriber_id -- Subscriber
     OR
     subscriber_id = current_subscriber_id() -- Agent
+  )
+  WITH CHECK (
+    auth.uid() = subscriber_id -- Subscriber
+    OR
+    subscriber_id = current_subscriber_id() -- Agent
   );
 
 -- 4. Members (Customers)
@@ -500,6 +509,11 @@ CREATE POLICY "Cars access" ON cars
 DROP POLICY IF EXISTS "Members access" ON members;
 CREATE POLICY "Members access" ON members 
   FOR ALL USING (
+    auth.uid() = subscriber_id -- Subscriber
+    OR 
+    subscriber_id = current_subscriber_id() -- Agent or Subscriber (via helper)
+  )
+  WITH CHECK (
     auth.uid() = subscriber_id -- Subscriber
     OR 
     subscriber_id = current_subscriber_id() -- Agent or Subscriber (via helper)
@@ -1025,24 +1039,43 @@ SELECT cron.schedule(
   $$
 );
 
--- 17. Subscriber Audit View
+-- 18. Payout History Table
+CREATE TABLE IF NOT EXISTS payout_history (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  subscriber_id UUID NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
+  total_amount NUMERIC NOT NULL DEFAULT 0,
+  payout_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  month_year TEXT NOT NULL, -- e.g., "Feb 2026"
+  breakdown JSONB NOT NULL, -- JSON breakdown of each agent's share
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE payout_history ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Payout history access" ON payout_history;
+CREATE POLICY "Payout history access" ON payout_history 
+  FOR ALL USING (auth.uid() = subscriber_id);
+
+-- 17. Subscriber Audit View (Updated to include reconciled)
 DROP VIEW IF EXISTS subscriber_audit_view;
 CREATE OR REPLACE VIEW subscriber_audit_view AS
 SELECT 
-    f.id as form_id,
-    f.subscriber_id,
-    f.agent_id,
-    f.agent_name,
-    f.customer_name,
-    f.car_plate_number,
-    f.total_price as form_price,
-    f.start_date as form_start,
-    f.end_date as form_end,
-    f.payment_receipt,
-    f.commission_earned,
-    f.payout_status,
-    f.is_receipt_verified,
-    f.created_at,
+    a.id as form_id,
+    a.subscriber_id,
+    a.agent_id,
+    a.agent_name,
+    a.customer_name,
+    a.car_plate_number,
+    a.total_price as form_price,
+    a.start_date as form_start,
+    a.end_date as form_end,
+    a.payment_receipt,
+    a.commission_earned,
+    a.payout_status,
+    a.is_receipt_verified,
+    a.status,
+    a.reference_number,
+    a.created_at,
     b.id as booking_id,
     b.total_price as booking_price,
     b.start as booking_start,
@@ -1050,5 +1083,7 @@ SELECT
     b.has_discrepancy,
     b.is_dates_matched,
     b.discrepancy_reason
-FROM digital_forms f
-LEFT JOIN bookings b ON f.booking_id = b.id;
+FROM agreements a
+LEFT JOIN bookings b ON a.booking_id = b.id
+WHERE a.status IN ('completed', 'reconciled')
+   OR (a.status = 'signed' AND a.payment_receipt IS NOT NULL AND a.payment_receipt != '');

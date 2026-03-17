@@ -9,7 +9,7 @@ import StaffManagementPage from './pages/StaffManagementPage';
 import DigitalFormPage from './pages/DigitalFormPage';
 import CustomersPage from './pages/CustomersPage';
 import FleetGuardianPage from './pages/FleetGuardianPage';
-import AuditReconciliation from './pages/AuditReconciliation';
+import AuditPayoutManagement from './pages/AuditPayoutManagement';
 import SubscriberManager from './pages/SubscriberManager';
 import SignAgreement from './pages/digital-forms/SignAgreement';
 import ConfigError from './components/ConfigError';
@@ -87,9 +87,9 @@ const AppRoutes: React.FC = () => {
           <StrictTierGate allowedTiers={['tier_1', 'tier_3']}><DigitalFormPage /></StrictTierGate>
         } />
 
-        {/* Audit & Recon: Tier 3 only */}
+        {/* Audit & Payout: Tier 3 only */}
         <Route path="audit" element={
-          <StrictTierGate allowedTiers={['tier_3']} allowStaff={false}><AuditReconciliation /></StrictTierGate>
+          <StrictTierGate allowedTiers={['tier_3']} allowStaff={false}><AuditPayoutManagement /></StrictTierGate>
         } />
         
         {/* Customers: Tier 3 only */}

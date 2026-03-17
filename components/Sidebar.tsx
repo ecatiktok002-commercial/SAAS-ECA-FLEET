@@ -61,10 +61,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
       });
     }
 
-    // Audit & Recon
+    // Audit & Payout
     if (isAdmin) {
       items.push({ 
-        name: 'Audit & Recon', 
+        name: 'Audit & Payout', 
         path: '/audit', 
         icon: <FileCheck className="w-5 h-5" />,
         isLocked: subscriptionTier !== 'tier_3'

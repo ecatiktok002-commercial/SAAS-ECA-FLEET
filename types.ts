@@ -126,7 +126,7 @@ export interface Agreement {
   payment_receipt?: string;
   signature_data?: string;
   photos_url?: string[];
-  status: 'pending' | 'signed' | 'completed';
+  status: 'pending' | 'signed' | 'completed' | 'reconciled';
   signed_at?: string;
   details?: string;
   created_by?: string;
@@ -198,6 +198,8 @@ export interface AuditRecord {
   payment_receipt: string | null;
   commission_earned: number;
   payout_status: 'pending' | 'approved' | 'paid';
+  status: string;
+  reference_number?: string;
   is_receipt_verified: boolean;
   created_at: string;
   booking_id: string | null;
@@ -220,5 +222,21 @@ export interface Company {
   logo_url?: string;
   address?: string;
   contact?: string;
+  created_at: string;
+}
+
+export interface PayoutHistory {
+  id: string;
+  subscriber_id: string;
+  total_amount: number;
+  payout_date: string;
+  month_year: string;
+  breakdown: {
+    agent_id: string;
+    agent_name: string;
+    total_bookings: number;
+    total_revenue: number;
+    payout_due: number;
+  }[];
   created_at: string;
 }

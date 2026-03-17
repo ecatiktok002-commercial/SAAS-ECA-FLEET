@@ -1,5 +1,5 @@
 
-import { Booking, Car, Member, LogEntry, Expense, StaffMember, Agreement, DigitalForm, Company, MarketingEvent, AuditRecord } from '../types';
+import { Booking, Car, Member, LogEntry, Expense, StaffMember, Agreement, DigitalForm, Company, MarketingEvent, AuditRecord, PayoutHistory } from '../types';
 import { supabase } from './supabase';
 
 // Service for managing fleet data
@@ -263,6 +263,37 @@ const mapStaffToDB = (staff: any) => {
 
 export const apiService = {
   // Cars
+  // Helper to ensure we have a UUID for subscriber_id
+  async resolveSubscriberId(id: string): Promise<string> {
+    if (!id || id === 'superadmin') {
+      const { data: { user } } = await supabase.auth.getUser();
+      return user?.id || id;
+    }
+    
+    // Check if it's already a UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(id)) {
+      return id;
+    }
+    
+    // It's likely a slug, look it up in the subscribers table
+    try {
+      const { data, error } = await supabase
+        .from('subscribers')
+        .select('id')
+        .eq('name', id)
+        .single();
+      
+      if (data?.id) {
+        return data.id;
+      }
+    } catch (err) {
+      console.warn('Failed to resolve subscriber slug to UUID:', err);
+    }
+    
+    return id; // Fallback to original
+  },
+
   async getCars(subscriberId: string): Promise<Car[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
@@ -286,15 +317,9 @@ export const apiService = {
 
   async addCar(car: Omit<Car, 'id'>, subscriberId: string): Promise<Car> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await this.resolveSubscriberId(subscriberId);
+    
     return withRetry(async () => {
-      let targetSubscriberId = subscriberId;
-      
-      // If superadmin, we must use the actual auth UID for the DB record
-      if (subscriberId === 'superadmin') {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) targetSubscriberId = user.id;
-      }
-
       const { data, error } = await supabase
         .from('cars')
         .insert([{ ...mapCarToDB(car), subscriber_id: targetSubscriberId }])
@@ -405,13 +430,9 @@ export const apiService = {
 
   async addMember(member: Omit<Member, 'id'>, subscriberId: string): Promise<Member> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await this.resolveSubscriberId(subscriberId);
+    
     return withRetry(async () => {
-      let targetSubscriberId = subscriberId;
-      if (subscriberId === 'superadmin') {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) targetSubscriberId = user.id;
-      }
-
       const { data, error } = await supabase
         .from('members')
         .insert([{ ...mapMemberToDB(member), subscriber_id: targetSubscriberId }])
@@ -1000,13 +1021,9 @@ export const apiService = {
 
   async addStaffMember(name: string, subscriberId: string, role: 'admin' | 'staff' = 'staff', pin?: string, designatedUid?: string, commissionTierOverride: 'auto' | 'premium' | 'prestige' | 'privilege' = 'auto', commissionRate?: number): Promise<StaffMember> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await this.resolveSubscriberId(subscriberId);
+    
     return withRetry(async () => {
-      let targetSubscriberId = subscriberId;
-      if (subscriberId === 'superadmin') {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) targetSubscriberId = user.id;
-      }
-
       const uid = (designatedUid || name.toLowerCase().replace(/\s+/g, '')).trim().toLowerCase();
       const email = `${uid}@ecafleet.com`;
 
@@ -1020,7 +1037,7 @@ export const apiService = {
       // 2. Insert into both tables for compatibility
       // We need the subscriber slug
       const { data: subData } = await supabase.from('subscribers').select('name').eq('id', targetSubscriberId).single();
-      const slug = subData?.name || targetSubscriberId;
+      const slug = subData?.name || subscriberId; // Use original if lookup fails (might be slug already)
 
       // Construct the staff record dynamically to avoid sending 'id: null'
       const staffRecord: any = { 
@@ -1418,22 +1435,17 @@ export const apiService = {
     return withRetry(async () => {
       let finalUpdates = { ...updates };
 
+      // Get current agreement state for logic
+      const { data: currentAgreement } = await supabase
+        .from('agreements')
+        .select('*')
+        .eq('id', id)
+        .single();
+
       // If price or agent changes, we might need to recalculate commission
-      // This is a bit complex because we might not have the full agreement data here
-      // But if total_price is provided, we should try to update commission_earned
       if (finalUpdates.total_price !== undefined && subscriberId) {
         try {
-          // We need the agent_id to calculate commission
-          let agentId = finalUpdates.agent_id;
-          if (!agentId) {
-            const { data: currentAgreement } = await supabase
-              .from('agreements')
-              .select('agent_id')
-              .eq('id', id)
-              .single();
-            agentId = currentAgreement?.agent_id;
-          }
-
+          let agentId = finalUpdates.agent_id || currentAgreement?.agent_id;
           if (agentId) {
             const staffMember = await this.getStaffMemberById(agentId, subscriberId);
             if (staffMember) {
@@ -1448,6 +1460,11 @@ export const apiService = {
         } catch (err) {
           console.error('Error recalculating commission on update:', err);
         }
+      }
+
+      // Auto-complete logic: if receipt is uploaded and status is signed, mark as completed
+      if (finalUpdates.payment_receipt && (finalUpdates.status === 'signed' || currentAgreement?.status === 'signed')) {
+        finalUpdates.status = 'completed';
       }
 
       let query = supabase
@@ -1645,16 +1662,16 @@ export const apiService = {
   async approveAuditRecord(formId: string, bookingId: string | null, subscriberId: string): Promise<void> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
-      // Update Digital Form
+      // Update Agreement
       const { error: formError } = await supabase
-        .from('digital_forms')
+        .from('agreements')
         .update({ payout_status: 'approved', is_receipt_verified: true })
         .eq('id', formId)
         .eq('subscriber_id', subscriberId);
       
       if (formError) {
         logSupabaseError('approveAuditRecord:form', formError);
-        throw new Error('Failed to approve digital form');
+        throw new Error('Failed to approve agreement');
       }
 
       // Update Booking if exists
@@ -1676,7 +1693,7 @@ export const apiService = {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       const { error } = await supabase
-        .from('digital_forms')
+        .from('agreements')
         .update({ payout_status: 'approved', is_receipt_verified: true })
         .in('id', formIds)
         .eq('subscriber_id', subscriberId);
@@ -1692,14 +1709,90 @@ export const apiService = {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       const { error } = await supabase
-        .from('digital_forms')
-        .update({ payout_status: 'paid' })
+        .from('agreements')
+        .update({ payout_status: 'paid', status: 'reconciled' })
         .eq('payout_status', 'approved')
         .eq('subscriber_id', subscriberId);
       
       if (error) {
         logSupabaseError('closeMonthPayouts', error);
         throw new Error('Failed to close month payouts');
+      }
+    });
+  },
+
+  async getPayoutHistory(subscriberId: string): Promise<PayoutHistory[]> {
+    validateSubscriber(subscriberId);
+    return withRetry(async () => {
+      const { data, error } = await supabase
+        .from('payout_history')
+        .select('*')
+        .eq('subscriber_id', subscriberId)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        logSupabaseError('getPayoutHistory', error);
+        return [];
+      }
+      return data || [];
+    });
+  },
+
+  async processMonthlyPayout(subscriberId: string, monthYear: string, records: AuditRecord[]): Promise<void> {
+    validateSubscriber(subscriberId);
+    return withRetry(async () => {
+      if (records.length === 0) return;
+
+      const totalAmount = records.reduce((sum, r) => sum + (r.commission_earned || 0), 0);
+      
+      // Group by agent
+      const agentMap = new Map<string, { agent_id: string, agent_name: string, total_bookings: number, total_revenue: number, payout_due: number }>();
+      
+      records.forEach(r => {
+        const existing = agentMap.get(r.agent_id) || {
+          agent_id: r.agent_id,
+          agent_name: r.agent_name,
+          total_bookings: 0,
+          total_revenue: 0,
+          payout_due: 0
+        };
+        
+        existing.total_bookings += 1;
+        existing.total_revenue += Number(r.form_price || 0);
+        existing.payout_due += Number(r.commission_earned || 0);
+        
+        agentMap.set(r.agent_id, existing);
+      });
+
+      const breakdown = Array.from(agentMap.values());
+
+      // 1. Create payout history record
+      const { error: historyError } = await supabase
+        .from('payout_history')
+        .insert({
+          subscriber_id: subscriberId,
+          total_amount: totalAmount,
+          month_year: monthYear,
+          breakdown: breakdown,
+          payout_date: new Date().toISOString()
+        });
+
+      if (historyError) {
+        logSupabaseError('processMonthlyPayout:history', historyError);
+        throw new Error('Failed to create payout history');
+      }
+
+      // 2. Update agreements to reconciled
+      const formIds = records.map(r => r.form_id);
+      const { error: updateError } = await supabase
+        .from('agreements')
+        .update({ status: 'reconciled', payout_status: 'paid' })
+        .in('id', formIds)
+        .eq('subscriber_id', subscriberId);
+
+      if (updateError) {
+        logSupabaseError('processMonthlyPayout:update', updateError);
+        throw new Error('Failed to update agreements to reconciled');
       }
     });
   },

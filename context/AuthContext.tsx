@@ -79,7 +79,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         // Fallback to user.id if still missing
-        const finalSubscriberId = isSuperAdmin ? 'superadmin' : (sId || session.user.id);
+        let finalSubscriberId = isSuperAdmin ? 'superadmin' : (sId || session.user.id);
+        
+        // If it's a slug (not a UUID), try to resolve it to a UUID for database compatibility
+        if (finalSubscriberId && finalSubscriberId !== 'superadmin' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(finalSubscriberId)) {
+          try {
+            const { data: subData } = await supabase
+              .from('subscribers')
+              .select('id')
+              .eq('name', finalSubscriberId)
+              .single();
+            
+            if (subData?.id) {
+              finalSubscriberId = subData.id;
+            }
+          } catch (err) {
+            console.warn('Failed to resolve subscriber slug to UUID:', err);
+          }
+        }
         
         setSubscriberId(finalSubscriberId);
         setUserId(getDisplayId(session.user));
