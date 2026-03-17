@@ -305,6 +305,39 @@ const mapStaffToDB = (staff: any) => {
   return db;
 };
 
+// Helper to resolve an agent ID (which might be a string UID or an Auth UID) to a valid staff_members.id UUID
+const resolveAgentId = async (agentId: string | undefined): Promise<string | undefined> => {
+  if (!agentId) return undefined;
+  
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(agentId);
+  
+  if (isUuid) {
+    // Check if it's already a valid staff_members.id
+    const { data: existingStaff } = await supabase
+      .from('staff_members')
+      .select('id')
+      .eq('id', agentId)
+      .maybeSingle();
+      
+    if (existingStaff) {
+      return existingStaff.id;
+    }
+  }
+  
+  // If it's not a valid staff_members.id (e.g. it's an Auth UID or 'idmahira'), try to resolve it via designated_uid
+  const { data: staffData } = await supabase
+    .from('staff_members')
+    .select('id')
+    .eq('designated_uid', agentId)
+    .maybeSingle();
+    
+  if (staffData) {
+    return staffData.id;
+  }
+  
+  return undefined;
+};
+
 export const apiService = {
   // Cars
   // Helper to ensure we have a UUID for subscriber_id
@@ -459,7 +492,16 @@ export const apiService = {
       query = query.eq('subscriber_id', subscriberId);
 
       if (staffId) {
-        query = query.eq('staff_id', staffId);
+        let resolvedStaffId = staffId;
+        const resolvedId = await resolveAgentId(staffId);
+        
+        if (resolvedId) {
+          resolvedStaffId = resolvedId;
+        } else {
+          // If we can't resolve it, we won't find any members for this staff
+          return [];
+        }
+        query = query.eq('staff_id', resolvedStaffId);
       }
 
       const { data, error } = await query;
@@ -476,9 +518,20 @@ export const apiService = {
     const targetSubscriberId = await getTenantId();
     
     return withRetry(async () => {
+      let finalMember = { ...mapMemberToDB(member) };
+      
+      if (finalMember.staff_id) {
+        const resolvedId = await resolveAgentId(finalMember.staff_id);
+        if (resolvedId) {
+          finalMember.staff_id = resolvedId;
+        } else {
+          finalMember.staff_id = undefined;
+        }
+      }
+
       const { data, error } = await supabase
         .from('members')
-        .insert([{ ...mapMemberToDB(member), subscriber_id: targetSubscriberId }])
+        .insert([{ ...finalMember, subscriber_id: targetSubscriberId }])
         .select();
 
       if (error) {
@@ -497,7 +550,7 @@ export const apiService = {
              // Retry the insert once
              const { data: retryData, error: retryError } = await supabase
                .from('members')
-               .insert([{ ...mapMemberToDB(member), subscriber_id: targetSubscriberId }])
+               .insert([{ ...finalMember, subscriber_id: targetSubscriberId }])
                .select();
              if (!retryError) return mapMemberFromDB(retryData?.[0]);
           }
@@ -531,9 +584,20 @@ export const apiService = {
   async updateMember(id: string, subscriberId: string, updates: Partial<Member>): Promise<Member> {
     const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
+      let finalUpdates = mapMemberToDB(updates);
+      
+      if (finalUpdates.staff_id) {
+        const resolvedId = await resolveAgentId(finalUpdates.staff_id);
+        if (resolvedId) {
+          finalUpdates.staff_id = resolvedId;
+        } else {
+          finalUpdates.staff_id = undefined;
+        }
+      }
+
       let query = supabase
         .from('members')
-        .update(mapMemberToDB(updates))
+        .update(finalUpdates)
         .eq('id', id);
       
       query = query.eq('subscriber_id', targetSubscriberId);
@@ -578,7 +642,16 @@ export const apiService = {
       query = query.eq('subscriber_id', subscriberId);
 
       if (agentId) {
-        query = query.eq('agent_id', agentId);
+        let resolvedAgentId = agentId;
+        const resolvedId = await resolveAgentId(agentId);
+        
+        if (resolvedId) {
+          resolvedAgentId = resolvedId;
+        } else {
+          // If we can't resolve it, we won't find any bookings for this agent
+          return [];
+        }
+        query = query.eq('agent_id', resolvedAgentId);
       }
       
       if (startDate && endDate) {
@@ -700,10 +773,22 @@ export const apiService = {
   async saveBooking(booking: Omit<Booking, 'id'>, subscriberId: string, id?: string): Promise<Booking> {
     const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
+      let finalBooking = { ...booking };
+      
+      if (finalBooking.agent_id) {
+        const resolvedId = await resolveAgentId(finalBooking.agent_id);
+        if (resolvedId) {
+          finalBooking.agent_id = resolvedId;
+        } else {
+          console.warn(`Could not resolve agent_id '${finalBooking.agent_id}' to a valid staff member. Setting to null.`);
+          finalBooking.agent_id = undefined;
+        }
+      }
+
       if (id) {
         const { data, error } = await supabase
           .from('bookings')
-          .update({ ...mapBookingToDB(booking), subscriber_id: targetSubscriberId })
+          .update({ ...mapBookingToDB(finalBooking), subscriber_id: targetSubscriberId })
           .eq('id', id)
           .eq('subscriber_id', targetSubscriberId)
           .select();
@@ -715,11 +800,18 @@ export const apiService = {
         if (!data || data.length === 0) throw new Error('Update failed');
         return mapBookingFromDB(data[0]);
       } else {
-        // For new bookings, ensure agent_id is set
-        let finalBooking = { ...booking };
+        // For new bookings, ensure agent_id is set to the staff_member record ID, not the auth UID
         if (!finalBooking.agent_id) {
           const { data: { user } } = await supabase.auth.getUser();
-          if (user) finalBooking.agent_id = user.id;
+          if (user) {
+            const resolvedId = await resolveAgentId(user.id);
+            if (resolvedId) {
+              finalBooking.agent_id = resolvedId;
+            } else {
+              console.warn(`Current user '${user.id}' is not in staff_members. Cannot set agent_id.`);
+              finalBooking.agent_id = undefined;
+            }
+          }
         }
 
         // Logical Linking: Verify car belongs to subscriber
@@ -1038,6 +1130,13 @@ export const apiService = {
 
   async getStaffMemberById(id: string, subscriberId: string): Promise<StaffMember | null> {
     validateSubscriber(subscriberId);
+    
+    // Check if it's a valid UUID before querying
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      console.warn(`Invalid UUID passed to getStaffMemberById: ${id}`);
+      return null;
+    }
+
     return withRetry(async () => {
       const { data: subData } = await supabase.from('subscribers').select('name').eq('id', subscriberId).single();
       const slug = subData?.name || subscriberId;
@@ -1378,14 +1477,24 @@ export const apiService = {
       let query = supabase.from('agreements').select('*');
       query = query.eq('subscriber_id', subscriberId);
 
-      if (agentId || createdBy) {
+      let resolvedAgentId = agentId;
+      const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+      
+      if (agentId) {
+        const resolvedId = await resolveAgentId(agentId);
+        if (resolvedId) {
+          resolvedAgentId = resolvedId;
+        } else {
+          // If we can't resolve it, we won't find any agreements for this agent
+          resolvedAgentId = undefined;
+        }
+      }
+
+      if (resolvedAgentId || createdBy) {
         const filters: string[] = [];
         
-        // Only add agent_id filter if it looks like a UUID to avoid Supabase errors
-        const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-        
-        if (agentId && isUuid(agentId)) {
-          filters.push(`agent_id.eq.${agentId}`);
+        if (resolvedAgentId && isUuid(resolvedAgentId)) {
+          filters.push(`agent_id.eq.${resolvedAgentId}`);
         }
         
         if (createdBy) {
@@ -1440,6 +1549,34 @@ export const apiService = {
       let finalAgreement: any = { ...agreement };
       finalAgreement.subscriber_id = targetSubscriberId;
 
+      // Ensure agent_id is a valid staff_member record ID, not an Auth UID
+      if (finalAgreement.agent_id) {
+        const resolvedId = await resolveAgentId(finalAgreement.agent_id);
+        if (resolvedId) {
+          finalAgreement.agent_id = resolvedId;
+        } else {
+          throw new Error(`Invalid agent ID: Could not resolve '${finalAgreement.agent_id}' to a valid staff member.`);
+        }
+      } else {
+        // If no agent_id provided, try to resolve from current user
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const resolvedId = await resolveAgentId(user.id);
+          if (resolvedId) {
+            finalAgreement.agent_id = resolvedId;
+          } else {
+            throw new Error("Cannot create agreement: Current user is not a registered staff member.");
+          }
+        } else {
+          throw new Error("Cannot create agreement: User not authenticated.");
+        }
+      }
+
+      // Final safety check
+      if (!finalAgreement.agent_id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(finalAgreement.agent_id)) {
+        throw new Error("Cannot create agreement: A valid agent ID is required.");
+      }
+
       // Calculate commission earned based on agent's dynamic rate or tier override
       if (finalAgreement.agent_id) {
         try {
@@ -1488,6 +1625,16 @@ export const apiService = {
     const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       let finalUpdates = { ...updates };
+
+      // Ensure agent_id is a valid UUID if provided
+      if (finalUpdates.agent_id) {
+        const resolvedId = await resolveAgentId(finalUpdates.agent_id);
+        if (resolvedId) {
+          finalUpdates.agent_id = resolvedId;
+        } else {
+          throw new Error(`Invalid agent ID: Could not resolve '${finalUpdates.agent_id}' to a valid staff member.`);
+        }
+      }
 
       // Get current agreement state for logic
       const { data: currentAgreement } = await supabase
@@ -1560,14 +1707,24 @@ export const apiService = {
       let query = supabase.from('digital_forms').select('*');
       query = query.eq('subscriber_id', subscriberId);
 
-      if (agentId || createdBy) {
+      let resolvedAgentId = agentId;
+      const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+      
+      if (agentId) {
+        const resolvedId = await resolveAgentId(agentId);
+        if (resolvedId) {
+          resolvedAgentId = resolvedId;
+        } else {
+          // If we can't resolve it, we won't find any forms for this agent
+          resolvedAgentId = undefined;
+        }
+      }
+
+      if (resolvedAgentId || createdBy) {
         const filters: string[] = [];
         
-        // Only add agent_id filter if it looks like a UUID to avoid Supabase errors
-        const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-        
-        if (agentId && isUuid(agentId)) {
-          filters.push(`agent_id.eq.${agentId}`);
+        if (resolvedAgentId && isUuid(resolvedAgentId)) {
+          filters.push(`agent_id.eq.${resolvedAgentId}`);
         }
         
         if (createdBy) {
