@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import Lightbox from "yet-another-react-lightbox";
 import Zoom from "yet-another-react-lightbox/plugins/zoom";
 import "yet-another-react-lightbox/styles.css";
@@ -32,6 +33,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
   isOpen, onClose, initialDate, editingBooking, onSave, onDelete, existingBookings, cars, members, preselectedCarId, subscriberId, currentStaff, currentUserId, userUid, staffRole
 }) => {
   const navigate = useNavigate();
+  const { subscriptionTier } = useAuth();
   // Modes: 'category' (Auto-assign based on model) or 'specific' (Manual plate selection)
   const [bookingMode, setBookingMode] = useState<'category' | 'specific'>('category');
   
@@ -617,14 +619,27 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
           <div className="flex flex-col gap-3 pt-4">
             {editingBooking && (
-              <button 
-                type="button" 
-                onClick={() => navigate(`/forms/create?booking_id=${editingBooking.id}`)}
-                className="w-full py-4 bg-blue-600 rounded-xl text-white font-bold uppercase text-xs tracking-widest hover:bg-blue-700 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                Generate Digital Form
-              </button>
+              subscriptionTier === 'tier_2' ? (
+                <button 
+                  type="button" 
+                  disabled
+                  className="w-full py-4 bg-slate-200 rounded-xl text-slate-400 font-bold uppercase text-xs tracking-widest flex items-center justify-center gap-2 cursor-not-allowed border border-slate-300"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                  </svg>
+                  Generate Digital Form (Locked)
+                </button>
+              ) : (
+                <button 
+                  type="button" 
+                  onClick={() => navigate(`/forms/create?booking_id=${editingBooking.id}`)}
+                  className="w-full py-4 bg-blue-600 rounded-xl text-white font-bold uppercase text-xs tracking-widest hover:bg-blue-700 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                  Generate Digital Form
+                </button>
+              )
             )}
 
             {editingBooking && isEditable && (
