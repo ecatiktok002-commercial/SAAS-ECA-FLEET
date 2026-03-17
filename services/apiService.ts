@@ -586,6 +586,22 @@ export const apiService = {
     });
   },
 
+  async updateBookingStatus(id: string, subscriberId: string, status: 'pending' | 'active' | 'completed' | 'cancelled'): Promise<void> {
+    validateSubscriber(subscriberId);
+    return withRetry(async () => {
+      const { error } = await supabase
+        .from('bookings')
+        .update({ status })
+        .eq('id', id)
+        .eq('subscriber_id', subscriberId);
+      
+      if (error) {
+        logSupabaseError('updateBookingStatus', error);
+        throw new Error('Failed to update booking status');
+      }
+    });
+  },
+
   async saveBooking(booking: Omit<Booking, 'id'>, subscriberId: string, id?: string): Promise<Booking> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {

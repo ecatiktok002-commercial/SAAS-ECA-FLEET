@@ -4,7 +4,7 @@ import { apiService } from '../services/apiService';
 import { 
   Users, Car, CalendarCheck, DollarSign, FileText, AlertTriangle, 
   TrendingUp, Clock, ArrowRight, Plus, Zap, AlertCircle, CheckCircle2,
-  Wallet, BarChart3, ListTodo
+  Wallet, BarChart3, ListTodo, X
 } from 'lucide-react';
 import { Link, Navigate } from 'react-router-dom';
 import { Agreement, Booking, Car as CarType, MarketingEvent, Member } from '../types';
@@ -59,6 +59,9 @@ const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  const [confirmReturnId, setConfirmReturnId] = useState<string | null>(null);
+  const [isConfirmingReturn, setIsConfirmingReturn] = useState(false);
+
   const [showEventModal, setShowEventModal] = useState(false);
   const [newEvent, setNewEvent] = useState({ 
     name: '', 
@@ -189,8 +192,8 @@ const AdminDashboard: React.FC = () => {
       pending.sort((a, b) => a.pickupTime.getTime() - b.pickupTime.getTime());
       overdue.sort((a, b) => a.returnTime.getTime() - b.returnTime.getTime());
 
-      setPendingDeliveries(pending);
-      setOverdueReturns(overdue);
+      setPendingDeliveries(staffRole === 'staff' ? pending : pending.slice(0, 5));
+      setOverdueReturns(staffRole === 'staff' ? overdue : overdue.slice(0, 5));
 
       // 5. Agent Leaderboard (This month)
       const agentMap = new Map<string, { name: string, total: number }>();
@@ -357,6 +360,21 @@ const AdminDashboard: React.FC = () => {
       fetchDashboardData();
     } catch (err) {
       console.error('Failed to add event:', err);
+    }
+  };
+
+  const handleConfirmReturn = async (id: string) => {
+    try {
+      if (!subscriberId) return;
+      setIsConfirmingReturn(true);
+      await apiService.updateBookingStatus(id, subscriberId, 'completed');
+      setConfirmReturnId(null);
+      fetchDashboardData();
+    } catch (err) {
+      console.error('Failed to confirm return:', err);
+      alert('Failed to confirm return. Please try again.');
+    } finally {
+      setIsConfirmingReturn(false);
     }
   };
 
@@ -634,21 +652,55 @@ const AdminDashboard: React.FC = () => {
               </div>
               <div className="divide-y divide-slate-100 flex-1 overflow-y-auto max-h-96">
                 {overdueReturns.length > 0 ? overdueReturns.map(returnItem => (
-                  <div key={returnItem.id} className="p-4 hover:bg-rose-50/50 transition-colors flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-slate-900">{returnItem.customerName}</p>
-                      <p className="text-sm text-slate-500 flex items-center gap-2 mt-1">
-                        <Car className="w-4 h-4" /> {returnItem.carPlate}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-slate-900">
-                        {returnItem.returnTime.toLocaleDateString()} {returnItem.returnTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                      <p className="text-xs text-rose-600 font-medium mt-1">
-                        Late by {formatTimeDiff(returnItem.returnTime)}
-                      </p>
-                    </div>
+                  <div 
+                    key={returnItem.id} 
+                    className="p-4 hover:bg-rose-50/50 transition-colors cursor-pointer"
+                    onClick={() => setConfirmReturnId(returnItem.id)}
+                  >
+                    {confirmReturnId === returnItem.id ? (
+                      <div className="flex flex-col items-center justify-center py-2">
+                        <p className="text-sm font-semibold text-slate-800 mb-3">Is the Vehicle Returned?</p>
+                        <div className="flex gap-3">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleConfirmReturn(returnItem.id);
+                            }}
+                            disabled={isConfirmingReturn}
+                            className="flex items-center gap-1 px-4 py-1.5 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50"
+                          >
+                            <CheckCircle2 className="w-4 h-4" /> Yes
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConfirmReturnId(null);
+                            }}
+                            disabled={isConfirmingReturn}
+                            className="flex items-center gap-1 px-4 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300 transition-colors disabled:opacity-50"
+                          >
+                            <X className="w-4 h-4" /> No
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-slate-900">{returnItem.customerName}</p>
+                          <p className="text-sm text-slate-500 flex items-center gap-2 mt-1">
+                            <Car className="w-4 h-4" /> {returnItem.carPlate}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-medium text-slate-900">
+                            {returnItem.returnTime.toLocaleDateString()} {returnItem.returnTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                          <p className="text-xs text-rose-600 font-medium mt-1">
+                            Late by {formatTimeDiff(returnItem.returnTime)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )) : (
                   <div className="p-8 text-center text-slate-500">
