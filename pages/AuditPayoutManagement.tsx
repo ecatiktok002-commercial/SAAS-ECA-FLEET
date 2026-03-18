@@ -210,9 +210,23 @@ const AuditPayoutManagement: React.FC = () => {
   const currentMonthStart = startOfMonth(new Date()).toISOString();
   const currentMonthEnd = endOfMonth(new Date()).toISOString();
 
+  const refreshData = async () => {
+    try {
+      const [auditData, historyData] = await Promise.all([
+        apiService.getAuditRecords(subscriberId!),
+        apiService.getPayoutHistory(subscriberId!)
+      ]);
+      setRecords(auditData);
+      setPayoutHistory(historyData);
+    } catch (err) {
+      console.error('Failed to fetch data:', err);
+    }
+  };
+
   const handleRunScan = () => {
     setIsScanning(true);
     setScanTrigger(prev => prev + 1);
+    refreshData();
   };
 
   if (loading) {
