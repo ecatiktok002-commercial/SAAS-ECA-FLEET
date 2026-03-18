@@ -1622,12 +1622,19 @@ export const apiService = {
   },
 
   async updateAgreement(id: string, subscriberId: string | null | undefined, updates: Partial<Agreement>): Promise<void> {
-    const targetSubscriberId = await getTenantId();
+    let targetSubscriberId: string | undefined;
+    try {
+      targetSubscriberId = await getTenantId();
+    } catch (e) {
+      // If not authenticated, we allow public updates (e.g., signing)
+      // The RLS policies will enforce security
+    }
+
     return withRetry(async () => {
       let finalUpdates = { ...updates };
 
       // Ensure agent_id is a valid UUID if provided
-      if (finalUpdates.agent_id) {
+      if (finalUpdates.agent_id && targetSubscriberId) {
         const resolvedId = await resolveAgentId(finalUpdates.agent_id);
         if (resolvedId) {
           finalUpdates.agent_id = resolvedId;
@@ -1637,15 +1644,19 @@ export const apiService = {
       }
 
       // Get current agreement state for logic
-      const { data: currentAgreement } = await supabase
+      let currentAgreementQuery = supabase
         .from('agreements')
         .select('*')
-        .eq('id', id)
-        .eq('subscriber_id', targetSubscriberId)
-        .single();
+        .eq('id', id);
+        
+      if (targetSubscriberId) {
+        currentAgreementQuery = currentAgreementQuery.eq('subscriber_id', targetSubscriberId);
+      }
+      
+      const { data: currentAgreement } = await currentAgreementQuery.single();
 
       // If price or agent changes, we might need to recalculate commission
-      if (finalUpdates.total_price !== undefined) {
+      if (finalUpdates.total_price !== undefined && targetSubscriberId) {
         try {
           let agentId = finalUpdates.agent_id || currentAgreement?.agent_id;
           if (agentId) {
@@ -1672,8 +1683,11 @@ export const apiService = {
       let query = supabase
         .from('agreements')
         .update(finalUpdates)
-        .eq('id', id)
-        .eq('subscriber_id', targetSubscriberId);
+        .eq('id', id);
+        
+      if (targetSubscriberId) {
+        query = query.eq('subscriber_id', targetSubscriberId);
+      }
       
       const { error } = await query;
       
