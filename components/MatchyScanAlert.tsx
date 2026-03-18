@@ -7,9 +7,11 @@ interface MatchyScanAlertProps {
   subscriberId: string;
   monthStartDate: string;
   monthEndDate: string;
+  scanTrigger?: number;
+  onScanComplete?: () => void;
 }
 
-const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({ subscriberId, monthStartDate, monthEndDate }) => {
+const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({ subscriberId, monthStartDate, monthEndDate, scanTrigger = 0, onScanComplete }) => {
   const [orphanedBookings, setOrphanedBookings] = useState<any[]>([]);
   const [orphanedAgreements, setOrphanedAgreements] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,8 +40,12 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({ subscriberId, monthSt
   };
 
   useEffect(() => {
-    if (subscriberId) fetchScanData();
-  }, [subscriberId, monthStartDate, monthEndDate]);
+    if (subscriberId) {
+      fetchScanData(scanTrigger > 0).then(() => {
+        if (onScanComplete) onScanComplete();
+      });
+    }
+  }, [subscriberId, monthStartDate, monthEndDate, scanTrigger]);
 
   const handleLinkConfirm = async () => {
     if (!selectedMatchId || !linkModal) return;

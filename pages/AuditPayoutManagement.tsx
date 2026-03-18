@@ -22,7 +22,8 @@ import {
   ChevronDown,
   ArrowRight,
   TrendingUp,
-  X
+  X,
+  RefreshCw
 } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns';
 import MatchyScanAlert from '../components/MatchyScanAlert';
@@ -50,6 +51,8 @@ const AuditPayoutManagement: React.FC = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+  const [scanTrigger, setScanTrigger] = useState(0);
+  const [isScanning, setIsScanning] = useState(false);
 
   useEffect(() => {
     if (subscriberId) {
@@ -207,6 +210,11 @@ const AuditPayoutManagement: React.FC = () => {
   const currentMonthStart = startOfMonth(new Date()).toISOString();
   const currentMonthEnd = endOfMonth(new Date()).toISOString();
 
+  const handleRunScan = () => {
+    setIsScanning(true);
+    setScanTrigger(prev => prev + 1);
+  };
+
   if (loading) {
     return (
       <div className="p-8 flex items-center justify-center min-h-[400px]">
@@ -224,20 +232,30 @@ const AuditPayoutManagement: React.FC = () => {
           <p className="text-slate-500 mt-1">Manage agent commissions, reconcile bookings, and track payout history.</p>
         </div>
         
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-            <div className="flex items-center gap-2 text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">
-              <Clock className="w-4 h-4 text-orange-500" />
-              Pending Approval
+        <div className="flex flex-col sm:flex-row items-end gap-4">
+          <button
+            onClick={handleRunScan}
+            disabled={isScanning}
+            className="px-4 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-sm hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+          >
+            {isScanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            {isScanning ? 'Scanning...' : 'Run Matchy Scan'}
+          </button>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="flex items-center gap-2 text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">
+                <Clock className="w-4 h-4 text-orange-500" />
+                Pending Approval
+              </div>
+              <div className="text-2xl font-bold text-slate-900">RM {pendingPayoutsSum.toFixed(2)}</div>
             </div>
-            <div className="text-2xl font-bold text-slate-900">RM {pendingPayoutsSum.toFixed(2)}</div>
-          </div>
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-            <div className="flex items-center gap-2 text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-              Approved for Payout
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="flex items-center gap-2 text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                Approved for Payout
+              </div>
+              <div className="text-2xl font-bold text-slate-900">RM {readyForPayoutSum.toFixed(2)}</div>
             </div>
-            <div className="text-2xl font-bold text-slate-900">RM {readyForPayoutSum.toFixed(2)}</div>
           </div>
         </div>
       </div>
@@ -248,6 +266,8 @@ const AuditPayoutManagement: React.FC = () => {
           subscriberId={subscriberId} 
           monthStartDate={currentMonthStart} 
           monthEndDate={currentMonthEnd} 
+          scanTrigger={scanTrigger}
+          onScanComplete={() => setIsScanning(false)}
         />
       )}
 
