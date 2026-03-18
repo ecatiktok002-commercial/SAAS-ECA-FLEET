@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { format, addDays, parseISO } from 'date-fns';
 
 /**
  * Executes the Phase 1 Matchy Scan for a specific month and subscriber.
@@ -13,7 +14,7 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
     .eq('subscriber_id', subscriberId)
     .gte('start', monthStartDate)
     .lte('start', monthEndDate)
-    .neq('status', 'cancelled');
+    .or('status.neq.cancelled,status.is.null');
 
   if (bookingsError) {
     throw new Error(`Error fetching bookings: ${bookingsError.message}`);
@@ -57,12 +58,59 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
   const uniqueAgreements = Array.from(new Map(allRelevantAgreements.map(a => [a.id, a])).values());
 
   // 4. Find orphaned bookings: Bookings that do not have any agreement with matching booking_id
-  const orphanedBookings = (bookings || []).filter(booking => 
+  let orphanedBookings = (bookings || []).filter(booking => 
     !uniqueAgreements.some(a => a.booking_id === booking.id)
   );
 
   // 5. Find orphaned agreements: Agreements created this month that do not have a booking_id
-  const orphanedAgreements = (recentAgreements || []).filter(a => !a.booking_id);
+  let orphanedAgreements = (recentAgreements || []).filter(a => !a.booking_id);
+
+  // 6. Heuristic Auto-Matching (The DNA Check)
+  for (let i = orphanedAgreements.length - 1; i >= 0; i--) {
+    const agreement = orphanedAgreements[i];
+    
+    // Find a matching booking
+    const matchIndex = orphanedBookings.findIndex(booking => {
+      try {
+        const d = new Date(booking.start);
+        const startDate = format(d, 'yyyy-MM-dd');
+        const time = format(d, 'HH:mm');
+        const duration = booking.duration;
+        const endDate = format(addDays(parseISO(startDate), duration), 'yyyy-MM-dd');
+
+        // Check DNA
+        const isStartDateMatch = agreement.start_date === startDate;
+        const isEndDateMatch = agreement.end_date === endDate;
+        const isPickupTimeMatch = agreement.pickup_time === time;
+        const isReturnTimeMatch = agreement.return_time === time;
+        const isSubscriberMatch = agreement.subscriber_id === subscriberId && booking.subscriber_id === subscriberId;
+
+        return isStartDateMatch && isEndDateMatch && isPickupTimeMatch && isReturnTimeMatch && isSubscriberMatch;
+      } catch (e) {
+        return false;
+      }
+    });
+
+    if (matchIndex !== -1) {
+      const matchedBooking = orphanedBookings[matchIndex];
+      
+      // Permanent Tagging (Database Update)
+      const { error: updateError } = await supabase
+        .from('agreements')
+        .update({ booking_id: matchedBooking.id })
+        .eq('id', agreement.id)
+        .eq('subscriber_id', subscriberId); // Safety check
+
+      if (!updateError) {
+        console.log(`Auto-matched agreement ${agreement.id} to booking ${matchedBooking.id}`);
+        // Remove from orphan queues
+        orphanedAgreements.splice(i, 1);
+        orphanedBookings.splice(matchIndex, 1);
+      } else {
+        console.error(`Failed to auto-match agreement ${agreement.id}:`, updateError);
+      }
+    }
+  }
 
   return {
     orphanedAgreements,

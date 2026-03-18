@@ -226,6 +226,10 @@ const AuditPayoutManagement: React.FC = () => {
   const handleRunScan = () => {
     setIsScanning(true);
     setScanTrigger(prev => prev + 1);
+  };
+
+  const handleScanComplete = () => {
+    setIsScanning(false);
     refreshData();
   };
 
@@ -281,7 +285,7 @@ const AuditPayoutManagement: React.FC = () => {
           monthStartDate={currentMonthStart} 
           monthEndDate={currentMonthEnd} 
           scanTrigger={scanTrigger}
-          onScanComplete={() => setIsScanning(false)}
+          onScanComplete={handleScanComplete}
         />
       )}
 
