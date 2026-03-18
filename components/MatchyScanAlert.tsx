@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Link as LinkIcon, Trash2, FileText, Calendar, AlertCircle } from 'lucide-react';
+import { AlertTriangle, Link as LinkIcon, Trash2, FileText, Calendar, AlertCircle, RefreshCw, X } from 'lucide-react';
 import { runMatchyScan } from '../services/auditService';
+import { supabase } from '../services/supabase';
 
 interface MatchyScanAlertProps {
   subscriberId: string;
@@ -12,24 +13,61 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({ subscriberId, monthSt
   const [orphanedBookings, setOrphanedBookings] = useState<any[]>([]);
   const [orphanedAgreements, setOrphanedAgreements] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const fetchScanData = async () => {
-      setIsLoading(true);
-      try {
-        const { orphanedAgreements, orphanedBookings } = await runMatchyScan(subscriberId, monthStartDate, monthEndDate);
-        setOrphanedAgreements(orphanedAgreements);
-        setOrphanedBookings(orphanedBookings);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  // Modal State
+  const [linkModal, setLinkModal] = useState<{ isOpen: boolean; type: 'booking' | 'agreement'; sourceId: string; sourceLabel: string } | null>(null);
+  const [selectedMatchId, setSelectedMatchId] = useState('');
+  const [isLinking, setIsLinking] = useState(false);
 
+  const fetchScanData = async (showRefreshIndicator = false) => {
+    if (showRefreshIndicator) setIsRefreshing(true);
+    else setIsLoading(true);
+    
+    try {
+      const { orphanedAgreements, orphanedBookings } = await runMatchyScan(subscriberId, monthStartDate, monthEndDate);
+      setOrphanedAgreements(orphanedAgreements);
+      setOrphanedBookings(orphanedBookings);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
     if (subscriberId) fetchScanData();
   }, [subscriberId, monthStartDate, monthEndDate]);
+
+  const handleLinkConfirm = async () => {
+    if (!selectedMatchId || !linkModal) return;
+    setIsLinking(true);
+    try {
+      // If we are linking a booking, the target is the selected agreement.
+      // If we are linking an agreement, the target is the agreement itself.
+      const agreementId = linkModal.type === 'agreement' ? linkModal.sourceId : selectedMatchId;
+      const bookingId = linkModal.type === 'booking' ? linkModal.sourceId : selectedMatchId;
+
+      const { error } = await supabase
+        .from('agreements')
+        .update({ booking_id: bookingId })
+        .eq('id', agreementId)
+        .eq('subscriber_id', subscriberId);
+
+      if (error) throw error;
+
+      // Reset modal and refresh
+      setLinkModal(null);
+      setSelectedMatchId('');
+      await fetchScanData(true);
+    } catch (err: any) {
+      alert(`Error linking records: ${err.message}`);
+    } finally {
+      setIsLinking(false);
+    }
+  };
 
   const totalOrphans = orphanedBookings.length + orphanedAgreements.length;
 
@@ -42,10 +80,20 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({ subscriberId, monthSt
       {/* 1. The Alert Banner UI */}
       <div className="bg-rose-50 border-l-4 border-rose-500 p-5 rounded-r-xl shadow-sm flex items-start gap-4">
         <AlertTriangle className="w-6 h-6 text-rose-600 shrink-0 mt-0.5" />
-        <div>
-          <h3 className="text-rose-800 font-bold text-lg tracking-tight">
-            Data Integrity Alert: Action Required Before Payout
-          </h3>
+        <div className="flex-1">
+          <div className="flex items-center justify-between">
+            <h3 className="text-rose-800 font-bold text-lg tracking-tight">
+              Data Integrity Alert: Action Required Before Payout
+            </h3>
+            <button 
+              onClick={() => fetchScanData(true)}
+              disabled={isRefreshing}
+              className="p-1.5 text-rose-600 hover:bg-rose-100 rounded-md transition-colors disabled:opacity-50"
+              title="Re-scan for orphans"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
           <p className="text-rose-600 text-sm mt-1 font-medium">
             The Matchy Scan detected {totalOrphans} orphaned record(s) for this month. You must resolve these discrepancies before proceeding to Bank Reconciliation.
           </p>
@@ -92,7 +140,15 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({ subscriberId, monthSt
                 </div>
               </div>
               <div className="flex items-center gap-2 self-end sm:self-auto">
-                <button className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 hover:text-blue-600 transition-colors flex items-center gap-1.5">
+                <button 
+                  onClick={() => setLinkModal({ 
+                    isOpen: true, 
+                    type: 'booking', 
+                    sourceId: booking.id, 
+                    sourceLabel: `${booking.cars?.plate || 'Unknown Car'} (${new Date(booking.start).toLocaleDateString()})` 
+                  })}
+                  className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 hover:text-blue-600 transition-colors flex items-center gap-1.5"
+                >
                   <LinkIcon className="w-3 h-3" /> Link Form
                 </button>
                 <button className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
@@ -120,7 +176,15 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({ subscriberId, monthSt
                 </div>
               </div>
               <div className="flex items-center gap-2 self-end sm:self-auto">
-                <button className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 hover:text-blue-600 transition-colors flex items-center gap-1.5">
+                <button 
+                  onClick={() => setLinkModal({ 
+                    isOpen: true, 
+                    type: 'agreement', 
+                    sourceId: agreement.id, 
+                    sourceLabel: `${agreement.customer_name} (${agreement.car_plate_number})` 
+                  })}
+                  className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 hover:text-blue-600 transition-colors flex items-center gap-1.5"
+                >
                   <LinkIcon className="w-3 h-3" /> Link Booking
                 </button>
                 <button className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
@@ -131,6 +195,76 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({ subscriberId, monthSt
           ))}
         </div>
       </div>
+
+      {/* 3. The Link Modal */}
+      {linkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100">
+              <h3 className="font-bold text-slate-800">
+                {linkModal.type === 'booking' ? 'Link Agreement to Booking' : 'Link Booking to Agreement'}
+              </h3>
+              <button 
+                onClick={() => { setLinkModal(null); setSelectedMatchId(''); }} 
+                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Selected {linkModal.type === 'booking' ? 'Booking' : 'Agreement'}
+                </label>
+                <div className="p-3 bg-slate-50 rounded-lg text-sm font-medium text-slate-700 border border-slate-200">
+                  {linkModal.sourceLabel}
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Select Matching {linkModal.type === 'booking' ? 'Agreement' : 'Booking'}
+                </label>
+                <select 
+                  className="w-full p-3 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  value={selectedMatchId}
+                  onChange={(e) => setSelectedMatchId(e.target.value)}
+                >
+                  <option value="">-- Select a match --</option>
+                  {linkModal.type === 'booking' 
+                    ? orphanedAgreements.map(a => (
+                        <option key={a.id} value={a.id}>
+                          {a.customer_name} - {a.car_plate_number} (RM {a.total_price})
+                        </option>
+                      ))
+                    : orphanedBookings.map(b => (
+                        <option key={b.id} value={b.id}>
+                          {b.cars?.plate || 'Unknown'} - {new Date(b.start).toLocaleDateString()} ({b.duration} Days)
+                        </option>
+                      ))
+                  }
+                </select>
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
+              <button 
+                onClick={() => { setLinkModal(null); setSelectedMatchId(''); }}
+                className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleLinkConfirm}
+                disabled={!selectedMatchId || isLinking}
+                className="px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {isLinking ? <RefreshCw className="w-4 h-4 animate-spin" /> : <LinkIcon className="w-4 h-4" />}
+                Confirm Link
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
