@@ -24,7 +24,8 @@ import {
   TrendingUp,
   X
 } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns';
+import MatchyScanAlert from '../components/MatchyScanAlert';
 import { 
   BarChart, 
   Bar, 
@@ -203,6 +204,9 @@ const AuditPayoutManagement: React.FC = () => {
     .filter(r => r.status === 'completed' && r.payout_status === 'approved')
     .reduce((sum, r) => sum + Number(r.commission_earned || 0), 0);
 
+  const currentMonthStart = startOfMonth(new Date()).toISOString();
+  const currentMonthEnd = endOfMonth(new Date()).toISOString();
+
   if (loading) {
     return (
       <div className="p-8 flex items-center justify-center min-h-[400px]">
@@ -237,6 +241,15 @@ const AuditPayoutManagement: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Phase 1: Matchy Scan Alert */}
+      {subscriberId && (
+        <MatchyScanAlert 
+          subscriberId={subscriberId} 
+          monthStartDate={currentMonthStart} 
+          monthEndDate={currentMonthEnd} 
+        />
+      )}
 
       {/* Tabs Navigation */}
       <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-2xl w-fit mb-6">

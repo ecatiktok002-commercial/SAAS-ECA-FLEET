@@ -1168,3 +1168,52 @@ LEFT JOIN bookings b ON a.booking_id::uuid = b.id
 WHERE a.status IN ('completed', 'reconciled')
    OR (a.status = 'signed' AND a.payment_receipt IS NOT NULL AND a.payment_receipt != '')
    OR b.status = 'completed';
+
+-- ===============================================================
+-- 19. Matchy Scan RPC (Audit Data Integrity)
+-- ===============================================================
+CREATE OR REPLACE FUNCTION get_matchy_orphans(
+  p_subscriber_id UUID,
+  p_start_date TIMESTAMPTZ,
+  p_end_date TIMESTAMPTZ
+) RETURNS JSON AS $$
+DECLARE
+  v_orphaned_bookings JSON;
+  v_orphaned_agreements JSON;
+BEGIN
+  -- 1. Orphaned Bookings (No linked agreement)
+  SELECT COALESCE(json_agg(row_to_json(b)), '[]'::json) INTO v_orphaned_bookings
+  FROM (
+    SELECT bk.*, 
+           json_build_object('plate', c.plate, 'name', c.name) as cars,
+           json_build_object('name', m.name) as members
+    FROM bookings bk
+    LEFT JOIN cars c ON bk.car_id = c.id
+    LEFT JOIN members m ON bk.member_id = m.id
+    WHERE bk.subscriber_id = p_subscriber_id
+      AND bk.start >= p_start_date
+      AND bk.start <= p_end_date
+      AND bk.status IN ('active', 'confirmed', 'completed')
+      AND NOT EXISTS (
+        SELECT 1 FROM agreements a 
+        WHERE a.booking_id = bk.id
+      )
+  ) b;
+
+  -- 2. Orphaned Agreements (booking_id is null)
+  SELECT COALESCE(json_agg(row_to_json(a)), '[]'::json) INTO v_orphaned_agreements
+  FROM (
+    SELECT *
+    FROM agreements
+    WHERE subscriber_id = p_subscriber_id
+      AND created_at >= p_start_date
+      AND created_at <= p_end_date
+      AND booking_id IS NULL
+  ) a;
+
+  RETURN json_build_object(
+    'orphanedBookings', v_orphaned_bookings,
+    'orphanedAgreements', v_orphaned_agreements
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
