@@ -1196,7 +1196,7 @@ BEGIN
       AND bk.status IN ('active', 'confirmed', 'completed')
       AND NOT EXISTS (
         SELECT 1 FROM agreements a 
-        WHERE a.booking_id = bk.id
+        WHERE a.booking_id::text = bk.id::text
       )
   ) b;
 
@@ -1208,7 +1208,7 @@ BEGIN
     WHERE subscriber_id = p_subscriber_id
       AND created_at >= p_start_date
       AND created_at <= p_end_date
-      AND booking_id IS NULL
+      AND (booking_id IS NULL OR booking_id::text = '')
   ) a;
 
   RETURN json_build_object(
