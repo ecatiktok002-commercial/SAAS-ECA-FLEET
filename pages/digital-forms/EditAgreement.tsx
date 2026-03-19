@@ -3,6 +3,7 @@ import { useNavigate, Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, Upload, CheckCircle2, Eye, Trash2 } from 'lucide-react';
 import { addDays, differenceInDays, parseISO, format, isValid } from 'date-fns';
 import { apiService } from '../../services/apiService';
+import * as auditService from '../../services/auditService';
 import { useAuth } from '../../context/AuthContext';
 import { openDataURL } from '../../utils/fileUtils';
 
@@ -345,12 +346,8 @@ export default function EditAgreement() {
                   if (!window.confirm('Approve these changes?')) return;
                   try {
                     setLoading(true);
-                    await apiService.updateAgreement(id!, subscriberId!, {
-                      ...agreement.pending_changes,
-                      has_pending_changes: false,
-                      pending_changes: null
-                    });
-                    alert('Changes approved!');
+                    await auditService.approveAmendment(id!, subscriberId!);
+                    alert('Changes approved and booking synced!');
                     navigate('/forms');
                   } catch (e: any) {
                     alert(e.message);
@@ -368,10 +365,7 @@ export default function EditAgreement() {
                   if (!window.confirm('Reject these changes?')) return;
                   try {
                     setLoading(true);
-                    await apiService.updateAgreement(id!, subscriberId!, {
-                      has_pending_changes: false,
-                      pending_changes: null
-                    });
+                    await auditService.rejectAmendment(id!, subscriberId!);
                     alert('Changes rejected!');
                     navigate('/forms');
                   } catch (e: any) {

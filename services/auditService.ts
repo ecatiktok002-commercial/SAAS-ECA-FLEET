@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { format, addDays, parseISO, isValid } from 'date-fns';
+import { format, addDays, parseISO, isValid, differenceInDays } from 'date-fns';
 import { apiService } from './apiService';
 
 /**
@@ -135,4 +135,103 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
     orphanedAgreements,
     orphanedBookings
   };
+};
+
+/**
+ * Approves a pending amendment request for an agreement.
+ * Overwrites the original agreement data and synchronizes with the linked booking.
+ */
+export const approveAmendment = async (agreementId: string, subscriberId: string) => {
+  // 1. Fetch the agreement to get pending_changes and booking_id
+  const agreement = await apiService.getAgreementById(agreementId, subscriberId);
+  if (!agreement) throw new Error('Agreement not found');
+  if (!agreement.has_pending_changes || !agreement.pending_changes) {
+    throw new Error('No pending changes to approve');
+  }
+
+  const pendingChanges = agreement.pending_changes as any;
+  const bookingId = agreement.booking_id;
+
+  // 2. Prepare the update for the agreement
+  // We overwrite the main fields with the pending changes
+  const agreementUpdates = {
+    ...pendingChanges,
+    has_pending_changes: false,
+    pending_changes: null,
+    updated_at: new Date().toISOString()
+  };
+
+  // 3. Execute the update for the agreement
+  const { error: agreementError } = await supabase
+    .from('agreements')
+    .update(agreementUpdates)
+    .eq('id', agreementId)
+    .eq('subscriber_id', subscriberId);
+
+  if (agreementError) throw agreementError;
+
+  // 4. Sync with bookings table if necessary
+  if (bookingId) {
+    // Check if date/time fields were changed
+    const dateFields = ['start_date', 'end_date', 'pickup_time', 'duration_days'];
+    const hasDateChanges = dateFields.some(f => f in pendingChanges);
+    
+    if (hasDateChanges) {
+      const finalStartDate = pendingChanges.start_date || agreement.start_date;
+      const finalPickupTime = (pendingChanges.pickup_time || agreement.pickup_time || '10:00').substring(0, 5);
+      const finalEndDate = pendingChanges.end_date || agreement.end_date;
+      
+      if (finalStartDate && finalEndDate) {
+        try {
+          // Construct the new start timestamp
+          const startTimestamp = parseISO(`${finalStartDate}T${finalPickupTime}:00`);
+          
+          // Calculate new duration
+          const startDateObj = parseISO(finalStartDate);
+          const endDateObj = parseISO(finalEndDate);
+          const duration = Math.max(0, differenceInDays(endDateObj, startDateObj));
+          
+          if (isValid(startTimestamp)) {
+            const { error: bookingError } = await supabase
+              .from('bookings')
+              .update({
+                start: startTimestamp.toISOString(),
+                duration: duration
+              })
+              .eq('id', bookingId);
+              
+            if (bookingError) {
+              console.error('Booking sync failed:', bookingError);
+              throw new Error(`Agreement updated but booking sync failed: ${bookingError.message}`);
+            }
+          }
+        } catch (err) {
+          console.error('Error calculating booking sync:', err);
+          // We don't throw here to avoid breaking the whole flow if it's just a calculation error,
+          // but the user should be aware.
+        }
+      }
+    }
+  }
+
+  return { success: true };
+};
+
+/**
+ * Rejects a pending amendment request for an agreement.
+ * Simply clears the pending changes flags.
+ */
+export const rejectAmendment = async (agreementId: string, subscriberId: string) => {
+  const { error } = await supabase
+    .from('agreements')
+    .update({
+      has_pending_changes: false,
+      pending_changes: null,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', agreementId)
+    .eq('subscriber_id', subscriberId);
+
+  if (error) throw error;
+  return { success: true };
 };
