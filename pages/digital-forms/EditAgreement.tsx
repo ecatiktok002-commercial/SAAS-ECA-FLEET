@@ -279,11 +279,32 @@ export default function EditAgreement() {
         return;
       }
 
-      const payload = requestAmendmentMode && !isAdmin 
-        ? { has_pending_changes: true, pending_changes: updates }
-        : updates;
+      // 1. Clean the updates object first
+      const cleanUpdates: any = {};
+      Object.keys(updates).forEach(key => {
+        // Ensure we don't send any "true" booleans to date fields
+        if (['start_date', 'end_date'].includes(key) && typeof updates[key] === 'boolean') {
+          return; // Skip this key
+        }
+        cleanUpdates[key] = updates[key];
+      });
 
-      await apiService.updateAgreement(id, subscriberId, payload);
+      // 2. Prepare the final payload
+      let finalPayload;
+
+      if (requestAmendmentMode && !isAdmin) {
+        // Agent Mode: We ONLY send the flags and the JSON blob
+        finalPayload = {
+          has_pending_changes: true,
+          pending_changes: cleanUpdates // This goes into the JSONB column
+        };
+      } else {
+        // Admin Mode: We update the real columns directly
+        finalPayload = cleanUpdates;
+      }
+
+      // 3. Send it!
+      await apiService.updateAgreement(id, subscriberId, finalPayload);
       
       if (requestAmendmentMode && !isAdmin) {
         alert('Amendment requested successfully!');
