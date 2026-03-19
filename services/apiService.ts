@@ -1655,6 +1655,16 @@ export const apiService = {
       
       const { data: currentAgreement } = await currentAgreementQuery.single();
 
+      // STATUS LOCK LOGIC:
+      // If the current status is 'signed' or 'completed', we should NOT allow it to be reset to 'pending'
+      // unless it's an explicit request (which isn't the case for receipt updates).
+      if (currentAgreement && (currentAgreement.status === 'signed' || currentAgreement.status === 'completed')) {
+        // If the update payload tries to set status to 'pending', we remove it to preserve the current state
+        if (finalUpdates.status === 'pending') {
+          delete finalUpdates.status;
+        }
+      }
+
       // If price or agent changes, we might need to recalculate commission
       if (finalUpdates.total_price !== undefined && targetSubscriberId) {
         try {
@@ -1967,7 +1977,7 @@ export const apiService = {
     return withRetry(async () => {
       if (records.length === 0) return;
 
-      const totalAmount = records.reduce((sum, r) => sum + (r.commission_earned || 0), 0);
+      const totalAmount = records.reduce((sum, r) => sum + (Number(r.commission_earned) || 0), 0);
       
       // Group by agent
       const agentMap = new Map<string, { agent_id: string, agent_name: string, total_bookings: number, total_revenue: number, payout_due: number }>();
@@ -1982,8 +1992,8 @@ export const apiService = {
         };
         
         existing.total_bookings += 1;
-        existing.total_revenue += Number(r.form_price || 0);
-        existing.payout_due += Number(r.commission_earned || 0);
+        existing.total_revenue += (Number(r.form_price) || 0);
+        existing.payout_due += (Number(r.commission_earned) || 0);
         
         agentMap.set(r.agent_id, existing);
       });
