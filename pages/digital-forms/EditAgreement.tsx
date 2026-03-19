@@ -249,8 +249,12 @@ export default function EditAgreement() {
       if (formData.emergency_contact_relation !== agreement.emergency_contact_relation) updates.emergency_contact_relation = formData.emergency_contact_relation;
       if (formData.car_plate_number !== agreement.car_plate_number) updates.car_plate_number = formData.car_plate_number;
       if (formData.car_model !== agreement.car_model) updates.car_model = formData.car_model;
-      if (formData.start_date !== agreement.start_date) updates.start_date = formData.start_date;
-      if (formData.end_date !== agreement.end_date) updates.end_date = formData.end_date;
+      if (formData.start_date !== agreement.start_date) {
+        updates.start_date = String(formData.start_date);
+      }
+      if (formData.end_date !== agreement.end_date) {
+        updates.end_date = String(formData.end_date);
+      }
       if (formData.pickup_time !== agreement.pickup_time) updates.pickup_time = formData.pickup_time;
       if (formData.return_time !== agreement.return_time) updates.return_time = formData.return_time;
       if (formData.need_einvoice !== agreement.need_einvoice) updates.need_einvoice = formData.need_einvoice;
