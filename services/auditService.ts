@@ -67,47 +67,111 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
   let orphanedAgreements = (recentAgreements || []).filter(a => !a.booking_id);
 
   // 6. Heuristic Auto-Matching (The DNA Check)
-  for (let i = orphanedAgreements.length - 1; i >= 0; i--) {
-    const agreement = orphanedAgreements[i];
+  
+  // Create a 'Normalizer' Utility
+  const normalizeMatchKey = (subId: string, rawDate: string | null | undefined, rawTime: string | null | undefined, rawDuration: number | string | null | undefined) => {
+    try {
+      if (!rawDate) return null;
+      
+      // Normalize Date to YYYY-MM-DD
+      let normalizedDate = '';
+      const d = new Date(rawDate);
+      if (isValid(d)) {
+        normalizedDate = format(d, 'yyyy-MM-dd');
+      } else {
+        // Try to parse DD/MM/YYYY or other formats if Date() fails
+        const parts = rawDate.split(/[-/]/);
+        if (parts.length === 3) {
+           if (parts[0].length === 4) {
+             normalizedDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+           } else if (parts[2].length === 4) {
+             normalizedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+           }
+        }
+      }
+      if (!normalizedDate) return null;
+
+      // Normalize Time to HH:mm (24h)
+      let normalizedTime = '00:00';
+      if (rawTime) {
+        // Handle 12h format (e.g., "10:30 PM")
+        const timeMatch = rawTime.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+        if (timeMatch) {
+          let hours = parseInt(timeMatch[1], 10);
+          const minutes = timeMatch[2].padStart(2, '0');
+          const modifier = timeMatch[3]?.toUpperCase();
+
+          if (modifier === 'PM' && hours < 12) hours += 12;
+          if (modifier === 'AM' && hours === 12) hours = 0;
+          
+          normalizedTime = `${hours.toString().padStart(2, '0')}:${minutes}`;
+        } else {
+           // Handle 24h format (e.g., "22:30:00")
+           normalizedTime = rawTime.substring(0, 5);
+        }
+      }
+
+      // Normalize Duration
+      const duration = parseInt(String(rawDuration || 0), 10);
+
+      return `${subId}_${normalizedDate}_${normalizedTime}_${duration}`;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  // Debugging (CRITICAL)
+  const debugTable: any[] = [];
+  
+  const agreementKeys = orphanedAgreements.map(a => {
+    const key = normalizeMatchKey(subscriberId, a.start_date, a.pickup_time, a.duration_days);
+    debugTable.push({
+      Type: 'Agreement',
+      Customer: a.customer_name,
+      'Raw Date': a.start_date,
+      'Raw Time': a.pickup_time,
+      'Normalized Key': key
+    });
+    return { id: a.id, key, original: a };
+  });
+
+  const bookingKeys = orphanedBookings.map(b => {
+    const key = normalizeMatchKey(subscriberId, b.start_date || b.start, b.pickup_time || (b.start ? format(new Date(b.start), 'HH:mm') : null), b.duration);
+    debugTable.push({
+      Type: 'Booking',
+      Customer: 'N/A',
+      'Raw Date': b.start_date || b.start,
+      'Raw Time': b.pickup_time || (b.start ? format(new Date(b.start), 'HH:mm') : null),
+      'Normalized Key': key
+    });
+    return { id: b.id, key, original: b };
+  });
+
+  console.table(debugTable);
+
+  for (let i = agreementKeys.length - 1; i >= 0; i--) {
+    const agreementInfo = agreementKeys[i];
+    if (!agreementInfo.key) continue;
     
     // Find a matching booking
-    const matchIndex = orphanedBookings.findIndex(booking => {
-      try {
-        if (!booking.start) return false;
-        const d = new Date(booking.start);
-        if (isNaN(d.getTime())) return false;
-        
-        const bStartDate = booking.start_date || format(d, 'yyyy-MM-dd');
-        const bPickupTime = (booking.pickup_time || format(d, 'HH:mm')).substring(0, 5);
-
-        // Check DNA - Refined to match based on subscriber_id (implicit), start_date, and pickup_time
-        // We exclude car_id/plate as vehicles are often swapped
-        const isStartDateMatch = agreement.start_date === bStartDate;
-        
-        // Time match (handle potential seconds in DB like 10:00:00)
-        const agreementPickup = agreement.pickup_time?.substring(0, 5);
-        const isPickupTimeMatch = !agreement.pickup_time || agreementPickup === bPickupTime;
-
-        return isStartDateMatch && isPickupTimeMatch;
-      } catch (e) {
-        return false;
-      }
-    });
+    const matchIndex = bookingKeys.findIndex(b => b.key === agreementInfo.key);
 
     if (matchIndex !== -1) {
-      const matchedBooking = orphanedBookings[matchIndex];
+      const matchedBookingInfo = bookingKeys[matchIndex];
+      const agreement = agreementInfo.original;
       
       // Permanent Tagging (Database Update) - Auto Approve!
       try {
         await apiService.updateAgreement(agreement.id, subscriberId, {
-          booking_id: matchedBooking.id,
+          booking_id: matchedBookingInfo.id,
           payout_status: 'approved',
           total_price: agreement.total_price
         });
-        console.log(`Auto-matched agreement ${agreement.id} to booking ${matchedBooking.id}`);
+        console.log(`Auto-matched agreement ${agreement.id} to booking ${matchedBookingInfo.id}`);
         // Remove from orphan queues
-        orphanedAgreements.splice(i, 1);
-        orphanedBookings.splice(matchIndex, 1);
+        orphanedAgreements = orphanedAgreements.filter(a => a.id !== agreement.id);
+        orphanedBookings = orphanedBookings.filter(b => b.id !== matchedBookingInfo.id);
+        bookingKeys.splice(matchIndex, 1); // Remove from keys array so it's not matched again
       } catch (updateError) {
         console.error(`Failed to auto-match agreement ${agreement.id}:`, updateError);
       }
