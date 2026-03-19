@@ -155,32 +155,32 @@ const AuditPayoutManagement: React.FC = () => {
   };
 
   const orphans = useMemo(() => 
-    records.filter(r => r.booking_id === null && r.status !== 'reconciled'), 
+    records.filter(r => !r.booking_id), 
     [records]
   );
 
-  const matchedForReview = useMemo(() => 
-    records.filter(r => r.booking_id !== null && r.status !== 'reconciled'), 
+  const readyForReview = useMemo(() => 
+    records.filter(r => !!r.booking_id), 
     [records]
   );
 
-  const filteredRecords = useMemo(() => matchedForReview.filter(r => 
+  const filteredRecords = useMemo(() => readyForReview.filter(r => 
     r.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     r.agent_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (r.reference_number && r.reference_number.toLowerCase().includes(searchTerm.toLowerCase()))
-  ), [matchedForReview, searchTerm]);
+  ), [readyForReview, searchTerm]);
 
-  const pendingPayoutsSum = matchedForReview
+  const pendingPayoutsSum = readyForReview
     .filter(r => r.status === 'completed' && r.payout_status === 'pending')
     .reduce((sum, r) => sum + (Number(r.commission_earned) || 0), 0);
 
-  const readyForPayoutSum = matchedForReview
+  const readyForPayoutSum = readyForReview
     .filter(r => r.status === 'completed' && r.payout_status === 'approved')
     .reduce((sum, r) => sum + (Number(r.commission_earned) || 0), 0);
 
   // Payout Summary Logic
   const payoutSummary = useMemo(() => {
-    const approvedRecords = matchedForReview.filter(r => r.payout_status === 'approved' && r.status !== 'reconciled');
+    const approvedRecords = readyForReview.filter(r => r.payout_status === 'approved' && r.status !== 'reconciled');
     const agentMap = new Map<string, { agent_id: string, agent_name: string, total_bookings: number, total_revenue: number, payout_due: number }>();
     
     approvedRecords.forEach(r => {
@@ -200,7 +200,7 @@ const AuditPayoutManagement: React.FC = () => {
     });
 
     return Array.from(agentMap.values());
-  }, [matchedForReview]);
+  }, [readyForReview]);
 
   // Chart Data Logic
   const chartData = useMemo(() => {
@@ -438,18 +438,14 @@ const AuditPayoutManagement: React.FC = () => {
                           <td className="py-4 px-6">
                             <div className="text-xs text-slate-600">{record.car_plate_number}</div>
                             <div className="text-[10px] text-slate-400 mt-0.5">
-                              {safeFormat(record.form_start, 'dd/MM/yyyy')} - {safeFormat(record.form_end, 'dd/MM/yyyy')}
+                              {record.booking_start 
+                                ? `${safeFormat(record.booking_start, 'dd/MM/yyyy')} (${record.booking_duration} Days)` 
+                                : `${safeFormat(record.form_start, 'dd/MM/yyyy')} - ${safeFormat(record.form_end, 'dd/MM/yyyy')}`}
                             </div>
                           </td>
                           <td className="py-4 px-6">
-                            {record.booking_id ? (
-                              <>
-                                <div className="text-sm font-bold text-slate-900">RM {(Number(record.form_price) || 0).toFixed(2)}</div>
-                                <div className="text-[10px] text-emerald-600 font-bold">Comm: RM {(Number(record.commission_earned) || 0).toFixed(2)}</div>
-                              </>
-                            ) : (
-                              <span className="text-[10px] text-slate-400 italic">Awaiting Match</span>
-                            )}
+                            <div className="text-sm font-bold text-slate-900">RM {(Number(record.form_price) || 0).toFixed(2)}</div>
+                            <div className="text-[10px] text-emerald-600 font-bold">Comm: RM {(Number(record.commission_earned) || 0).toFixed(2)}</div>
                           </td>
                           <td className="py-4 px-6">
                             <div className="flex flex-col gap-1">
