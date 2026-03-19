@@ -1666,17 +1666,19 @@ export const apiService = {
       }
 
       // If price or agent changes, we might need to recalculate commission
-      if (finalUpdates.total_price !== undefined && targetSubscriberId) {
+      if ((finalUpdates.total_price !== undefined || finalUpdates.agent_id !== undefined) && targetSubscriberId) {
         try {
-          let agentId = finalUpdates.agent_id || currentAgreement?.agent_id;
-          if (agentId) {
+          const agentId = finalUpdates.agent_id || currentAgreement?.agent_id;
+          const totalPrice = finalUpdates.total_price !== undefined ? finalUpdates.total_price : currentAgreement?.total_price;
+          
+          if (agentId && totalPrice !== undefined) {
             const staffMember = await this.getStaffMemberById(agentId, targetSubscriberId);
             if (staffMember) {
               if (staffMember.commission_rate) {
-                finalUpdates.commission_earned = finalUpdates.total_price * (staffMember.commission_rate / 100);
+                finalUpdates.commission_earned = totalPrice * (staffMember.commission_rate / 100);
               } else if (staffMember.commission_tier_override && staffMember.commission_tier_override !== 'auto') {
                 const rate = staffMember.commission_tier_override === 'premium' ? 0.20 : staffMember.commission_tier_override === 'prestige' ? 0.25 : 0.30;
-                finalUpdates.commission_earned = finalUpdates.total_price * rate;
+                finalUpdates.commission_earned = totalPrice * rate;
               }
             }
           }

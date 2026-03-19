@@ -236,14 +236,55 @@ export default function EditAgreement() {
         emergency_contact_relation: formData.emergency_contact_relation
       });
 
-      const updates: any = {
-        ...formData,
-        customer_id: customerId, // Attach the customer_id
-        total_price: parseFloat(formData.total_price),
-        deposit: formData.deposit ? parseFloat(formData.deposit) : 0,
-        duration_days: parseInt(formData.duration_days, 10),
-        ...(receiptData !== undefined && { payment_receipt: receiptData }),
-      };
+      // SURGICAL UPDATE: Only send fields that have actually changed
+      const updates: any = {};
+      
+      // Compare formData with original agreement data
+      if (formData.customer_name !== agreement.customer_name) updates.customer_name = formData.customer_name;
+      if (formData.identity_number !== agreement.identity_number) updates.identity_number = formData.identity_number;
+      if (formData.customer_phone !== agreement.customer_phone) updates.customer_phone = formData.customer_phone;
+      if (formData.billing_address !== agreement.billing_address) updates.billing_address = formData.billing_address;
+      if (formData.emergency_contact_name !== agreement.emergency_contact_name) updates.emergency_contact_name = formData.emergency_contact_name;
+      if (formData.emergency_contact_relation !== agreement.emergency_contact_relation) updates.emergency_contact_relation = formData.emergency_contact_relation;
+      if (formData.car_plate_number !== agreement.car_plate_number) updates.car_plate_number = formData.car_plate_number;
+      if (formData.car_model !== agreement.car_model) updates.car_model = formData.car_model;
+      if (formData.start_date !== agreement.start_date) updates.start_date = formData.start_date;
+      if (formData.end_date !== agreement.end_date) updates.end_date = formData.end_date;
+      if (formData.pickup_time !== agreement.pickup_time) updates.pickup_time = formData.pickup_time;
+      if (formData.return_time !== agreement.return_time) updates.return_time = formData.return_time;
+      if (formData.need_einvoice !== agreement.need_einvoice) updates.need_einvoice = formData.need_einvoice;
+      
+      const totalPrice = parseFloat(formData.total_price);
+      if (totalPrice !== agreement.total_price) updates.total_price = totalPrice;
+      
+      const deposit = formData.deposit ? parseFloat(formData.deposit) : 0;
+      if (deposit !== agreement.deposit) updates.deposit = deposit;
+      
+      const duration = parseInt(formData.duration_days, 10);
+      if (duration !== agreement.duration_days) updates.duration_days = duration;
+
+      if (customerId !== agreement.customer_id) updates.customer_id = customerId;
+
+      // Handle receipt update
+      if (receiptData !== undefined) {
+        updates.payment_receipt = receiptData;
+        updates.updated_at = new Date().toISOString();
+      }
+
+      // HARD GUARD: If we are not explicitly changing status, don't send it.
+      // If we must send a status, ensure it doesn't regress.
+      const currentStatus = agreement.status;
+      if (updates.status && (currentStatus === 'signed' || currentStatus === 'completed')) {
+        if (updates.status === 'pending') {
+          delete updates.status;
+        }
+      }
+
+      if (Object.keys(updates).length === 0) {
+        alert('No changes detected.');
+        setLoading(false);
+        return;
+      }
 
       if (requestAmendmentMode && !isAdmin) {
         await apiService.updateAgreement(id, subscriberId, {
