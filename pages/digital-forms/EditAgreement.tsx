@@ -250,12 +250,8 @@ export default function EditAgreement() {
       if (formData.emergency_contact_relation !== agreement.emergency_contact_relation) updates.emergency_contact_relation = formData.emergency_contact_relation;
       if (formData.car_plate_number !== agreement.car_plate_number) updates.car_plate_number = formData.car_plate_number;
       if (formData.car_model !== agreement.car_model) updates.car_model = formData.car_model;
-      if (formData.start_date !== agreement.start_date) {
-        updates.start_date = String(formData.start_date);
-      }
-      if (formData.end_date !== agreement.end_date) {
-        updates.end_date = String(formData.end_date);
-      }
+      if (formData.start_date !== agreement.start_date) updates.start_date = formData.start_date;
+      if (formData.end_date !== agreement.end_date) updates.end_date = formData.end_date;
       if (formData.pickup_time !== agreement.pickup_time) updates.pickup_time = formData.pickup_time;
       if (formData.return_time !== agreement.return_time) updates.return_time = formData.return_time;
       if (formData.need_einvoice !== agreement.need_einvoice) updates.need_einvoice = formData.need_einvoice;
@@ -277,29 +273,21 @@ export default function EditAgreement() {
         updates.updated_at = new Date().toISOString();
       }
 
-      // HARD GUARD: If we are not explicitly changing status, don't send it.
-      // If we must send a status, ensure it doesn't regress.
-      const currentStatus = agreement.status;
-      if (updates.status && (currentStatus === 'signed' || currentStatus === 'completed')) {
-        if (updates.status === 'pending') {
-          delete updates.status;
-        }
-      }
-
       if (Object.keys(updates).length === 0) {
         alert('No changes detected.');
         setLoading(false);
         return;
       }
 
+      const payload = requestAmendmentMode && !isAdmin 
+        ? { has_pending_changes: true, pending_changes: updates }
+        : updates;
+
+      await apiService.updateAgreement(id, subscriberId, payload);
+      
       if (requestAmendmentMode && !isAdmin) {
-        await apiService.updateAgreement(id, subscriberId, {
-          has_pending_changes: true,
-          pending_changes: updates
-        });
         alert('Amendment requested successfully!');
       } else {
-        await apiService.updateAgreement(id, subscriberId, updates);
         alert('Agreement updated successfully!');
       }
 

@@ -1721,20 +1721,6 @@ export const apiService = {
         }
       }
 
-      // DATE VALIDATION & SANITIZATION:
-      // Ensure start_date and end_date are valid strings if provided.
-      // Sometimes booleans like 'true' might accidentally be passed.
-      if (finalUpdates.start_date !== undefined) {
-        if (typeof finalUpdates.start_date !== 'string' || finalUpdates.start_date === 'true' || finalUpdates.start_date === 'false') {
-          delete finalUpdates.start_date;
-        }
-      }
-      if (finalUpdates.end_date !== undefined) {
-        if (typeof finalUpdates.end_date !== 'string' || finalUpdates.end_date === 'true' || finalUpdates.end_date === 'false') {
-          delete finalUpdates.end_date;
-        }
-      }
-
       let query = supabase
         .from('agreements')
         .update(finalUpdates)
