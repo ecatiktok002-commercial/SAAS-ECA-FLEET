@@ -95,19 +95,6 @@ const getTenantId = async (): Promise<string> => {
   // Try metadata first
   let sId = user.user_metadata?.subscriber_id;
   
-  if (!sId) {
-    // Try profiles table
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('subscriber_id')
-      .eq('id', user.id)
-      .single();
-    
-    if (profile?.subscriber_id) {
-      sId = profile.subscriber_id;
-    }
-  }
-  
   const finalId = sId || user.id;
   validateSubscriber(finalId);
   return finalId;

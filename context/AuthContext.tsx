@@ -64,22 +64,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (session?.user) {
         const isSuperAdmin = session.user.email === 'superadmin@ecafleet.com';
         
-        // Retrieve subscriber_id from metadata or profiles table
+        // Retrieve subscriber_id from metadata
         let sId = session.user.user_metadata?.subscriber_id;
         
-        if (!sId && !isSuperAdmin) {
-          // Try fetching from a profiles table if metadata is missing
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('subscriber_id')
-            .eq('id', session.user.id)
-            .single();
-          
-          if (profile?.subscriber_id) {
-            sId = profile.subscriber_id;
-          }
-        }
-
         // Fallback to user.id if still missing
         let finalSubscriberId = isSuperAdmin ? 'superadmin' : (sId || session.user.id);
         
