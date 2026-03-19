@@ -155,7 +155,7 @@ const AuditPayoutManagement: React.FC = () => {
   };
 
   const orphans = useMemo(() => 
-    records.filter(r => !r.booking_id && r.status !== 'reconciled'), 
+    records.filter(r => r.booking_id === null && r.status !== 'reconciled'), 
     [records]
   );
 
@@ -442,7 +442,7 @@ const AuditPayoutManagement: React.FC = () => {
                             </div>
                           </td>
                           <td className="py-4 px-6">
-                            {record.booking_duration ? (
+                            {record.booking_id ? (
                               <>
                                 <div className="text-sm font-bold text-slate-900">RM {(Number(record.form_price) || 0).toFixed(2)}</div>
                                 <div className="text-[10px] text-emerald-600 font-bold">Comm: RM {(Number(record.commission_earned) || 0).toFixed(2)}</div>
@@ -452,15 +452,22 @@ const AuditPayoutManagement: React.FC = () => {
                             )}
                           </td>
                           <td className="py-4 px-6">
-                            {record.payout_status === 'approved' ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase">
-                                <CheckCircle2 className="w-3 h-3" /> Approved
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-50 text-orange-700 text-[10px] font-bold uppercase">
-                                <Clock className="w-3 h-3" /> Pending
-                              </span>
-                            )}
+                            <div className="flex flex-col gap-1">
+                              {record.payout_status === 'approved' ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase w-fit">
+                                  <CheckCircle2 className="w-3 h-3" /> Approved
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-50 text-orange-700 text-[10px] font-bold uppercase w-fit">
+                                  <Clock className="w-3 h-3" /> Pending
+                                </span>
+                              )}
+                              {record.has_pending_changes && (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-yellow-50 text-yellow-700 text-[10px] font-bold uppercase w-fit">
+                                  <AlertCircle className="w-3 h-3" /> Amendment Requested
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-4 px-6 text-right">
                             {record.payout_status === 'pending' && (

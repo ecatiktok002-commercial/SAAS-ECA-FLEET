@@ -1162,7 +1162,8 @@ SELECT
     b.duration as booking_duration,
     b.has_discrepancy,
     b.is_dates_matched,
-    b.discrepancy_reason
+    b.discrepancy_reason,
+    a.has_pending_changes
 FROM agreements a
 LEFT JOIN bookings b ON a.booking_id::uuid = b.id
 WHERE a.status IN ('completed', 'reconciled')

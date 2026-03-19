@@ -210,6 +210,7 @@ export interface AuditRecord {
   has_discrepancy: boolean;
   is_dates_matched: boolean;
   discrepancy_reason: string | null;
+  has_pending_changes?: boolean;
 }
 
 export interface Company {
