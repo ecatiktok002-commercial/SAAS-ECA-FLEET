@@ -50,15 +50,21 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
   const [linkModal, setLinkModal] = useState<{ isOpen: boolean; type: 'booking' | 'agreement'; sourceId: string; sourceLabel: string } | null>(null);
   const [selectedMatchId, setSelectedMatchId] = useState('');
   const [isLinking, setIsLinking] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
 
   const fetchScanData = async (showRefreshIndicator = false) => {
     if (showRefreshIndicator) setIsRefreshing(true);
     else setIsLoading(true);
     
     try {
-      const { orphanedAgreements: fetchedAgreements, orphanedBookings: fetchedBookings } = await runMatchyScan(subscriberId, monthStartDate, monthEndDate);
+      const { orphanedAgreements: fetchedAgreements, orphanedBookings: fetchedBookings, matchCount } = await runMatchyScan(subscriberId, monthStartDate, monthEndDate);
       setInternalOrphanedAgreements(fetchedAgreements);
       setOrphanedBookings(fetchedBookings);
+      
+      if (matchCount > 0) {
+        setToastMessage(`Found ${matchCount} matches!`);
+        setTimeout(() => setToastMessage(''), 3000);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -149,45 +155,46 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
 
   const totalOrphans = orphanedBookings.length + displayAgreements.length;
 
-  if (isLoading) return <div className="animate-pulse h-16 bg-slate-100 rounded-xl w-full mb-8"></div>;
-  if (error) return <div className="p-4 bg-rose-50 text-rose-600 rounded-xl text-sm font-bold mb-8">Error: {error}</div>;
-  
-  if (totalOrphans === 0) {
-    if (isRefreshing) {
-      return <div className="animate-pulse h-16 bg-slate-100 rounded-xl w-full mb-8"></div>;
-    }
-    if (scanTrigger > 0) {
-      return (
-        <div className="bg-emerald-50 border-l-4 border-emerald-500 p-5 rounded-r-xl shadow-sm flex items-start gap-4 mb-8 animate-in fade-in duration-500">
-          <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <div className="flex items-center justify-between">
-              <h3 className="text-emerald-800 font-bold text-lg tracking-tight">
-                Scan Complete: All Data Matched
-              </h3>
-              <button 
-                onClick={() => fetchScanData(true)}
-                disabled={isRefreshing}
-                className="p-1.5 text-emerald-600 hover:bg-emerald-100 rounded-md transition-colors disabled:opacity-50"
-                title="Re-scan for orphans"
-              >
-                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              </button>
+  const renderContent = () => {
+    if (isLoading) return <div className="animate-pulse h-16 bg-slate-100 rounded-xl w-full mb-8"></div>;
+    if (error) return <div className="p-4 bg-rose-50 text-rose-600 rounded-xl text-sm font-bold mb-8">Error: {error}</div>;
+    
+    if (totalOrphans === 0) {
+      if (isRefreshing) {
+        return <div className="animate-pulse h-16 bg-slate-100 rounded-xl w-full mb-8"></div>;
+      }
+      if (scanTrigger > 0) {
+        return (
+          <div className="bg-emerald-50 border-l-4 border-emerald-500 p-5 rounded-r-xl shadow-sm flex items-start gap-4 mb-8 animate-in fade-in duration-500">
+            <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <h3 className="text-emerald-800 font-bold text-lg tracking-tight">
+                  Scan Complete: All Data Matched
+                </h3>
+                <button 
+                  onClick={() => fetchScanData(true)}
+                  disabled={isRefreshing}
+                  className="p-1.5 text-emerald-600 hover:bg-emerald-100 rounded-md transition-colors disabled:opacity-50"
+                  title="Re-scan for orphans"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+              <p className="text-emerald-600 text-sm mt-1 font-medium">
+                No orphaned bookings or agreements were found for this month.
+              </p>
             </div>
-            <p className="text-emerald-600 text-sm mt-1 font-medium">
-              No orphaned bookings or agreements were found for this month.
-            </p>
           </div>
-        </div>
-      );
+        );
+      }
+      return null; // Bypass alert phase if perfectly matched and no manual scan triggered
     }
-    return null; // Bypass alert phase if perfectly matched and no manual scan triggered
-  }
 
-  return (
-    <div className="space-y-6 mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
-      {/* 1. The Alert Banner UI */}
-      <div className="bg-rose-50 border-l-4 border-rose-500 p-5 rounded-r-xl shadow-sm flex items-start gap-4">
+    return (
+      <div className="space-y-6 mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
+        {/* 1. The Alert Banner UI */}
+        <div className="bg-rose-50 border-l-4 border-rose-500 p-5 rounded-r-xl shadow-sm flex items-start gap-4">
         <AlertTriangle className="w-6 h-6 text-rose-600 shrink-0 mt-0.5" />
         <div className="flex-1">
           <div className="flex items-center justify-between">
@@ -374,6 +381,19 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
         </div>
       )}
     </div>
+  );
+  };
+
+  return (
+    <>
+      {toastMessage && (
+        <div className="fixed bottom-4 right-4 bg-emerald-600 text-white px-6 py-3 rounded-xl shadow-lg font-bold flex items-center gap-2 z-50 animate-in slide-in-from-bottom-5">
+          <CheckCircle2 className="w-5 h-5" />
+          {toastMessage}
+        </div>
+      )}
+      {renderContent()}
+    </>
   );
 };
 

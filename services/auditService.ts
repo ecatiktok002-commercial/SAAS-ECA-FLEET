@@ -8,7 +8,14 @@ import { apiService } from './apiService';
  */
 export const runMatchyScan = async (subscriberId: string, monthStartDate: string, monthEndDate: string) => {
   
-  // 1. Fetch all active bookings for the month
+  // 1. Call the RPC to do the heuristic match
+  const { data: matchCount, error: rpcError } = await supabase.rpc('run_heuristic_match', { target_company_id: subscriberId });
+  
+  if (rpcError) {
+    console.error("RPC Error in run_heuristic_match:", rpcError);
+  }
+
+  // 2. Fetch all active bookings for the month
   const { data: bookings, error: bookingsError } = await supabase
     .from('bookings')
     .select('*, cars(plate)')
@@ -21,7 +28,7 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
     throw new Error(`Error fetching bookings: ${bookingsError.message}`);
   }
 
-  // 2. Fetch agreements created in this month (to find orphaned agreements)
+  // 3. Fetch agreements created in this month (to find orphaned agreements)
   const { data: recentAgreements, error: recentAgreementsError } = await supabase
     .from('agreements')
     .select('*')
@@ -33,7 +40,7 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
     throw new Error(`Error fetching agreements: ${recentAgreementsError.message}`);
   }
 
-  // 3. Fetch agreements linked to the bookings (to ensure we don't falsely flag a booking as orphaned if its agreement was created last month)
+  // 4. Fetch agreements linked to the bookings (to ensure we don't falsely flag a booking as orphaned if its agreement was created last month)
   const bookingIds = (bookings || []).map(b => b.id);
   let linkedAgreements: any[] = [];
   
@@ -58,138 +65,18 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
   const allRelevantAgreements = [...(recentAgreements || []), ...linkedAgreements];
   const uniqueAgreements = Array.from(new Map(allRelevantAgreements.map(a => [a.id, a])).values());
 
-  // 4. Find orphaned bookings: Bookings that do not have any agreement with matching booking_id
+  // 5. Find orphaned bookings: Bookings that do not have any agreement with matching booking_id
   let orphanedBookings = (bookings || []).filter(booking => 
     !uniqueAgreements.some(a => a.booking_id === booking.id)
   );
 
-  // 5. Find orphaned agreements: Agreements created this month that do not have a booking_id
+  // 6. Find orphaned agreements: Agreements created this month that do not have a booking_id
   let orphanedAgreements = (recentAgreements || []).filter(a => !a.booking_id);
-
-  // 6. Heuristic Auto-Matching (The DNA Check)
-  
-  // Create a 'Normalizer' Utility
-  const normalizeMatchKey = (subId: string, rawDate: string | null | undefined, rawTime: string | null | undefined, rawDuration: number | string | null | undefined) => {
-    try {
-      if (!rawDate) return null;
-      
-      // Normalize Date to YYYY-MM-DD
-      let normalizedDate = '';
-      const d = new Date(rawDate);
-      if (isValid(d)) {
-        normalizedDate = format(d, 'yyyy-MM-dd');
-      } else {
-        // Try to parse DD/MM/YYYY or other formats if Date() fails
-        const parts = rawDate.split(/[-/]/);
-        if (parts.length === 3) {
-           if (parts[0].length === 4) {
-             normalizedDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-           } else if (parts[2].length === 4) {
-             normalizedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-           }
-        }
-      }
-      if (!normalizedDate) return null;
-
-      // Normalize Time to HH:mm (24h)
-      let normalizedTime = '00:00';
-      if (rawTime) {
-        // Handle 12h format (e.g., "10:30 PM")
-        const timeMatch = rawTime.match(/(\d+):(\d+)\s*(AM|PM)?/i);
-        if (timeMatch) {
-          let hours = parseInt(timeMatch[1], 10);
-          const minutes = timeMatch[2].padStart(2, '0');
-          const modifier = timeMatch[3]?.toUpperCase();
-
-          if (modifier === 'PM' && hours < 12) hours += 12;
-          if (modifier === 'AM' && hours === 12) hours = 0;
-          
-          normalizedTime = `${hours.toString().padStart(2, '0')}:${minutes}`;
-        } else {
-           // Handle 24h format (e.g., "22:30:00")
-           normalizedTime = rawTime.substring(0, 5);
-        }
-      }
-
-      // Normalize Duration
-      const duration = parseInt(String(rawDuration || 0), 10);
-
-      return `${subId}_${normalizedDate}_${normalizedTime}_${duration}`;
-    } catch (e) {
-      return null;
-    }
-  };
-
-  // Debugging (CRITICAL)
-  const debugTable: any[] = [];
-  
-  const agreementKeys = orphanedAgreements.map(a => {
-    const key = normalizeMatchKey(subscriberId, a.start_date, a.pickup_time, a.duration_days);
-    debugTable.push({
-      Type: 'Agreement',
-      Customer: a.customer_name,
-      'Raw Date': a.start_date,
-      'Raw Time': a.pickup_time,
-      'Normalized Key': key
-    });
-    return { id: a.id, key, original: a };
-  });
-
-  const bookingKeys = orphanedBookings.map(b => {
-    const key = normalizeMatchKey(subscriberId, b.start_date || b.start, b.pickup_time || (b.start ? format(new Date(b.start), 'HH:mm') : null), b.duration);
-    debugTable.push({
-      Type: 'Booking',
-      Customer: 'N/A',
-      'Raw Date': b.start_date || b.start,
-      'Raw Time': b.pickup_time || (b.start ? format(new Date(b.start), 'HH:mm') : null),
-      'Normalized Key': key
-    });
-    return { id: b.id, key, original: b };
-  });
-
-  console.table(debugTable);
-
-  for (let i = agreementKeys.length - 1; i >= 0; i--) {
-    const agreementInfo = agreementKeys[i];
-    if (!agreementInfo.key) continue;
-    
-    // Find a matching booking
-    const matchIndex = bookingKeys.findIndex(b => b.key === agreementInfo.key);
-
-    if (matchIndex !== -1) {
-      const matchedBookingInfo = bookingKeys[matchIndex];
-      const agreement = agreementInfo.original;
-      
-      // Permanent Tagging (Database Update) - Auto Approve!
-      try {
-        await apiService.updateAgreement(agreement.id, subscriberId, {
-          booking_id: matchedBookingInfo.id,
-          payout_status: 'approved',
-          total_price: agreement.total_price
-        });
-        console.log(`Auto-matched agreement ${agreement.id} to booking ${matchedBookingInfo.id}`);
-        // Remove from orphan queues
-        orphanedAgreements = orphanedAgreements.filter(a => a.id !== agreement.id);
-        orphanedBookings = orphanedBookings.filter(b => b.id !== matchedBookingInfo.id);
-        bookingKeys.splice(matchIndex, 1); // Remove from keys array so it's not matched again
-      } catch (updateError) {
-        console.error(`Failed to auto-match agreement ${agreement.id}:`, updateError);
-      }
-    }
-  }
-
-  // 7. Auto-Approve previously matched agreements
-  // If an agreement has a booking_id, it means it's matched. It should be approved for payout automatically.
-  await supabase
-    .from('agreements')
-    .update({ payout_status: 'approved' })
-    .eq('subscriber_id', subscriberId)
-    .not('booking_id', 'is', null)
-    .eq('payout_status', 'pending');
 
   return {
     orphanedAgreements,
-    orphanedBookings
+    orphanedBookings,
+    matchCount: matchCount || 0
   };
 };
 
