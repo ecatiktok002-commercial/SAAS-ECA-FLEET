@@ -1658,9 +1658,10 @@ export const apiService = {
       // STATUS LOCK LOGIC:
       // If the current status is 'signed' or 'completed', we should NOT allow it to be reset to 'pending'
       // unless it's an explicit request (which isn't the case for receipt updates).
-      if (currentAgreement && (currentAgreement.status === 'signed' || currentAgreement.status === 'completed')) {
+      const currentStatus = currentAgreement?.status?.toLowerCase();
+      if (currentStatus === 'signed' || currentStatus === 'completed') {
         // If the update payload tries to set status to 'pending', we remove it to preserve the current state
-        if (finalUpdates.status === 'pending') {
+        if (finalUpdates.status?.toLowerCase() === 'pending') {
           delete finalUpdates.status;
         }
       }
@@ -1688,7 +1689,7 @@ export const apiService = {
       }
 
       // Auto-complete logic: if receipt is uploaded and status is signed, mark as completed
-      if (finalUpdates.payment_receipt && (finalUpdates.status === 'signed' || currentAgreement?.status === 'signed')) {
+      if (finalUpdates.payment_receipt && (finalUpdates.status?.toLowerCase() === 'signed' || currentStatus === 'signed')) {
         finalUpdates.status = 'completed';
       }
 

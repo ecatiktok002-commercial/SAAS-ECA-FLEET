@@ -38,6 +38,9 @@ const AgreementDashboard: React.FC = () => {
   const fetchAgreements = async () => {
     try {
       setLoading(true);
+      // Force fresh fetch by ensuring we're calling the API directly
+      console.log('Fetching fresh agreements data...');
+      
       let createdBy: string | string[] | undefined = undefined;
       
       // Agents only see their own forms, Subscribers see everything
@@ -131,10 +134,13 @@ const AgreementDashboard: React.FC = () => {
             <div className="bg-emerald-50 p-2 rounded-lg text-emerald-600">
               <CheckCircle2 className="w-5 h-5" />
             </div>
-            <span className="text-sm font-medium text-slate-500">Signed</span>
+            <span className="text-sm font-medium text-slate-500">Signed/Completed</span>
           </div>
           <div className="text-2xl font-bold text-slate-900">
-            {agreements.filter(a => a.status === 'signed').length}
+            {agreements.filter(a => {
+              const s = a.status?.toLowerCase();
+              return s === 'signed' || s === 'completed';
+            }).length}
           </div>
         </div>
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
@@ -145,7 +151,7 @@ const AgreementDashboard: React.FC = () => {
             <span className="text-sm font-medium text-slate-500">Pending Signature</span>
           </div>
           <div className="text-2xl font-bold text-slate-900">
-            {agreements.filter(a => a.status === 'pending').length}
+            {agreements.filter(a => a.status?.toLowerCase() === 'pending').length}
           </div>
         </div>
         {staffRole === 'admin' && (
@@ -230,19 +236,18 @@ const AgreementDashboard: React.FC = () => {
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-2 items-start">
                         {(() => {
-                          const isCompleted = agreement.status === 'signed' && !!agreement.payment_receipt;
-                          const isSigned = agreement.status === 'signed' && !agreement.payment_receipt;
+                          const status = agreement.status?.toLowerCase();
                           
-                          if (isCompleted) {
+                          if (status === 'completed') {
                             return (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
                                 <CheckCircle2 className="w-3 h-3" />
                                 Completed
                               </span>
                             );
-                          } else if (isSigned) {
+                          } else if (status === 'signed') {
                             return (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
                                 <CheckCircle2 className="w-3 h-3" />
                                 Signed
                               </span>
@@ -269,7 +274,7 @@ const AgreementDashboard: React.FC = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
-                        {agreement.status === 'pending' ? (
+                        {agreement.status?.toLowerCase() === 'pending' ? (
                           <button 
                             onClick={() => {
                               const link = `${window.location.origin}/forms/sign/${agreement.id}`;

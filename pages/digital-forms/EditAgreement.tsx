@@ -53,7 +53,8 @@ export default function EditAgreement() {
     }
   };
 
-  const isCompleted = agreement?.status === 'signed' && !!agreement?.payment_receipt;
+  const status = agreement?.status?.toLowerCase();
+  const isCompleted = status === 'completed' || (status === 'signed' && !!agreement?.payment_receipt);
   const isLocked = isCompleted && !isAdmin && !requestAmendmentMode;
 
   const renderLabel = (label: string, fieldName: string) => {
