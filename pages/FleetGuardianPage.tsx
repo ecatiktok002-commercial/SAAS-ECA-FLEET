@@ -219,7 +219,7 @@ const FleetGuardianPage: React.FC = () => {
             </div>
             <div>
               <h1 className="text-xl font-bold tracking-tight">
-                {showGuardianFeatures ? 'Eca Fleet Guardian' : 'Vehicle Management'}
+                {showGuardianFeatures ? 'Fleet Guardian' : 'Vehicle Management'}
               </h1>
               <p className="text-xs text-slate-400">
                 {showGuardianFeatures ? 'Fleet Expiry Tracker' : 'Manage your fleet for calendar bookings'}

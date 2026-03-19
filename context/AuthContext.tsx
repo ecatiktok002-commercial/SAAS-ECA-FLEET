@@ -14,8 +14,9 @@ interface AuthContextType {
   role: StaffRole | null; // Alias for staffRole to match refined App.tsx
   subscriptionTier: SubscriptionTier | null;
   subscriberTier: number; // Numeric representation for refined App.tsx
+  companyName: string | null;
   isLoading: boolean;
-  login: (subscriberId: string, staffRole: StaffRole, subscriptionTier: SubscriptionTier, userId?: string, userName?: string, userUid?: string) => void;
+  login: (subscriberId: string, staffRole: StaffRole, subscriptionTier: SubscriptionTier, userId?: string, userName?: string, userUid?: string, companyName?: string) => void;
   logout: () => void;
 }
 
@@ -37,6 +38,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userUid, setUserUid] = useState<string | null>(null);
   const [staffRole, setStaffRole] = useState<StaffRole | null>(null);
   const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier | null>(null);
+  const [companyName, setCompanyName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -102,18 +104,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUserId(getDisplayId(session.user));
         setUserName(isSuperAdmin ? 'Super Admin' : (session.user.user_metadata?.full_name || getDisplayId(session.user)));
         
-        // Fetch latest tier from DB for non-superadmins
+        // Fetch latest tier and company name from DB for non-superadmins
         if (!isSuperAdmin) {
           const { data: companyData } = await supabase
             .from('subscribers')
-            .select('tier')
+            .select('tier, name')
             .eq('id', finalSubscriberId)
             .single();
           
-          if (companyData?.tier) {
-            const normalizedTier = normalizeTier(companyData.tier);
-            setSubscriptionTier(normalizedTier);
-            localStorage.setItem('subscriptionTier', normalizedTier);
+          if (companyData) {
+            if (companyData.tier) {
+              const normalizedTier = normalizeTier(companyData.tier);
+              setSubscriptionTier(normalizedTier);
+              localStorage.setItem('subscriptionTier', normalizedTier);
+            }
+            if (companyData.name) {
+              setCompanyName(companyData.name);
+              localStorage.setItem('companyName', companyData.name);
+            }
           } else if (finalSubscriberId === session.user.id) {
             // Self-Provisioning: Only if record is missing and it's their own ID
             try {
@@ -146,6 +154,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const storedName = localStorage.getItem('userName');
         const storedUserId = localStorage.getItem('userId');
         const storedUserUid = localStorage.getItem('userUid');
+        const storedCompanyName = localStorage.getItem('companyName');
         
         if (storedRole) {
           setStaffRole(storedRole);
@@ -153,6 +162,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (storedTier) setSubscriptionTier(normalizeTier(storedTier));
           if (storedName) setUserName(storedName);
           if (storedUserId) setUserId(storedUserId);
+          if (storedCompanyName) setCompanyName(storedCompanyName);
           
           if (storedUserUid) {
             setUserUid(storedUserUid);
@@ -202,7 +212,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const login = (id: string, role: StaffRole, tier: string, uId?: string, uName?: string, uUid?: string) => {
+  const login = (id: string, role: StaffRole, tier: string, uId?: string, uName?: string, uUid?: string, cName?: string) => {
     const normalizedTier = normalizeTier(tier);
     setSubscriberId(id);
     setStaffRole(role);
@@ -220,6 +230,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUserUid(uUid);
       localStorage.setItem('userUid', uUid);
     }
+    if (cName) {
+      setCompanyName(cName);
+      localStorage.setItem('companyName', cName);
+    }
     localStorage.setItem('staffRole', role);
     localStorage.setItem('subscriptionTier', normalizedTier);
   };
@@ -232,12 +246,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUserUid(null);
     setStaffRole(null);
     setSubscriptionTier(null);
+    setCompanyName(null);
     localStorage.removeItem('subscriberId');
     localStorage.removeItem('staffRole');
     localStorage.removeItem('subscriptionTier');
     localStorage.removeItem('userName');
     localStorage.removeItem('userId');
     localStorage.removeItem('userUid');
+    localStorage.removeItem('companyName');
   };
 
   const getTierNumber = (tier: SubscriptionTier | null): number => {
@@ -257,6 +273,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       role: staffRole,
       subscriptionTier, 
       subscriberTier: getTierNumber(subscriptionTier),
+      companyName,
       isLoading, 
       login, 
       logout 

@@ -10,7 +10,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
-  const { staffRole, subscriptionTier, subscriberId, logout } = useAuth();
+  const { staffRole, subscriptionTier, subscriberId, companyName, logout } = useAuth();
   const location = useLocation();
   
   // Initialize based on role
@@ -179,14 +179,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
         <div className={`p-6 flex items-center ${isExpanded ? 'justify-between' : 'justify-center'} shrink-0 h-24`}>
           {isExpanded ? (
             <div className="overflow-hidden">
-              <h1 className="text-2xl font-bold tracking-tight truncate">EcaFleet</h1>
+              <h1 className="text-2xl font-bold tracking-tight truncate" title={companyName || 'EcaFleet'}>
+                {companyName || 'EcaFleet'}
+              </h1>
               <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider font-bold truncate">
                 {subscriberId === 'superadmin' ? 'Master Admin' : `${subscriptionTier?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}`}
               </p>
             </div>
           ) : (
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-xl shrink-0 shadow-lg">
-              E
+            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-xl shrink-0 shadow-lg" title={companyName || 'EcaFleet'}>
+              {(companyName || 'EcaFleet').charAt(0).toUpperCase()}
             </div>
           )}
           
