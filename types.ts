@@ -59,6 +59,10 @@ export interface Booking {
   is_dates_matched?: boolean;
   has_discrepancy?: boolean;
   discrepancy_reason?: string;
+  start_date?: string;
+  end_date?: string;
+  pickup_time?: string;
+  return_time?: string;
 }
 
 export interface Expense {
@@ -207,6 +211,10 @@ export interface AuditRecord {
   booking_price: number | null;
   booking_start: string | null;
   booking_duration: number | null;
+  booking_start_date?: string | null;
+  booking_end_date?: string | null;
+  booking_pickup_time?: string | null;
+  booking_return_time?: string | null;
   has_discrepancy: boolean;
   is_dates_matched: boolean;
   discrepancy_reason: string | null;

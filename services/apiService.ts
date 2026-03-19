@@ -196,7 +196,11 @@ const mapBookingFromDB = (dbBooking: any): Booking => ({
   created_by: dbBooking.created_by,
   is_dates_matched: dbBooking.is_dates_matched,
   has_discrepancy: dbBooking.has_discrepancy,
-  discrepancy_reason: dbBooking.discrepancy_reason
+  discrepancy_reason: dbBooking.discrepancy_reason,
+  start_date: dbBooking.start_date,
+  end_date: dbBooking.end_date,
+  pickup_time: dbBooking.pickup_time,
+  return_time: dbBooking.return_time
 });
 
 const mapBookingToDB = (booking: any) => ({
@@ -211,7 +215,11 @@ const mapBookingToDB = (booking: any) => ({
   created_by: booking.created_by,
   is_dates_matched: booking.is_dates_matched,
   has_discrepancy: booking.has_discrepancy,
-  discrepancy_reason: booking.discrepancy_reason
+  discrepancy_reason: booking.discrepancy_reason,
+  start_date: booking.start_date,
+  end_date: booking.end_date,
+  pickup_time: booking.pickup_time,
+  return_time: booking.return_time
 });
 
 const mapMemberFromDB = (dbMember: any): Member => ({

@@ -242,12 +242,20 @@ CREATE TABLE IF NOT EXISTS bookings (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   is_dates_matched BOOLEAN DEFAULT FALSE,
   has_discrepancy BOOLEAN DEFAULT FALSE,
-  discrepancy_reason TEXT
+  discrepancy_reason TEXT,
+  start_date DATE,
+  end_date DATE,
+  pickup_time TIME,
+  return_time TIME
 );
 
 -- Ensure columns exist if table was already created
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS is_dates_matched BOOLEAN DEFAULT FALSE;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS has_discrepancy BOOLEAN DEFAULT FALSE;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS start_date DATE;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS end_date DATE;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS pickup_time TIME;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS return_time TIME;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS discrepancy_reason TEXT;
 
 -- 6. Agreements (Sales)
@@ -1160,6 +1168,10 @@ SELECT
     b.total_price as booking_price,
     b.start as booking_start,
     b.duration as booking_duration,
+    b.start_date as booking_start_date,
+    b.end_date as booking_end_date,
+    b.pickup_time as booking_pickup_time,
+    b.return_time as booking_return_time,
     b.has_discrepancy,
     b.is_dates_matched,
     b.discrepancy_reason,

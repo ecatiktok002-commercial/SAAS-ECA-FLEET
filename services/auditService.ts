@@ -77,26 +77,18 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
         const d = new Date(booking.start);
         if (isNaN(d.getTime())) return false;
         
-        const startDate = format(d, 'yyyy-MM-dd');
-        const duration = Number(booking.duration) || 0;
-        if (isNaN(duration)) return false;
+        const bStartDate = booking.start_date || format(d, 'yyyy-MM-dd');
+        const bPickupTime = (booking.pickup_time || format(d, 'HH:mm')).substring(0, 5);
 
-        const parsedStart = parseISO(startDate);
-        if (!isValid(parsedStart)) return false;
-
-        const endDate = format(addDays(parsedStart, duration), 'yyyy-MM-dd');
-
-        // Check DNA
-        const isCarMatch = agreement.car_id === booking.car_id;
-        const isStartDateMatch = agreement.start_date === startDate;
-        const isEndDateMatch = agreement.end_date === endDate;
+        // Check DNA - Refined to match based on subscriber_id (implicit), start_date, and pickup_time
+        // We exclude car_id/plate as vehicles are often swapped
+        const isStartDateMatch = agreement.start_date === bStartDate;
         
         // Time match (handle potential seconds in DB like 10:00:00)
-        const time = format(d, 'HH:mm');
         const agreementPickup = agreement.pickup_time?.substring(0, 5);
-        const isPickupTimeMatch = !agreement.pickup_time || agreementPickup === time;
+        const isPickupTimeMatch = !agreement.pickup_time || agreementPickup === bPickupTime;
 
-        return isCarMatch && isStartDateMatch && isEndDateMatch && isPickupTimeMatch;
+        return isStartDateMatch && isPickupTimeMatch;
       } catch (e) {
         return false;
       }
@@ -173,30 +165,37 @@ export const approveAmendment = async (agreementId: string, subscriberId: string
   // 4. Sync with bookings table if necessary
   if (bookingId) {
     // Check if date/time fields were changed
-    const dateFields = ['start_date', 'end_date', 'pickup_time', 'duration_days'];
+    const dateFields = ['start_date', 'end_date', 'pickup_time', 'return_time', 'duration_days'];
     const hasDateChanges = dateFields.some(f => f in pendingChanges);
     
     if (hasDateChanges) {
       const finalStartDate = pendingChanges.start_date || agreement.start_date;
       const finalPickupTime = (pendingChanges.pickup_time || agreement.pickup_time || '10:00').substring(0, 5);
       const finalEndDate = pendingChanges.end_date || agreement.end_date;
+      const finalReturnTime = (pendingChanges.return_time || agreement.return_time || '10:00').substring(0, 5);
       
       if (finalStartDate && finalEndDate) {
         try {
-          // Construct the new start timestamp
+          // Construct the new start and end timestamps
           const startTimestamp = parseISO(`${finalStartDate}T${finalPickupTime}:00`);
+          const endTimestamp = parseISO(`${finalEndDate}T${finalReturnTime}:00`);
           
           // Calculate new duration
           const startDateObj = parseISO(finalStartDate);
           const endDateObj = parseISO(finalEndDate);
           const duration = Math.max(0, differenceInDays(endDateObj, startDateObj));
           
-          if (isValid(startTimestamp)) {
+          if (isValid(startTimestamp) && isValid(endTimestamp)) {
             const { error: bookingError } = await supabase
               .from('bookings')
               .update({
                 start: startTimestamp.toISOString(),
-                duration: duration
+                end_time: endTimestamp.toISOString(),
+                duration: duration,
+                start_date: finalStartDate,
+                end_date: finalEndDate,
+                pickup_time: finalPickupTime,
+                return_time: finalReturnTime
               })
               .eq('id', bookingId);
               
@@ -207,8 +206,6 @@ export const approveAmendment = async (agreementId: string, subscriberId: string
           }
         } catch (err) {
           console.error('Error calculating booking sync:', err);
-          // We don't throw here to avoid breaking the whole flow if it's just a calculation error,
-          // but the user should be aware.
         }
       }
     }

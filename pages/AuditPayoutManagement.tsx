@@ -38,6 +38,7 @@ import {
   Cell
 } from 'recharts';
 import MatchyScanAlert from '../components/MatchyScanAlert';
+import { approveAmendment } from '../services/auditService';
 
 const safeFormat = (dateStr: string | Date | null | undefined, formatStr: string) => {
   if (!dateStr) return 'N/A';
@@ -93,10 +94,13 @@ const AuditPayoutManagement: React.FC = () => {
   };
 
   const handleOverride = async (record: AuditRecord) => {
-    if (!window.confirm('Are you sure you want to approve this payout?')) return;
+    if (!window.confirm(record.has_pending_changes ? 'Approve this amendment and synchronize with booking?' : 'Are you sure you want to approve this payout?')) return;
     
     try {
       setProcessing(record.form_id);
+      if (record.has_pending_changes) {
+        await approveAmendment(record.form_id, subscriberId!);
+      }
       await apiService.approveAuditRecord(record.form_id, record.booking_id, subscriberId!);
       const data = await apiService.getAuditRecords(subscriberId!);
       setRecords(data);
@@ -113,7 +117,22 @@ const AuditPayoutManagement: React.FC = () => {
 
     try {
       setProcessing('bulk');
-      await apiService.approveSelectedAuditRecords(selectedIds, subscriberId!);
+      
+      // Handle amendments separately to ensure sync with bookings
+      const recordsToApprove = records.filter(r => selectedIds.includes(r.form_id));
+      const amendmentRecords = recordsToApprove.filter(r => r.has_pending_changes);
+      const normalRecords = recordsToApprove.filter(r => !r.has_pending_changes);
+      
+      // 1. Approve amendments one by one
+      for (const record of amendmentRecords) {
+        await approveAmendment(record.form_id, subscriberId!);
+      }
+      
+      // 2. Approve normal records in bulk
+      if (normalRecords.length > 0) {
+        await apiService.approveSelectedAuditRecords(normalRecords.map(r => r.form_id), subscriberId!);
+      }
+      
       setSelectedIds([]);
       const data = await apiService.getAuditRecords(subscriberId!);
       setRecords(data);
