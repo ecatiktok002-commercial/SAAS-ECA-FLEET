@@ -122,7 +122,7 @@ const AdminDashboard: React.FC = () => {
 
       // 1. Sales Metrics (Completed/Signed Agreements)
       const completedAgreements = agreements.filter(a => {
-        const status = a.status?.toLowerCase();
+        const status = a.status?.toLowerCase().trim();
         return status === 'completed' || (status === 'signed' && !!a.payment_receipt);
       });
       

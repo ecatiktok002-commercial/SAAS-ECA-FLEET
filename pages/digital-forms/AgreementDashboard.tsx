@@ -138,7 +138,7 @@ const AgreementDashboard: React.FC = () => {
           </div>
           <div className="text-2xl font-bold text-slate-900">
             {agreements.filter(a => {
-              const s = a.status?.toLowerCase();
+              const s = a.status?.toLowerCase().trim();
               return s === 'signed' || s === 'completed';
             }).length}
           </div>
@@ -151,7 +151,7 @@ const AgreementDashboard: React.FC = () => {
             <span className="text-sm font-medium text-slate-500">Pending Signature</span>
           </div>
           <div className="text-2xl font-bold text-slate-900">
-            {agreements.filter(a => a.status?.toLowerCase() === 'pending').length}
+            {agreements.filter(a => a.status?.toLowerCase().trim() === 'pending').length}
           </div>
         </div>
         {staffRole === 'admin' && (
@@ -236,7 +236,7 @@ const AgreementDashboard: React.FC = () => {
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-2 items-start">
                         {(() => {
-                          const status = agreement.status?.toLowerCase();
+                          const status = agreement.status?.toLowerCase().trim();
                           
                           if (status === 'completed') {
                             return (
@@ -274,7 +274,7 @@ const AgreementDashboard: React.FC = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
-                        {agreement.status?.toLowerCase() === 'pending' ? (
+                        {agreement.status?.toLowerCase().trim() === 'pending' ? (
                           <button 
                             onClick={() => {
                               const link = `${window.location.origin}/forms/sign/${agreement.id}`;

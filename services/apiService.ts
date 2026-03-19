@@ -1658,10 +1658,10 @@ export const apiService = {
       // STATUS LOCK LOGIC:
       // If the current status is 'signed' or 'completed', we should NOT allow it to be reset to 'pending'
       // unless it's an explicit request (which isn't the case for receipt updates).
-      const currentStatus = currentAgreement?.status?.toLowerCase();
+      const currentStatus = currentAgreement?.status?.toLowerCase().trim();
       if (currentStatus === 'signed' || currentStatus === 'completed') {
         // If the update payload tries to set status to 'pending', we remove it to preserve the current state
-        if (finalUpdates.status?.toLowerCase() === 'pending') {
+        if (finalUpdates.status?.toLowerCase().trim() === 'pending') {
           delete finalUpdates.status;
         }
       }
@@ -1688,9 +1688,37 @@ export const apiService = {
         }
       }
 
-      // Auto-complete logic: if receipt is uploaded and status is signed, mark as completed
-      if (finalUpdates.payment_receipt && (finalUpdates.status?.toLowerCase() === 'signed' || currentStatus === 'signed')) {
-        finalUpdates.status = 'completed';
+      // ROLLBACK & RESTORE LOGIC FOR PAYMENT RECEIPTS:
+      const isRemovingReceipt = finalUpdates.payment_receipt === null || finalUpdates.payment_receipt === '';
+      const isAddingReceipt = finalUpdates.payment_receipt && finalUpdates.payment_receipt !== '';
+
+      if (isRemovingReceipt && currentStatus === 'completed') {
+        // Downgrade to 'signed' if receipt is removed from a completed agreement
+        finalUpdates.status = 'signed';
+      } else if (isAddingReceipt && currentStatus === 'signed') {
+        // If adding a receipt back to a signed agreement
+        if (currentAgreement?.booking_id) {
+          try {
+            const { data: booking } = await supabase
+              .from('bookings')
+              .select('status')
+              .eq('id', currentAgreement.booking_id)
+              .eq('subscriber_id', targetSubscriberId || currentAgreement.subscriber_id)
+              .single();
+            
+            if (booking?.status === 'completed') {
+              finalUpdates.status = 'completed';
+            }
+          } catch (err) {
+            console.error('Error checking booking status for agreement restore:', err);
+            // Fallback: if we can't check booking, but a receipt is added, 
+            // we follow the previous auto-complete logic
+            finalUpdates.status = 'completed';
+          }
+        } else {
+          // If no linked booking, mark as completed when receipt is added
+          finalUpdates.status = 'completed';
+        }
       }
 
       let query = supabase

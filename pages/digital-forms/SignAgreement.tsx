@@ -42,7 +42,7 @@ export default function SignAgreement() {
           setCompany(companyData);
         }
 
-        const status = agreementData.status?.toLowerCase();
+        const status = agreementData.status?.toLowerCase().trim();
         if (status === 'signed' || status === 'completed') {
           setSuccess(true);
         }
