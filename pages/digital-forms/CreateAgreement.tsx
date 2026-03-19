@@ -74,33 +74,34 @@ export default function CreateAgreement() {
 
             if (member && car) {
               const d = new Date(booking.start);
-              const startDate = format(d, 'yyyy-MM-dd');
-              const time = format(d, 'HH:mm');
-              const duration = booking.duration;
-              const endDate = format(addDays(parseISO(startDate), duration), 'yyyy-MM-dd');
+              if (isValid(d)) {
+                const startDate = format(d, 'yyyy-MM-dd');
+                const time = format(d, 'HH:mm');
+                const duration = booking.duration || 0;
+                const endDate = format(addDays(parseISO(startDate), duration), 'yyyy-MM-dd');
 
-              const modelName = (car.make && car.model) 
-                ? `${car.make} ${car.model}`.trim() 
-                : car.name;
+                const modelName = (car.make && car.model) 
+                  ? `${car.make} ${car.model}`.trim() 
+                  : car.name;
 
-              setFormData(prev => ({
-                ...prev,
-                customer_name: member.name,
-                identity_number: member.identity_number || '',
-                customer_phone: member.phone || '',
-                billing_address: member.billing_address || '',
-                emergency_contact_name: member.emergency_contact_name || '',
-                emergency_contact_relation: member.emergency_contact_relation || '',
-                car_plate_number: car.plateNumber || car.plate || '',
-                car_model: modelName,
-                start_date: startDate,
-                end_date: endDate,
-                duration_days: duration.toString(),
-                total_price: booking.total_price?.toString() || '',
-                pickup_time: time,
-                return_time: time,
-              }));
-              
+                setFormData(prev => ({
+                  ...prev,
+                  customer_name: member.name,
+                  identity_number: member.identity_number || '',
+                  customer_phone: member.phone || '',
+                  billing_address: member.billing_address || '',
+                  emergency_contact_name: member.emergency_contact_name || '',
+                  emergency_contact_relation: member.emergency_contact_relation || '',
+                  car_plate_number: car.plateNumber || car.plate || '',
+                  car_model: modelName,
+                  start_date: startDate,
+                  end_date: endDate,
+                  duration_days: duration.toString(),
+                  total_price: booking.total_price?.toString() || '',
+                  pickup_time: time,
+                  return_time: time,
+                }));
+              }
               setCustomerFound(true);
             }
           }

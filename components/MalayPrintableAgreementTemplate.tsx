@@ -1,4 +1,5 @@
 import React from 'react';
+import { format } from 'date-fns';
 
 interface MalayPrintableAgreementTemplateProps {
   agreementId?: string;
@@ -47,8 +48,7 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
   const formatDate = (dateString?: string) => {
     if (!dateString) return "-";
     try {
-      const options: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' };
-      return new Date(dateString).toLocaleDateString('en-MY', options);
+      return format(new Date(dateString), 'dd/MM/yyyy HH:mm');
     } catch (e) {
       return dateString;
     }
@@ -72,7 +72,7 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
                 </div>
                 <div className="text-right">
                   <p className="text-sm">No. Rujukan: <span className="font-bold">{agreementId}</span></p>
-                  <p className="text-sm">Tarikh: {new Date().toLocaleDateString('en-MY')}</p>
+                  <p className="text-sm">Tarikh: {format(new Date(), 'dd/MM/yyyy')}</p>
                 </div>
               </div>
             </div>

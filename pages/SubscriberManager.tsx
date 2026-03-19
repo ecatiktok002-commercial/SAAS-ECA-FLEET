@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/apiService';
 import { Company } from '../types';
@@ -498,7 +499,7 @@ const SubscriberManager: React.FC = () => {
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2 text-sm text-slate-600">
                             <Clock className="w-4 h-4 text-slate-400" />
-                            {sub.expiry_date ? new Date(sub.expiry_date).toLocaleDateString() : 'No Expiry'}
+                            {sub.expiry_date ? format(new Date(sub.expiry_date), 'dd/MM/yyyy') : 'No Expiry'}
                           </div>
                         </td>
                         <td className="px-6 py-4 text-center">

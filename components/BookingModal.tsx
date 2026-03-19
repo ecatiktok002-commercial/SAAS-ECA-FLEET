@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Lightbox from "yet-another-react-lightbox";
@@ -670,7 +671,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   >
                     <div>
                       <div className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors">{record.handover_type}</div>
-                      <div className="text-[10px] text-slate-500">{new Date(record.created_at).toLocaleString()}</div>
+                      <div className="text-[10px] text-slate-500">{format(new Date(record.created_at), 'dd/MM/yyyy HH:mm')}</div>
                     </div>
                     <div className="text-[10px] font-bold text-slate-400 group-hover:text-blue-600 uppercase tracking-wider flex items-center gap-1 transition-colors">
                       View Photos
@@ -724,7 +725,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
           <div className="flex justify-between items-center text-white mb-6 shrink-0">
             <div>
               <h3 className="font-bold text-lg">{viewingRecord.handover_type} Record</h3>
-              <p className="text-xs text-slate-400">{new Date(viewingRecord.created_at).toLocaleString()}</p>
+              <p className="text-xs text-slate-400">{format(new Date(viewingRecord.created_at), 'dd/MM/yyyy HH:mm')}</p>
             </div>
             <button 
               onClick={() => setViewingRecord(null)} 

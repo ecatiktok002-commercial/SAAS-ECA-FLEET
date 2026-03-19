@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { format } from 'date-fns';
 import { Users, Search, Phone, CreditCard, Download, MessageCircle, ExternalLink } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/apiService';
@@ -69,7 +70,7 @@ const CustomersPage: React.FC = () => {
       'Total Bookings': c.total_bookings,
       'Agent': c.acquired_by_agent || 'N/A',
       'Status': c.status,
-      'Last Rental Date': c.last_rental_date ? new Date(c.last_rental_date).toLocaleDateString() : 'N/A'
+      'Last Rental Date': c.last_rental_date ? format(new Date(c.last_rental_date), 'dd/MM/yyyy') : 'N/A'
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
@@ -225,11 +226,7 @@ const CustomersPage: React.FC = () => {
                         {customer.full_name ? getStatusBadge(customer.status) : '-'}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-500">
-                        {customer.last_rental_date ? new Date(customer.last_rental_date).toLocaleDateString('en-MY', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric'
-                        }) : '-'}
+                        {customer.last_rental_date ? format(new Date(customer.last_rental_date), 'dd/MM/yyyy') : '-'}
                       </td>
                     </tr>
                   ))

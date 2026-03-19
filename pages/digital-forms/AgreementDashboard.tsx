@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { format } from 'date-fns';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiService } from '../../services/apiService';
@@ -264,7 +265,7 @@ const AgreementDashboard: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-slate-500 text-sm">
-                      {new Date(agreement.created_at).toLocaleDateString()}
+                      {format(new Date(agreement.start_date || agreement.created_at), 'dd/MM/yyyy')}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">

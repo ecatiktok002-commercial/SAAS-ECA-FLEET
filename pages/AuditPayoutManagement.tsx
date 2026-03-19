@@ -25,8 +25,7 @@ import {
   X,
   RefreshCw
 } from 'lucide-react';
-import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns';
-import MatchyScanAlert from '../components/MatchyScanAlert';
+import { format, parseISO, startOfMonth, endOfMonth, isValid } from 'date-fns';
 import { 
   BarChart, 
   Bar, 
@@ -38,6 +37,23 @@ import {
   ResponsiveContainer,
   Cell
 } from 'recharts';
+import MatchyScanAlert from '../components/MatchyScanAlert';
+
+const safeFormat = (dateStr: string | Date | null | undefined, formatStr: string) => {
+  if (!dateStr) return 'N/A';
+  try {
+    const d = typeof dateStr === 'string' ? parseISO(dateStr) : dateStr;
+    if (!isValid(d)) {
+      // Fallback for non-ISO strings
+      const d2 = new Date(dateStr);
+      if (!isValid(d2)) return 'Invalid Date';
+      return format(d2, formatStr);
+    }
+    return format(d, formatStr);
+  } catch (e) {
+    return 'Invalid Date';
+  }
+};
 
 const AuditPayoutManagement: React.FC = () => {
   const { subscriberId } = useAuth();
@@ -115,7 +131,7 @@ const AuditPayoutManagement: React.FC = () => {
       return;
     }
 
-    const monthYear = format(new Date(), 'MMMM yyyy');
+    const monthYear = safeFormat(new Date().toISOString(), 'MMMM yyyy');
     if (!window.confirm(`Process monthly payout for ${monthYear}? This will reconcile ${approvedRecords.length} records.`)) return;
 
     try {
@@ -130,9 +146,41 @@ const AuditPayoutManagement: React.FC = () => {
     }
   };
 
+  const toggleSelectAll = (ids: string[]) => {
+    if (selectedIds.length === ids.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(ids);
+    }
+  };
+
+  const orphans = useMemo(() => 
+    records.filter(r => !r.booking_id && r.status !== 'reconciled'), 
+    [records]
+  );
+
+  const matchedForReview = useMemo(() => 
+    records.filter(r => r.booking_id !== null && r.status !== 'reconciled'), 
+    [records]
+  );
+
+  const filteredRecords = useMemo(() => matchedForReview.filter(r => 
+    r.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    r.agent_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (r.reference_number && r.reference_number.toLowerCase().includes(searchTerm.toLowerCase()))
+  ), [matchedForReview, searchTerm]);
+
+  const pendingPayoutsSum = matchedForReview
+    .filter(r => r.status === 'completed' && r.payout_status === 'pending')
+    .reduce((sum, r) => sum + (Number(r.commission_earned) || 0), 0);
+
+  const readyForPayoutSum = matchedForReview
+    .filter(r => r.status === 'completed' && r.payout_status === 'approved')
+    .reduce((sum, r) => sum + (Number(r.commission_earned) || 0), 0);
+
   // Payout Summary Logic
   const payoutSummary = useMemo(() => {
-    const approvedRecords = records.filter(r => r.payout_status === 'approved' && r.status !== 'reconciled');
+    const approvedRecords = matchedForReview.filter(r => r.payout_status === 'approved' && r.status !== 'reconciled');
     const agentMap = new Map<string, { agent_id: string, agent_name: string, total_bookings: number, total_revenue: number, payout_due: number }>();
     
     approvedRecords.forEach(r => {
@@ -145,14 +193,14 @@ const AuditPayoutManagement: React.FC = () => {
       };
       
       existing.total_bookings += 1;
-      existing.total_revenue += Number(r.form_price || 0);
-      existing.payout_due += Number(r.commission_earned || 0);
+      existing.total_revenue += (Number(r.form_price) || 0);
+      existing.payout_due += (Number(r.commission_earned) || 0);
       
       agentMap.set(r.agent_id, existing);
     });
 
     return Array.from(agentMap.values());
-  }, [records]);
+  }, [matchedForReview]);
 
   // Chart Data Logic
   const chartData = useMemo(() => {
@@ -165,8 +213,10 @@ const AuditPayoutManagement: React.FC = () => {
       const data = monthMap.get(month) || { month };
       
       h.breakdown.forEach(b => {
-        data[b.agent_name] = (data[b.agent_name] || 0) + b.payout_due;
-        agents.add(b.agent_name);
+        if (b.agent_name) {
+          data[b.agent_name] = (data[b.agent_name] || 0) + b.payout_due;
+          agents.add(b.agent_name);
+        }
       });
       
       monthMap.set(month, data);
@@ -174,7 +224,7 @@ const AuditPayoutManagement: React.FC = () => {
 
     return {
       data: Array.from(monthMap.values()).reverse(),
-      agents: Array.from(agents)
+      agents: Array.from(agents).filter(Boolean)
     };
   }, [payoutHistory]);
 
@@ -183,29 +233,6 @@ const AuditPayoutManagement: React.FC = () => {
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
   };
-
-  const toggleSelectAll = (ids: string[]) => {
-    if (selectedIds.length === ids.length) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(ids);
-    }
-  };
-
-  const filteredRecords = records.filter(r => 
-    r.status !== 'reconciled' &&
-    (r.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.agent_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (r.reference_number && r.reference_number.toLowerCase().includes(searchTerm.toLowerCase())))
-  );
-
-  const pendingPayoutsSum = records
-    .filter(r => r.status === 'completed' && r.payout_status === 'pending')
-    .reduce((sum, r) => sum + Number(r.commission_earned || 0), 0);
-
-  const readyForPayoutSum = records
-    .filter(r => r.status === 'completed' && r.payout_status === 'approved')
-    .reduce((sum, r) => sum + Number(r.commission_earned || 0), 0);
 
   const currentMonthStart = startOfMonth(new Date()).toISOString();
   const currentMonthEnd = endOfMonth(new Date()).toISOString();
@@ -286,6 +313,7 @@ const AuditPayoutManagement: React.FC = () => {
           monthEndDate={currentMonthEnd} 
           scanTrigger={scanTrigger}
           onScanComplete={handleScanComplete}
+          orphanedAgreements={orphans}
         />
       )}
 
@@ -410,12 +438,18 @@ const AuditPayoutManagement: React.FC = () => {
                           <td className="py-4 px-6">
                             <div className="text-xs text-slate-600">{record.car_plate_number}</div>
                             <div className="text-[10px] text-slate-400 mt-0.5">
-                              {format(new Date(record.form_start), 'MMM dd')} - {format(new Date(record.form_end), 'MMM dd')}
+                              {safeFormat(record.form_start, 'dd/MM/yyyy')} - {safeFormat(record.form_end, 'dd/MM/yyyy')}
                             </div>
                           </td>
                           <td className="py-4 px-6">
-                            <div className="text-sm font-bold text-slate-900">RM {Number(record.form_price).toFixed(2)}</div>
-                            <div className="text-[10px] text-emerald-600 font-bold">Comm: RM {Number(record.commission_earned).toFixed(2)}</div>
+                            {record.booking_duration ? (
+                              <>
+                                <div className="text-sm font-bold text-slate-900">RM {(Number(record.form_price) || 0).toFixed(2)}</div>
+                                <div className="text-[10px] text-emerald-600 font-bold">Comm: RM {(Number(record.commission_earned) || 0).toFixed(2)}</div>
+                              </>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 italic">Awaiting Match</span>
+                            )}
                           </td>
                           <td className="py-4 px-6">
                             {record.payout_status === 'approved' ? (
@@ -536,13 +570,13 @@ const AuditPayoutManagement: React.FC = () => {
                         </div>
                         <div>
                           <h3 className="font-bold text-slate-900">{history.month_year}</h3>
-                          <p className="text-xs text-slate-500">Processed on {format(new Date(history.payout_date), 'MMM dd, yyyy')}</p>
+                          <p className="text-xs text-slate-500">Processed on {safeFormat(history.payout_date, 'dd/MM/yyyy')}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-8">
                         <div className="text-right">
                           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Settled</p>
-                          <p className="text-xl font-bold text-slate-900">RM {Number(history.total_amount).toFixed(2)}</p>
+                          <p className="text-xl font-bold text-slate-900">RM {(Number(history.total_amount) || 0).toFixed(2)}</p>
                         </div>
                         {expandedHistoryId === history.id ? <ChevronDown className="w-5 h-5 text-slate-400" /> : <ChevronRight className="w-5 h-5 text-slate-400" />}
                       </div>
@@ -561,8 +595,8 @@ const AuditPayoutManagement: React.FC = () => {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                              {history.breakdown.map((b, idx) => (
-                                <tr key={idx}>
+                              {history.breakdown.map((b) => (
+                                <tr key={b.agent_id}>
                                   <td className="py-3 px-4 font-bold text-slate-700">{b.agent_name}</td>
                                   <td className="py-3 px-4 text-sm text-slate-600">{b.total_bookings}</td>
                                   <td className="py-3 px-4 text-sm text-slate-600">RM {b.total_revenue.toFixed(2)}</td>

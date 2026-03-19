@@ -1,5 +1,6 @@
 
 import * as XLSX from 'xlsx';
+import { format } from 'date-fns';
 import { Booking, Car, Member } from '../types';
 
 /**
@@ -51,8 +52,8 @@ export const exportBookingsToExcel = (
       'Plate Number': car?.plate || 'Unknown',
       'Vehicle Model': car?.name || 'Unknown',
       'Fleet Member': member?.name || 'Unknown',
-      'Start Date': new Date(b.start).toLocaleDateString(),
-      'End Date': endDate.toLocaleDateString(),
+      'Start Date': format(new Date(b.start), 'dd/MM/yyyy'),
+      'End Date': format(endDate, 'dd/MM/yyyy'),
       'Duration (Days)': b.duration,
       'Booking ID': b.id
     };

@@ -9,6 +9,7 @@ import { apiService } from '../services/apiService';
 import { supabase } from '../services/supabase';
 import { exportBookingsToExcel } from '../services/exportService';
 import { optimizeBookings } from '../services/bookingService';
+import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { AlertTriangle } from 'lucide-react';
 
@@ -213,7 +214,7 @@ const CalendarPage: React.FC = () => {
       if (currentUserId) {
         const car = cars.find(c => c.id === bookingData.carId);
         const action = editingBooking ? 'Updated' : 'Created';
-        const startDate = new Date(bookingData.start).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+        const startDate = format(new Date(bookingData.start), 'dd/MM/yyyy HH:mm');
         
         await apiService.addLog({
           userId: currentUserId,
@@ -243,7 +244,7 @@ const CalendarPage: React.FC = () => {
 
       if (currentUserId && booking) {
         const car = cars.find(c => c.id === booking.carId);
-        const startDate = new Date(booking.start).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+        const startDate = format(new Date(booking.start), 'dd/MM/yyyy HH:mm');
         
         await apiService.addLog({
           userId: currentUserId,
@@ -425,7 +426,7 @@ const CalendarPage: React.FC = () => {
     exportBookingsToExcel(currentMonth, bookings, cars, members);
   };
 
-  const monthName = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
+  const monthName = format(currentMonth, 'MMMM yyyy');
 
   if (error && bookings.length === 0 && cars.length === 0) {
     return (

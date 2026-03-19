@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/apiService';
 import { 
@@ -731,7 +732,7 @@ const AdminDashboard: React.FC = () => {
                         </div>
                         <div className="text-right">
                           <p className="text-sm font-medium text-slate-900">
-                            {returnItem.returnTime.toLocaleDateString()} {returnItem.returnTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {format(returnItem.returnTime, 'dd/MM/yyyy HH:mm')}
                           </p>
                           <p className="text-xs text-rose-600 font-medium mt-1">
                             Late by {formatTimeDiff(returnItem.returnTime)}
@@ -777,7 +778,7 @@ const AdminDashboard: React.FC = () => {
                   {recentAgreements.length > 0 ? recentAgreements.map((agreement) => (
                     <tr key={agreement.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4 text-sm text-slate-600">
-                        {new Date(agreement.created_at).toLocaleDateString()}
+                        {format(new Date(agreement.created_at), 'dd/MM/yyyy')}
                       </td>
                       <td className="px-6 py-4 text-sm font-bold text-slate-900">
                         {agreement.customer_name}
@@ -858,7 +859,7 @@ const AdminDashboard: React.FC = () => {
                           </div>
                         </div>
                         <p className={`text-xs mt-4 ${isActive ? 'text-indigo-200' : 'text-slate-400'}`}>
-                          {new Date(event.start_date).toLocaleDateString()} - {new Date(event.end_date).toLocaleDateString()}
+                          {format(new Date(event.start_date), 'dd/MM/yyyy')} - {format(new Date(event.end_date), 'dd/MM/yyyy')}
                         </p>
                       </div>
                     );

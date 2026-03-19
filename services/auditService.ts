@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
-import { format, addDays, parseISO } from 'date-fns';
+import { format, addDays, parseISO, isValid } from 'date-fns';
+import { apiService } from './apiService';
 
 /**
  * Executes the Phase 1 Matchy Scan for a specific month and subscriber.
@@ -72,20 +73,30 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
     // Find a matching booking
     const matchIndex = orphanedBookings.findIndex(booking => {
       try {
+        if (!booking.start) return false;
         const d = new Date(booking.start);
+        if (isNaN(d.getTime())) return false;
+        
         const startDate = format(d, 'yyyy-MM-dd');
-        const time = format(d, 'HH:mm');
-        const duration = booking.duration;
-        const endDate = format(addDays(parseISO(startDate), duration), 'yyyy-MM-dd');
+        const duration = Number(booking.duration) || 0;
+        if (isNaN(duration)) return false;
+
+        const parsedStart = parseISO(startDate);
+        if (!isValid(parsedStart)) return false;
+
+        const endDate = format(addDays(parsedStart, duration), 'yyyy-MM-dd');
 
         // Check DNA
+        const isCarMatch = agreement.car_id === booking.car_id;
         const isStartDateMatch = agreement.start_date === startDate;
         const isEndDateMatch = agreement.end_date === endDate;
-        const isPickupTimeMatch = agreement.pickup_time === time;
-        const isReturnTimeMatch = agreement.return_time === time;
-        const isSubscriberMatch = agreement.subscriber_id === subscriberId && booking.subscriber_id === subscriberId;
+        
+        // Time match (handle potential seconds in DB like 10:00:00)
+        const time = format(d, 'HH:mm');
+        const agreementPickup = agreement.pickup_time?.substring(0, 5);
+        const isPickupTimeMatch = !agreement.pickup_time || agreementPickup === time;
 
-        return isStartDateMatch && isEndDateMatch && isPickupTimeMatch && isReturnTimeMatch && isSubscriberMatch;
+        return isCarMatch && isStartDateMatch && isEndDateMatch && isPickupTimeMatch;
       } catch (e) {
         return false;
       }
@@ -94,23 +105,31 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
     if (matchIndex !== -1) {
       const matchedBooking = orphanedBookings[matchIndex];
       
-      // Permanent Tagging (Database Update)
-      const { error: updateError } = await supabase
-        .from('agreements')
-        .update({ booking_id: matchedBooking.id })
-        .eq('id', agreement.id)
-        .eq('subscriber_id', subscriberId); // Safety check
-
-      if (!updateError) {
+      // Permanent Tagging (Database Update) - Auto Approve!
+      try {
+        await apiService.updateAgreement(agreement.id, subscriberId, {
+          booking_id: matchedBooking.id,
+          payout_status: 'approved',
+          total_price: agreement.total_price
+        });
         console.log(`Auto-matched agreement ${agreement.id} to booking ${matchedBooking.id}`);
         // Remove from orphan queues
         orphanedAgreements.splice(i, 1);
         orphanedBookings.splice(matchIndex, 1);
-      } else {
+      } catch (updateError) {
         console.error(`Failed to auto-match agreement ${agreement.id}:`, updateError);
       }
     }
   }
+
+  // 7. Auto-Approve previously matched agreements
+  // If an agreement has a booking_id, it means it's matched. It should be approved for payout automatically.
+  await supabase
+    .from('agreements')
+    .update({ payout_status: 'approved' })
+    .eq('subscriber_id', subscriberId)
+    .not('booking_id', 'is', null)
+    .eq('payout_status', 'pending');
 
   return {
     orphanedAgreements,

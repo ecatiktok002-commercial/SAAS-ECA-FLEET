@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { format } from 'date-fns';
 import { Car, Member, Expense, StaffMember } from '../types';
 
 // Modal for managing Fleet, Members, and Expenses
@@ -382,7 +383,7 @@ const FleetModal: React.FC<FleetModalProps> = ({
                                 {car?.plate} <span className="text-slate-400 font-normal">| {expense.category}</span>
                               </div>
                               <div className="text-xs text-slate-500">
-                                {new Date(expense.date).toLocaleDateString()} — <span className="font-semibold text-slate-700">RM {Number(expense.amount || 0).toFixed(2)}</span>
+                                {format(new Date(expense.date), 'dd/MM/yyyy')} — <span className="font-semibold text-slate-700">RM {Number(expense.amount || 0).toFixed(2)}</span>
                               </div>
                             </div>
                           </div>
