@@ -249,8 +249,8 @@ CREATE TABLE IF NOT EXISTS bookings (
   payout_status TEXT DEFAULT 'pending',
   start_date DATE,
   end_date DATE,
-  pickup_time TEXT,
-  return_time TEXT
+  pickup_time TIME,
+  return_time TIME
 );
 
 -- Ensure columns exist if table was already created
@@ -265,8 +265,8 @@ ALTER TABLE bookings ADD COLUMN IF NOT EXISTS is_receipt_verified BOOLEAN DEFAUL
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payout_status TEXT DEFAULT 'pending';
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS start_date DATE;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS end_date DATE;
-ALTER TABLE bookings ADD COLUMN IF NOT EXISTS pickup_time TEXT;
-ALTER TABLE bookings ADD COLUMN IF NOT EXISTS return_time TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS pickup_time TIME;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS return_time TIME;
 
 -- 6. Agreements (Sales)
 CREATE TABLE IF NOT EXISTS agreements (
@@ -1195,6 +1195,37 @@ WHERE a.status IN ('completed', 'reconciled')
 -- ===============================================================
 -- 19. Matchy Scan RPC (Audit Data Integrity)
 -- ===============================================================
+
+-- 1. Clear out any old versions of the function
+DROP FUNCTION IF EXISTS public.run_heuristic_match(uuid);
+
+-- 2. Create the ultra-clean version using your new, standardized columns
+CREATE OR REPLACE FUNCTION public.run_heuristic_match(target_subscriber_id uuid)
+ RETURNS TABLE(matched_count integer)
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+    updated_rows INT;
+BEGIN
+    UPDATE public.agreements a
+    SET booking_id = b.id,
+        status = 'completed'
+    FROM public.bookings b
+    WHERE a.subscriber_id = target_subscriber_id
+      AND b.subscriber_id = target_subscriber_id
+      AND a.booking_id IS NULL 
+      -- 1. Date Match: Both tables now use 'start_date'
+      AND a.start_date = b.start_date 
+      -- 2. Time Match: Both tables now use 'pickup_time'
+      AND to_char(a.pickup_time, 'HH24:MI') = to_char(b.pickup_time, 'HH24:MI')
+      -- 3. Duration Match: Both tables now use 'duration_days'
+      AND a.duration_days = b.duration_days;
+
+    GET DIAGNOSTICS updated_rows = ROW_COUNT;
+    RETURN QUERY SELECT updated_rows;
+END;
+$function$;
+
 CREATE OR REPLACE FUNCTION get_matchy_orphans(
   p_subscriber_id UUID,
   p_start_date TIMESTAMPTZ,
@@ -1238,33 +1269,5 @@ BEGIN
     'orphanedBookings', v_orphaned_bookings,
     'orphanedAgreements', v_orphaned_agreements
   );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-CREATE OR REPLACE FUNCTION run_heuristic_match(target_subscriber_id UUID)
-RETURNS INTEGER AS $$
-DECLARE
-  match_count INTEGER := 0;
-  r RECORD;
-BEGIN
-  -- Find orphaned agreements and try to match them with orphaned bookings
-  -- Criteria: Same car plate and same start date
-  FOR r IN 
-    SELECT a.id as agreement_id, b.id as booking_id
-    FROM agreements a
-    JOIN cars c ON a.car_plate_number = c.plate
-    JOIN bookings b ON b.car_id = c.id
-    WHERE a.subscriber_id = target_subscriber_id
-      AND b.subscriber_id = target_subscriber_id
-      AND (a.booking_id IS NULL OR a.booking_id::text = '')
-      AND NOT EXISTS (SELECT 1 FROM agreements a2 WHERE a2.booking_id = b.id)
-      AND a.start_date = COALESCE(b.start_date, b.pickup_datetime::date)
-      AND b.status IN ('active', 'confirmed', 'completed')
-  LOOP
-    UPDATE agreements SET booking_id = r.booking_id WHERE id = r.agreement_id;
-    match_count := match_count + 1;
-  END LOOP;
-  
-  RETURN match_count;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

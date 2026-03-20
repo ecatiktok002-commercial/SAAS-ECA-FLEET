@@ -176,10 +176,24 @@ const mapBookingFromDB = (dbBooking: any): Booking => {
   let startDate = dbBooking.start_date;
   let pickupTime = dbBooking.pickup_time;
   
-  if (dbBooking.pickup_datetime) {
+  if (!startDate && dbBooking.pickup_datetime) {
     const dt = new Date(dbBooking.pickup_datetime);
     startDate = dt.toISOString().split('T')[0];
+  }
+  
+  if (!pickupTime && dbBooking.pickup_datetime) {
+    const dt = new Date(dbBooking.pickup_datetime);
     pickupTime = dt.toISOString().split('T')[1].substring(0, 5);
+  }
+  
+  // Ensure pickupTime is HH:MM if it came from a TIME column (which might be HH:MM:SS)
+  if (pickupTime && pickupTime.length > 5) {
+    pickupTime = pickupTime.substring(0, 5);
+  }
+  
+  let returnTime = dbBooking.return_time;
+  if (returnTime && returnTime.length > 5) {
+    returnTime = returnTime.substring(0, 5);
   }
 
   return {
@@ -199,7 +213,7 @@ const mapBookingFromDB = (dbBooking: any): Booking => {
     has_discrepancy: dbBooking.has_discrepancy,
     discrepancy_reason: dbBooking.discrepancy_reason,
     end_date: dbBooking.end_date,
-    return_time: dbBooking.return_time
+    return_time: returnTime
   };
 };
 
@@ -228,7 +242,11 @@ const mapBookingToDB = (booking: any) => {
     has_discrepancy: booking.has_discrepancy,
     discrepancy_reason: booking.discrepancy_reason,
     is_receipt_verified: booking.is_receipt_verified,
-    payout_status: booking.payout_status
+    payout_status: booking.payout_status,
+    start_date: booking.start_date,
+    end_date: booking.end_date,
+    pickup_time: booking.pickup_time,
+    return_time: booking.return_time
   };
 
   // Remove undefined values to prevent PostgREST from trying to insert into missing columns

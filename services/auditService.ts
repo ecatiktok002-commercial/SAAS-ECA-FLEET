@@ -9,7 +9,8 @@ import { apiService } from './apiService';
 export const runMatchyScan = async (subscriberId: string, monthStartDate: string, monthEndDate: string) => {
   
   // 1. Call the RPC to do the heuristic match
-  const { data: matchCount, error: rpcError } = await supabase.rpc('run_heuristic_match', { target_subscriber_id: subscriberId });
+  const { data: rpcData, error: rpcError } = await supabase.rpc('run_heuristic_match', { target_subscriber_id: subscriberId });
+  const matchCount = (rpcData as any)?.[0]?.matched_count || 0;
   
   if (rpcError) {
     console.error("RPC Error in run_heuristic_match:", rpcError);
