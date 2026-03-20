@@ -1968,7 +1968,11 @@ export const apiService = {
       // Update Agreement
       const { error: formError } = await supabase
         .from('agreements')
-        .update({ payout_status: 'approved', is_receipt_verified: true })
+        .update({ 
+          payout_status: 'approved', 
+          is_receipt_verified: true,
+          status: 'completed'
+        })
         .eq('id', formId)
         .eq('subscriber_id', targetSubscriberId);
       

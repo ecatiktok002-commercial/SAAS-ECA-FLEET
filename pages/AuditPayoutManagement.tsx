@@ -103,8 +103,7 @@ const AuditPayoutManagement: React.FC = () => {
         await approveAmendment(record.form_id, subscriberId!);
       }
       await apiService.approveAuditRecord(record.form_id, record.booking_id, subscriberId!);
-      const data = await apiService.getAuditRecords(subscriberId!);
-      setRecords(data);
+      await fetchData();
     } catch (err) {
       alert('Failed to approve record');
     } finally {
@@ -135,8 +134,7 @@ const AuditPayoutManagement: React.FC = () => {
       }
       
       setSelectedIds([]);
-      const data = await apiService.getAuditRecords(subscriberId!);
-      setRecords(data);
+      await fetchData();
     } catch (err) {
       alert('Failed to approve selected records');
     } finally {
@@ -180,7 +178,7 @@ const AuditPayoutManagement: React.FC = () => {
   );
 
   const readyForReview = useMemo(() => 
-    records.filter(r => !!r.booking_id), 
+    records.filter(r => r.booking_id != null && !r.is_receipt_verified), 
     [records]
   );
 
@@ -191,16 +189,15 @@ const AuditPayoutManagement: React.FC = () => {
   ), [readyForReview, searchTerm]);
 
   const pendingPayoutsSum = readyForReview
-    .filter(r => r.status === 'completed' && r.payout_status === 'pending')
     .reduce((sum, r) => sum + (r.commission_earned || 0), 0);
 
-  const readyForPayoutSum = readyForReview
-    .filter(r => r.status === 'completed' && r.payout_status === 'approved')
+  const readyForPayoutSum = records
+    .filter(r => !!r.booking_id && r.payout_status === 'approved' && r.status !== 'reconciled')
     .reduce((sum, r) => sum + (r.commission_earned || 0), 0);
 
   // Payout Summary Logic
   const payoutSummary = useMemo(() => {
-    const approvedRecords = readyForReview.filter(r => r.payout_status === 'approved' && r.status !== 'reconciled');
+    const approvedRecords = records.filter(r => !!r.booking_id && r.payout_status === 'approved' && r.status !== 'reconciled');
     const agentMap = new Map<string, { agent_id: string, agent_name: string, total_bookings: number, total_revenue: number, payout_due: number }>();
     
     approvedRecords.forEach(r => {
@@ -278,7 +275,7 @@ const AuditPayoutManagement: React.FC = () => {
 
   const handleScanComplete = () => {
     setIsScanning(false);
-    refreshData();
+    fetchData(); // Use fetchData to ensure a clean state refresh
   };
 
   if (loading) {

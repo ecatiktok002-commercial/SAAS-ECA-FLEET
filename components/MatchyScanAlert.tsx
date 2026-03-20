@@ -26,8 +26,10 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
   const [internalOrphanedAgreements, setInternalOrphanedAgreements] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Use prop if available, otherwise use internal state
-  const displayAgreements = propOrphanedAgreements || internalOrphanedAgreements;
+  // Use prop if available, but merge with internal state to ensure latest data is shown
+  const displayAgreements = (propOrphanedAgreements && propOrphanedAgreements.length > 0) 
+    ? propOrphanedAgreements 
+    : internalOrphanedAgreements;
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState('');
 
@@ -108,7 +110,7 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
       // The Supabase Payload
       await apiService.updateAgreement(agreementId, subscriberId, {
         booking_id: bookingId,
-        payout_status: 'approved',
+        payout_status: 'pending',
         status: 'completed',
         total_price: newTotalPrice
       });
