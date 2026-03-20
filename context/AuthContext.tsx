@@ -91,6 +91,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUserId(getDisplayId(session.user));
         setUserName(isSuperAdmin ? 'Super Admin' : (session.user.user_metadata?.full_name || getDisplayId(session.user)));
         
+        // Determine role: if they are superadmin or if the user ID matches the subscriber ID, they are an admin
+        const isSubscriberOwner = session.user.id === finalSubscriberId;
+        
+        if (isSuperAdmin || isSubscriberOwner) {
+          setStaffRole('admin');
+          localStorage.setItem('staffRole', 'admin');
+        } else {
+          // If not superadmin or owner, check stored role
+          const storedRole = localStorage.getItem('staffRole') as StaffRole;
+          if (storedRole) {
+            setStaffRole(storedRole);
+          }
+        }
+
         // Fetch latest tier and company name from DB for non-superadmins
         if (!isSuperAdmin) {
           const { data: companyData } = await supabase

@@ -51,6 +51,13 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
   const [selectedMatchId, setSelectedMatchId] = useState('');
   const [isLinking, setIsLinking] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage(message);
+    setToastType(type);
+    setTimeout(() => setToastMessage(''), 3000);
+  };
 
   const fetchScanData = async (showRefreshIndicator = false) => {
     if (showRefreshIndicator) setIsRefreshing(true);
@@ -62,8 +69,7 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
       setOrphanedBookings(fetchedBookings);
       
       if (matchCount > 0) {
-        setToastMessage(`Found ${matchCount} matches!`);
-        setTimeout(() => setToastMessage(''), 3000);
+        showToast(`Found ${matchCount} matches!`, 'success');
       }
     } catch (err: any) {
       setError(err.message);
@@ -83,29 +89,41 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
   }, [subscriberId, monthStartDate, monthEndDate, scanTrigger]);
 
   const handleLinkConfirm = async () => {
-    if (!selectedMatchId || !linkModal) return;
+    // Aggressive Logging
+    const agreementId = linkModal?.type === 'agreement' ? linkModal.sourceId : selectedMatchId;
+    const bookingId = linkModal?.type === 'booking' ? linkModal.sourceId : selectedMatchId;
+    console.log('Confirm Link clicked', { agreementId, bookingId, linkModalType: linkModal?.type });
+
+    // Prevent Silent Exits
+    if (!selectedMatchId || !linkModal) {
+      showToast('Please select a match first.', 'error');
+      return;
+    }
+
     setIsLinking(true);
     try {
-      // If we are linking a booking, the target is the selected agreement.
-      // If we are linking an agreement, the target is the agreement itself.
-      const agreementId = linkModal.type === 'agreement' ? linkModal.sourceId : selectedMatchId;
-      const bookingId = linkModal.type === 'booking' ? linkModal.sourceId : selectedMatchId;
+      const agreement = displayAgreements.find(a => (a.form_id || a.id) === agreementId);
+      const newTotalPrice = agreement?.total_price || agreement?.form_price || 0;
 
-      const agreement = displayAgreements.find(a => a.id === agreementId);
-      const newTotalPrice = agreement?.total_price || 0;
-
+      // The Supabase Payload
       await apiService.updateAgreement(agreementId, subscriberId, {
         booking_id: bookingId,
         payout_status: 'approved',
+        status: 'completed',
         total_price: newTotalPrice
       });
 
-      // Reset modal and refresh
+      // UI State Resolution
+      showToast('Successfully linked!', 'success');
       setLinkModal(null);
       setSelectedMatchId('');
+      
+      // IMMEDIATELY trigger refresh
       await fetchScanData(true);
     } catch (err: any) {
-      alert(`Error linking records: ${err.message}`);
+      // Fix the Try/Catch - DO NOT swallow errors
+      console.error('Supabase Update Error:', err);
+      showToast(`Error linking records: ${err.message}`, 'error');
     } finally {
       setIsLinking(false);
     }
@@ -144,11 +162,12 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
         if (error) throw error;
       }
       
+      showToast('Successfully deleted!', 'success');
       setDeleteModal(null);
       await fetchScanData(true);
     } catch (err: any) {
-      // Use custom error handling or console.error
       console.error(`Error deleting record: ${err.message}`);
+      showToast(`Error deleting record: ${err.message}`, 'error');
       setDeleteModal(null);
     }
   };
@@ -255,7 +274,7 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
                   onClick={() => setLinkModal({ 
                     isOpen: true, 
                     type: 'agreement', 
-                    sourceId: agreement.id, 
+                    sourceId: agreement.form_id || agreement.id, 
                     sourceLabel: `${agreement.customer_name} (${agreement.car_plate_number})` 
                   })}
                   className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 hover:text-blue-600 transition-colors flex items-center gap-1.5"
@@ -263,7 +282,7 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
                   <LinkIcon className="w-3 h-3" /> Link Booking
                 </button>
                 <button 
-                  onClick={() => handleDelete('agreement', agreement.id)}
+                  onClick={() => handleDelete('agreement', agreement.form_id || agreement.id)}
                   className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -333,7 +352,7 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
               </button>
               <button 
                 onClick={handleLinkConfirm}
-                disabled={!selectedMatchId || isLinking}
+                disabled={isLinking}
                 className="px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
               >
                 {isLinking ? <RefreshCw className="w-4 h-4 animate-spin" /> : <LinkIcon className="w-4 h-4" />}
@@ -387,8 +406,8 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
   return (
     <>
       {toastMessage && (
-        <div className="fixed bottom-4 right-4 bg-emerald-600 text-white px-6 py-3 rounded-xl shadow-lg font-bold flex items-center gap-2 z-50 animate-in slide-in-from-bottom-5">
-          <CheckCircle2 className="w-5 h-5" />
+        <div className={`fixed bottom-4 right-4 ${toastType === 'success' ? 'bg-emerald-600' : 'bg-rose-600'} text-white px-6 py-3 rounded-xl shadow-lg font-bold flex items-center gap-2 z-50 animate-in slide-in-from-bottom-5`}>
+          {toastType === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
           {toastMessage}
         </div>
       )}

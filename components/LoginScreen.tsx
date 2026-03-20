@@ -83,7 +83,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
         if (subData && subData.role === 'subscriber') {
           localStorage.setItem('current_subscriber_id', subData.id);
-          login(subData.id, 'admin', subData.tier, subData.id, subData.company_code, subData.company_code);
+          // Parameters: id, role, tier, uId, uName, uUid, cName
+          login(subData.id, 'admin', subData.tier, subData.id, subData.company_code, authData.user.id, subData.company_code);
           if (onLogin) onLogin(subData.id);
           return;
         }
@@ -102,7 +103,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         
         if (!fallback.error) {
           localStorage.setItem('current_subscriber_id', legacySubData.id);
-          login(legacySubData.id, 'admin', legacySubData.tier, legacySubData.id, legacySubData.company_code, legacySubData.company_code);
+          // Parameters: id, role, tier, uId, uName, uUid, cName
+          login(legacySubData.id, 'admin', legacySubData.tier, legacySubData.id, legacySubData.company_code, fallback.data.user.id, legacySubData.company_code);
           if (onLogin) onLogin(legacySubData.id);
           return;
         }

@@ -249,17 +249,30 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
   // Privacy Shield Logic
   const isEditable = useMemo(() => {
+    // Determine if user is the Subscriber (owner)
+    // subscriberId is the UUID of the subscriber
+    // userUid is the UUID of the logged-in user
+    const isSubscriber = userUid && subscriberId && userUid === subscriberId;
+    const isSuperAdmin = subscriberId === 'superadmin' || staffRole === 'admin' && currentUserId === 'superadmin';
+
     if (!editingBooking) return true; // New bookings are always editable
-    if (staffRole === 'admin') return true; // Subscriber has full access
+    
+    // Subscriber/Admin has full access
+    if (staffRole === 'admin' || isSubscriber || isSuperAdmin) {
+      return true;
+    }
     
     // Agents can edit if they created the booking
     if (editingBooking.created_by) {
-      return editingBooking.created_by === currentUserId || editingBooking.created_by === userUid;
+      const canEdit = editingBooking.created_by === currentUserId || editingBooking.created_by === userUid;
+      return canEdit;
     }
     
     // Fallback for legacy bookings without created_by
-    return editingBooking.agent_id === currentUserId;
-  }, [editingBooking, staffRole, currentUserId, userUid]);
+    const isAgent = editingBooking.agent_id === currentUserId || editingBooking.agent_id === userUid;
+    console.log('Agent fallback check:', { isAgent });
+    return isAgent;
+  }, [editingBooking, staffRole, currentUserId, userUid, subscriberId]);
 
   if (!isOpen) return null;
 
