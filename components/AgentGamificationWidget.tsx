@@ -70,7 +70,7 @@ export const AgentGamificationWidget: React.FC<AgentGamificationWidgetProps> = (
   // Calculate event progress
   const eventProgress = activeEvents.map(event => {
     const eventBookings = bookings.filter(b => {
-      const bookingDate = new Date(b.start);
+      const bookingDate = new Date(b.start_date);
       return b.agent_id === userId && 
              b.status === 'completed' &&
              bookingDate >= new Date(event.start_date) && 

@@ -53,7 +53,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       // Check A (Staff): Search the staff table for a record where staff_uid matches the input and is_active is true.
       // Check B (Subscriber): Attempt a standard supabase.auth.signInWithPassword using {input}@ecafleet.com and the password {input}.
       const [staffCheck, authCheck] = await Promise.all([
-        supabase.from('staff').select('*').eq('staff_uid', uid).eq('is_active', true).single(),
+        supabase.from('staff').select('*').eq('access_id', uid).eq('is_active', true).maybeSingle(),
         supabase.auth.signInWithPassword({
           email: `${uid}@ecafleet.com`,
           password: uid,
@@ -173,7 +173,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         detectedRole.tier || 'tier_1', 
         detectedRole.staff_id, 
         detectedRole.staff_name, 
-        detectedRole.staff_uid || detectedRole.designated_uid
+        detectedRole.staff_uid
       );
       
       if (onLogin) {

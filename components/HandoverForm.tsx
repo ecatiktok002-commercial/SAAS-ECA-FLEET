@@ -4,7 +4,7 @@ import { compressVehicleImage } from '../services/imageService';
 
 interface HandoverFormProps {
   bookingId: string;
-  carId: string;
+  car_id: string;
   vehiclePlate: string;
   onClose: () => void;
   onSuccess?: () => void;
@@ -15,7 +15,7 @@ type HandoverType = 'Pickup' | 'Return';
 
 const PHOTO_LABELS = ['Front', 'Back', 'Left', 'Right', 'Interior', 'Dashboard'];
 
-const HandoverForm: React.FC<HandoverFormProps> = ({ bookingId, carId, vehiclePlate, onClose, onSuccess, subscriberId }) => {
+const HandoverForm: React.FC<HandoverFormProps> = ({ bookingId, car_id, vehiclePlate, onClose, onSuccess, subscriberId }) => {
   const [step, setStep] = useState(1);
   const [handoverType, setHandoverType] = useState<HandoverType>('Pickup');
   const [mileage, setMileage] = useState('');
@@ -113,7 +113,7 @@ const HandoverForm: React.FC<HandoverFormProps> = ({ bookingId, carId, vehiclePl
         .from('handover_records')
         .insert([{
           booking_id: bookingId,
-          car_id: carId,
+          car_id: car_id,
           subscriber_id: subscriberId,
           handover_type: handoverType,
           mileage: mileage ? parseInt(mileage, 10) : null,

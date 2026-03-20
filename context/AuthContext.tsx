@@ -154,16 +154,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (storedUserUid) {
             setUserUid(storedUserUid);
           } else if (storedRole === 'staff' && storedUserId) {
-            // Fallback: Fetch designated_uid if missing from storage
+            // Fallback: Fetch staff_uid if missing from storage
             const { data: staffData } = await supabase
               .from('staff_members')
-              .select('designated_uid')
+              .select('staff_uid')
               .eq('id', storedUserId)
               .single();
             
-            if (staffData?.designated_uid) {
-              setUserUid(staffData.designated_uid);
-              localStorage.setItem('userUid', staffData.designated_uid);
+            if (staffData?.staff_uid) {
+              setUserUid(staffData.staff_uid);
+              localStorage.setItem('userUid', staffData.staff_uid);
             }
           }
         } else if (isSuperAdmin) {

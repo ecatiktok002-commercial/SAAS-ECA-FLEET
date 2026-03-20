@@ -15,7 +15,7 @@ const StaffManagementPage: React.FC = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
-  const [formData, setFormData] = useState({ name: '', designated_uid: '', pin: '', commission_tier_override: 'auto' as 'auto' | 'premium' | 'prestige' | 'privilege', commission_rate: '' });
+  const [formData, setFormData] = useState({ name: '', staff_uid: '', pin: '', commission_tier_override: 'auto' as 'auto' | 'premium' | 'prestige' | 'privilege', commission_rate: '' });
 
   useEffect(() => {
     if (subscriberId) {
@@ -39,7 +39,7 @@ const StaffManagementPage: React.FC = () => {
     e.preventDefault();
     if (!subscriberId) return;
 
-    const cleanUid = formData.designated_uid.trim().toLowerCase();
+    const cleanUid = formData.staff_uid.trim().toLowerCase();
 
     try {
       setIsLoading(true);
@@ -48,7 +48,7 @@ const StaffManagementPage: React.FC = () => {
         // Update existing
         const updates: Partial<StaffMember> = { 
           name: formData.name, 
-          designated_uid: cleanUid,
+          staff_uid: cleanUid,
           commission_tier_override: formData.commission_tier_override,
           commission_rate: formData.commission_rate ? parseFloat(formData.commission_rate) : undefined
         };
@@ -68,7 +68,7 @@ const StaffManagementPage: React.FC = () => {
       await loadStaff();
       setIsModalOpen(false);
       setEditingStaff(null);
-      setFormData({ name: '', designated_uid: '', pin: '', commission_tier_override: 'auto', commission_rate: '' });
+      setFormData({ name: '', staff_uid: '', pin: '', commission_tier_override: 'auto', commission_rate: '' });
     } catch (err: any) {
       console.error('Handshake Error:', err);
       alert(`Error: ${err.message}`);
@@ -95,7 +95,7 @@ const StaffManagementPage: React.FC = () => {
     setEditingStaff(member);
     setFormData({ 
       name: member.name, 
-      designated_uid: member.designated_uid || '', 
+      staff_uid: member.staff_uid || '', 
       pin: '',
       commission_tier_override: member.commission_tier_override || 'auto',
       commission_rate: member.commission_rate?.toString() || ''
@@ -123,7 +123,7 @@ const StaffManagementPage: React.FC = () => {
         <button
           onClick={() => {
             setEditingStaff(null);
-            setFormData({ name: '', designated_uid: '', pin: '', commission_tier_override: 'auto', commission_rate: '' });
+            setFormData({ name: '', staff_uid: '', pin: '', commission_tier_override: 'auto', commission_rate: '' });
             setIsModalOpen(true);
           }}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-medium flex items-center gap-2 transition-colors"
@@ -167,7 +167,7 @@ const StaffManagementPage: React.FC = () => {
                   </td>
                   <td className="px-6 py-4">
                     <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                      {member.designated_uid}
+                      {member.staff_uid}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -250,8 +250,8 @@ const StaffManagementPage: React.FC = () => {
                 <input
                   type="text"
                   required
-                  value={formData.designated_uid}
-                  onChange={e => setFormData({ ...formData, designated_uid: e.target.value.toLowerCase().replace(/\s+/g, '') })}
+                  value={formData.staff_uid}
+                  onChange={e => setFormData({ ...formData, staff_uid: e.target.value.toLowerCase().replace(/\s+/g, '') })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono"
                   placeholder="e.g. idmahira"
                 />

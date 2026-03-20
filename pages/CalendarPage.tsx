@@ -6,6 +6,7 @@ import FleetModal from '../components/FleetModal';
 import ActivityLogModal from '../components/ActivityLogModal';
 import { Booking, Car, Member, Expense, StaffMember } from '../types';
 import { apiService } from '../services/apiService';
+import { parseBookingDate } from '../services/bookingService';
 import { supabase } from '../services/supabase';
 import { exportBookingsToExcel } from '../services/exportService';
 import { optimizeBookings } from '../services/bookingService';
@@ -78,9 +79,9 @@ const CalendarPage: React.FC = () => {
       setExpenses(fetchedExpenses);
       setStaffMembers(fetchedStaff);
 
-      // Set current staff from fetched staff members if it matches currentUserId (designated_uid or id)
+      // Set current staff from fetched staff members if it matches currentUserId (staff_uid or id)
       if (currentUserId) {
-        const found = fetchedStaff.find(s => s.designated_uid === currentUserId || s.id === currentUserId);
+        const found = fetchedStaff.find(s => s.staff_uid === currentUserId || s.id === currentUserId);
         if (found) {
           setCurrentStaff(found);
         }
@@ -182,7 +183,7 @@ const CalendarPage: React.FC = () => {
 
   const handleBookingClick = (booking: Booking) => {
     setEditingBooking(booking);
-    setSelectedDate(new Date(booking.start));
+    setSelectedDate(new Date(parseBookingDate(booking.start_date, booking.pickup_time)));
     setIsBookingModalOpen(true);
   };
 
@@ -192,7 +193,7 @@ const CalendarPage: React.FC = () => {
       setIsLoading(true);
       
       // Find the member to determine agent_id
-      const selectedMember = members.find(m => m.id === bookingData.memberId);
+      const selectedMember = members.find(m => m.id === bookingData.member_id);
       const actualAgentId = selectedMember?.staff_id || currentSubscriberId;
       
       const bookingWithAgent = {
@@ -212,15 +213,15 @@ const CalendarPage: React.FC = () => {
       });
       
       if (currentUserId) {
-        const car = cars.find(c => c.id === bookingData.carId);
+        const car = cars.find(c => c.id === bookingData.car_id);
         const action = editingBooking ? 'Updated' : 'Created';
-        const startDate = format(new Date(bookingData.start), 'dd/MM/yyyy HH:mm');
+        const startDate = format(new Date(parseBookingDate(bookingData.start_date, bookingData.pickup_time)), 'dd/MM/yyyy HH:mm');
         
         await apiService.addLog({
           userId: currentUserId,
           staff_name: staffName,
           action: action,
-          details: `Booking for ${car?.plate || 'Unknown Car'} (${car?.name}) starting ${startDate} for ${bookingData.duration} days.`
+          details: `Booking for ${car?.plate || 'Unknown Car'} (${car?.name}) starting ${startDate} for ${bookingData.duration_days} days.`
         }, currentSubscriberId);
       }
 
@@ -243,8 +244,8 @@ const CalendarPage: React.FC = () => {
       setBookings(prev => prev.filter(b => b.id !== id));
 
       if (currentUserId && booking) {
-        const car = cars.find(c => c.id === booking.carId);
-        const startDate = format(new Date(booking.start), 'dd/MM/yyyy HH:mm');
+        const car = cars.find(c => c.id === booking.car_id);
+        const startDate = format(new Date(parseBookingDate(booking.start_date, booking.pickup_time)), 'dd/MM/yyyy HH:mm');
         
         await apiService.addLog({
           userId: currentUserId,
@@ -290,10 +291,11 @@ const CalendarPage: React.FC = () => {
       if (currentSubscriberId) {
         for (const update of optimizationUpdates) {
           await apiService.saveBooking({
-            carId: update.carId,
-            memberId: update.memberId,
-            start: update.start,
-            duration: update.duration
+            car_id: update.car_id,
+            member_id: update.member_id,
+            start_date: update.start_date,
+            pickup_time: update.pickup_time,
+            duration_days: update.duration_days
           }, currentSubscriberId, update.id);
           successCount++;
         }

@@ -2,6 +2,7 @@
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { Booking, Car, Member } from '../types';
+import { parseBookingDate } from './bookingService';
 
 /**
  * Exports bookings for the specified month to an Excel file.
@@ -27,8 +28,8 @@ export const exportBookingsToExcel = (
   // A booking overlaps with the month if:
   // Booking Start < Month End AND Booking End > Month Start
   const relevantBookings = bookings.filter(b => {
-    const bStart = new Date(b.start).getTime();
-    const bEnd = bStart + (b.duration * 24 * 60 * 60 * 1000);
+    const bStart = parseBookingDate(b.start_date, b.pickup_time);
+    const bEnd = b.end_time ? new Date(b.end_time).getTime() : bStart + (b.duration_days * 24 * 60 * 60 * 1000);
     const mStart = startOfMonth.getTime();
     const mEnd = endOfMonth.getTime();
 
@@ -42,19 +43,20 @@ export const exportBookingsToExcel = (
 
   // Map to export format
   const exportData = relevantBookings.map(b => {
-    const car = cars.find(c => c.id === b.carId);
-    const member = members.find(m => m.id === b.memberId);
+    const car = cars.find(c => c.id === b.car_id);
+    const member = members.find(m => m.id === b.member_id);
     
     // Calculate End Date for display
-    const endDate = new Date(new Date(b.start).getTime() + (b.duration * 24 * 60 * 60 * 1000));
+    const bStart = parseBookingDate(b.start_date, b.pickup_time);
+    const endDate = b.end_time ? new Date(b.end_time) : new Date(bStart + (b.duration_days * 24 * 60 * 60 * 1000));
 
     return {
       'Plate Number': car?.plate || 'Unknown',
       'Vehicle Model': car?.name || 'Unknown',
       'Fleet Member': member?.name || 'Unknown',
-      'Start Date': format(new Date(b.start), 'dd/MM/yyyy'),
+      'Start Date': format(new Date(bStart), 'dd/MM/yyyy'),
       'End Date': format(endDate, 'dd/MM/yyyy'),
-      'Duration (Days)': b.duration,
+      'Duration (Days)': b.duration_days,
       'Booking ID': b.id
     };
   });

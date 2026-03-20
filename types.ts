@@ -45,29 +45,29 @@ export interface Member {
 
 export interface Booking {
   id: string;
-  carId: string;
-  memberId: string; // Link to Member
+  car_id: string;
+  member_id: string; // Link to Member
   agent_id?: string; // The staff member who created it
   subscriber_id?: string;
-  start: string; // ISO string
-  duration: number; // in days
-  actual_end_time?: string | null; // ISO string
+  start_date: string; // YYYY-MM-DD
+  pickup_time: string; // HH:mm
+  duration_days: number; // in days
+  end_time?: string | null; // ISO string
   track?: number; // assigned vertical slot
   status?: 'active' | 'completed' | 'cancelled';
   total_price?: number;
+  commission_earned?: number;
   created_by?: string;
   is_dates_matched?: boolean;
   has_discrepancy?: boolean;
   discrepancy_reason?: string;
-  start_date?: string;
   end_date?: string;
-  pickup_time?: string;
   return_time?: string;
 }
 
 export interface Expense {
   id: string;
-  carId: string;
+  car_id: string;
   category: string;
   amount: number;
   date: string;
@@ -95,7 +95,7 @@ export interface StaffMember {
   id: string;
   subscriber_id: string;
   name: string;
-  designated_uid: string;
+  staff_uid: string;
   pin_hash?: string; // Hashed PIN
   pin_code?: string; // Plain text PIN for new staff table
   role?: 'admin' | 'staff';
@@ -111,6 +111,7 @@ export interface Agreement {
   subscriber_id: string;
   agent_id: string;
   agent_name: string;
+  customer_id?: string;
   customer_name: string;
   identity_number?: string;
   customer_phone?: string;
@@ -147,6 +148,7 @@ export interface DigitalForm {
   subscriber_id: string;
   agent_id?: string;
   agent_name?: string;
+  customer_id?: string;
   customer_name: string;
   identity_number?: string;
   customer_phone?: string;

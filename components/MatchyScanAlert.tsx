@@ -317,7 +317,7 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
                       ))
                     : orphanedBookings.map(b => (
                         <option key={b.id} value={b.id}>
-                          {b.cars?.plate || 'Unknown'} - {safeFormat(b.start)} ({b.duration} Days)
+                          {b.cars?.plate || 'Unknown'} - {safeFormat(b.start_date)} ({b.duration_days} Days)
                         </option>
                       ))
                   }

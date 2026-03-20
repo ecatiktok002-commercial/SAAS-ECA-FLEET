@@ -1,6 +1,7 @@
 
 import { Booking, Car, Member, LogEntry, Expense, StaffMember, Agreement, DigitalForm, Company, MarketingEvent, AuditRecord, PayoutHistory } from '../types';
 import { supabase } from './supabase';
+import { parseBookingDate } from './bookingService';
 
 // Service for managing fleet data
 const logSupabaseError = (context: string, error: any) => {
@@ -170,44 +171,75 @@ const mapCarToDB = (car: any) => {
   return dbCar;
 };
 
-const mapBookingFromDB = (dbBooking: any): Booking => ({
-  id: dbBooking.id,
-  carId: dbBooking.car_id,
-  memberId: dbBooking.member_id,
-  agent_id: dbBooking.agent_id,
-  start: dbBooking.start,
-  duration: dbBooking.duration,
-  actual_end_time: dbBooking.actual_end_time,
-  status: dbBooking.status,
-  total_price: dbBooking.total_price,
-  created_by: dbBooking.created_by,
-  is_dates_matched: dbBooking.is_dates_matched,
-  has_discrepancy: dbBooking.has_discrepancy,
-  discrepancy_reason: dbBooking.discrepancy_reason,
-  start_date: dbBooking.start_date,
-  end_date: dbBooking.end_date,
-  pickup_time: dbBooking.pickup_time,
-  return_time: dbBooking.return_time
-});
+const mapBookingFromDB = (dbBooking: any): Booking => {
+  // Extract start_date and pickup_time from pickup_datetime if available
+  let startDate = dbBooking.start_date;
+  let pickupTime = dbBooking.pickup_time;
+  
+  if (dbBooking.pickup_datetime) {
+    const dt = new Date(dbBooking.pickup_datetime);
+    startDate = dt.toISOString().split('T')[0];
+    pickupTime = dt.toISOString().split('T')[1].substring(0, 5);
+  }
 
-const mapBookingToDB = (booking: any) => ({
-  car_id: booking.carId || booking.car_id,
-  member_id: booking.memberId || booking.member_id,
-  agent_id: booking.agent_id,
-  start: booking.start,
-  duration: booking.duration,
-  actual_end_time: booking.actual_end_time,
-  status: booking.status,
-  total_price: booking.total_price,
-  created_by: booking.created_by,
-  is_dates_matched: booking.is_dates_matched,
-  has_discrepancy: booking.has_discrepancy,
-  discrepancy_reason: booking.discrepancy_reason,
-  start_date: booking.start_date,
-  end_date: booking.end_date,
-  pickup_time: booking.pickup_time,
-  return_time: booking.return_time
-});
+  return {
+    id: dbBooking.id,
+    car_id: dbBooking.car_id,
+    member_id: dbBooking.member_id,
+    agent_id: dbBooking.agent_id,
+    start_date: startDate,
+    pickup_time: pickupTime,
+    duration_days: dbBooking.duration_days || dbBooking.duration,
+    end_time: dbBooking.actual_end_time || dbBooking.end_time,
+    status: dbBooking.status,
+    total_price: dbBooking.total_price,
+    commission_earned: dbBooking.commission_earned,
+    created_by: dbBooking.created_by,
+    is_dates_matched: dbBooking.is_dates_matched,
+    has_discrepancy: dbBooking.has_discrepancy,
+    discrepancy_reason: dbBooking.discrepancy_reason,
+    end_date: dbBooking.end_date,
+    return_time: dbBooking.return_time
+  };
+};
+
+const mapBookingToDB = (booking: any) => {
+  // Create pickup_datetime from start_date and pickup_time
+  let pickupDatetime = null;
+  if (booking.start_date && booking.pickup_time) {
+    pickupDatetime = new Date(`${booking.start_date}T${booking.pickup_time}:00Z`).toISOString();
+  } else if (booking.start_date) {
+    pickupDatetime = new Date(`${booking.start_date}T00:00:00Z`).toISOString();
+  }
+
+  const dbBooking: any = {
+    car_id: booking.car_id,
+    member_id: booking.member_id,
+    agent_id: booking.agent_id,
+    pickup_datetime: pickupDatetime,
+    duration: booking.duration_days,
+    duration_days: booking.duration_days,
+    actual_end_time: booking.end_time,
+    status: booking.status,
+    total_price: booking.total_price,
+    commission_earned: booking.commission_earned,
+    created_by: booking.created_by,
+    is_dates_matched: booking.is_dates_matched,
+    has_discrepancy: booking.has_discrepancy,
+    discrepancy_reason: booking.discrepancy_reason,
+    is_receipt_verified: booking.is_receipt_verified,
+    payout_status: booking.payout_status
+  };
+
+  // Remove undefined values to prevent PostgREST from trying to insert into missing columns
+  Object.keys(dbBooking).forEach(key => {
+    if (dbBooking[key] === undefined) {
+      delete dbBooking[key];
+    }
+  });
+
+  return dbBooking;
+};
 
 const mapMemberFromDB = (dbMember: any): Member => ({
   id: dbMember.id,
@@ -253,7 +285,7 @@ const mapLogToDB = (log: any) => ({
 
 const mapExpenseFromDB = (dbExpense: any): Expense => ({
   id: dbExpense.id,
-  carId: dbExpense.car_id,
+  car_id: dbExpense.car_id,
   category: dbExpense.category,
   amount: dbExpense.amount,
   date: dbExpense.date,
@@ -262,7 +294,7 @@ const mapExpenseFromDB = (dbExpense: any): Expense => ({
 });
 
 const mapExpenseToDB = (expense: any) => ({
-  car_id: expense.carId || expense.car_id,
+  car_id: expense.car_id,
   category: expense.category,
   amount: expense.amount,
   date: expense.date,
@@ -274,7 +306,7 @@ const mapStaffFromDB = (dbStaff: any): StaffMember => ({
   id: dbStaff.id,
   subscriber_id: dbStaff.subscriber_id,
   name: dbStaff.name,
-  designated_uid: dbStaff.staff_uid || dbStaff.designated_uid,
+  staff_uid: dbStaff.access_id || dbStaff.staff_uid,
   pin_hash: dbStaff.pin_hash,
   pin_code: dbStaff.pin_code,
   role: dbStaff.role || 'staff',
@@ -287,9 +319,8 @@ const mapStaffFromDB = (dbStaff: any): StaffMember => ({
 const mapStaffToDB = (staff: any) => {
   const db: any = {};
   if (staff.name !== undefined) db.name = staff.name;
-  if (staff.designated_uid !== undefined) {
-    db.designated_uid = staff.designated_uid;
-    db.staff_uid = staff.designated_uid;
+  if (staff.staff_uid !== undefined) {
+    db.access_id = staff.staff_uid;
   }
   if (staff.pin_hash !== undefined) db.pin_hash = staff.pin_hash;
   if (staff.pin_code !== undefined) db.pin_code = staff.pin_code;
@@ -319,11 +350,11 @@ const resolveAgentId = async (agentId: string | undefined): Promise<string | und
     }
   }
   
-  // If it's not a valid staff_members.id (e.g. it's an Auth UID or 'idmahira'), try to resolve it via designated_uid
+  // If it's not a valid staff_members.id (e.g. it's an Auth UID or 'idmahira'), try to resolve it via staff_uid
   const { data: staffData } = await supabase
     .from('staff_members')
     .select('id')
-    .eq('designated_uid', agentId)
+    .eq('access_id', agentId)
     .maybeSingle();
     
   if (staffData) {
@@ -653,7 +684,7 @@ export const apiService = {
         const bufferDate = new Date(startDate);
         bufferDate.setDate(bufferDate.getDate() - 60);
         
-        query = query.gte('start', bufferDate.toISOString());
+        query = query.gte('pickup_datetime', bufferDate.toISOString());
       }
 
       const { data, error } = await query;
@@ -705,20 +736,20 @@ export const apiService = {
     });
   },
 
-  async checkBookingConflict(booking: { carId: string, start: string, duration: number, actual_end_time?: string }, subscriberId: string, excludeBookingId?: string): Promise<boolean> {
+  async checkBookingConflict(booking: { car_id: string, start_date: string, pickup_time: string, duration_days: number, end_time?: string }, subscriberId: string, excludeBookingId?: string): Promise<boolean> {
     validateSubscriber(subscriberId);
-    const startTime = new Date(booking.start);
-    const endTime = booking.actual_end_time ? new Date(booking.actual_end_time) : new Date(startTime.getTime() + booking.duration * 24 * 60 * 60 * 1000);
+    const startTime = new Date(parseBookingDate(booking.start_date, booking.pickup_time));
+    const endTime = booking.end_time ? new Date(booking.end_time) : new Date(startTime.getTime() + booking.duration_days * 24 * 60 * 60 * 1000);
     
     const bufferStart = new Date(startTime);
     bufferStart.setDate(bufferStart.getDate() - 60); // Look back 60 days
     
     let query = supabase
       .from('bookings')
-      .select('start, duration, actual_end_time, id')
+      .select('pickup_datetime, duration, actual_end_time, id')
       .eq('subscriber_id', subscriberId)
-      .eq('car_id', booking.carId)
-      .gte('start', bufferStart.toISOString());
+      .eq('car_id', booking.car_id)
+      .gte('pickup_datetime', bufferStart.toISOString());
       
     if (excludeBookingId) {
       query = query.neq('id', excludeBookingId);
@@ -732,8 +763,9 @@ export const apiService = {
     const newEnd = endTime.getTime();
     
     return data.some(b => {
-      const bStart = new Date(b.start).getTime();
-      const bEnd = b.actual_end_time ? new Date(b.actual_end_time).getTime() : bStart + (b.duration * 24 * 60 * 60 * 1000);
+      const bStart = new Date(b.pickup_datetime).getTime();
+      const bDuration = b.duration || 0;
+      const bEnd = b.actual_end_time ? new Date(b.actual_end_time).getTime() : bStart + (bDuration * 24 * 60 * 60 * 1000);
       return (bStart < newEnd && bEnd > newStart);
     });
   },
@@ -813,7 +845,7 @@ export const apiService = {
         const { data: carData, error: carError } = await supabase
           .from('cars')
           .select('id')
-          .eq('id', finalBooking.carId)
+          .eq('id', finalBooking.car_id)
           .eq('subscriber_id', targetSubscriberId)
           .single();
         
@@ -1109,7 +1141,7 @@ export const apiService = {
       let query = supabase
         .from('staff')
         .select('*')
-        .eq('staff_uid', uid)
+        .eq('access_id', uid)
         .eq('subscriber_id', slug)
         .eq('is_active', true);
 
@@ -1198,7 +1230,7 @@ export const apiService = {
       const staffRecord: any = { 
         name, 
         subscriber_id: slug, 
-        staff_uid: uid,
+        access_id: uid,
         pin_code: pin || '1234', 
         is_active: true,
         commission_tier_override: commissionTierOverride,
@@ -1232,7 +1264,7 @@ export const apiService = {
           name, 
           subscriber_id: targetSubscriberId, 
           role, 
-          designated_uid: uid,
+          access_id: uid,
           commission_tier_override: commissionTierOverride,
           commission_rate: commissionRate
         }]);
@@ -1251,7 +1283,7 @@ export const apiService = {
       // Map StaffMember updates to DB fields
       const dbUpdates: any = {};
       if (updates.name !== undefined) dbUpdates.name = updates.name;
-      if (updates.designated_uid !== undefined) dbUpdates.staff_uid = updates.designated_uid;
+      if (updates.staff_uid !== undefined) dbUpdates.access_id = updates.staff_uid;
       if (updates.pin_code !== undefined) dbUpdates.pin_code = updates.pin_code;
       if (updates.is_active !== undefined) dbUpdates.is_active = updates.is_active;
       if (updates.commission_tier_override !== undefined) dbUpdates.commission_tier_override = updates.commission_tier_override;
@@ -1268,7 +1300,7 @@ export const apiService = {
       // Update 'staff_members' table for compatibility
       const legacyUpdates: any = {};
       if (updates.name !== undefined) legacyUpdates.name = updates.name;
-      if (updates.designated_uid !== undefined) legacyUpdates.designated_uid = updates.designated_uid;
+      if (updates.staff_uid !== undefined) legacyUpdates.access_id = updates.staff_uid;
       if (updates.role !== undefined) legacyUpdates.role = updates.role;
       if (updates.commission_tier_override !== undefined) legacyUpdates.commission_tier_override = updates.commission_tier_override;
       if (updates.commission_rate !== undefined) legacyUpdates.commission_rate = updates.commission_rate;
@@ -1825,8 +1857,7 @@ export const apiService = {
             subscriber_id: targetSubscriberId,
             billing_address: customer.billing_address,
             emergency_contact_name: customer.emergency_contact_name,
-            emergency_contact_relation: customer.emergency_contact_relation,
-            updated_at: new Date().toISOString()
+            emergency_contact_relation: customer.emergency_contact_relation
           }, 
           { onConflict: 'subscriber_id,ic_passport' }
         )
@@ -2003,7 +2034,7 @@ export const apiService = {
     return withRetry(async () => {
       if (records.length === 0) return;
 
-      const totalAmount = records.reduce((sum, r) => sum + (Number(r.commission_earned) || 0), 0);
+      const totalAmount = records.reduce((sum, r) => sum + (r.commission_earned || 0), 0);
       
       // Group by agent
       const agentMap = new Map<string, { agent_id: string, agent_name: string, total_bookings: number, total_revenue: number, payout_due: number }>();
@@ -2018,8 +2049,8 @@ export const apiService = {
         };
         
         existing.total_bookings += 1;
-        existing.total_revenue += (Number(r.form_price) || 0);
-        existing.payout_due += (Number(r.commission_earned) || 0);
+        existing.total_revenue += (r.form_price || 0);
+        existing.payout_due += (r.commission_earned || 0);
         
         agentMap.set(r.agent_id, existing);
       });

@@ -3,6 +3,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Save, Upload, CheckCircle2 } from 'lucide-react';
 import { addDays, differenceInDays, parseISO, format, isValid } from 'date-fns';
 import { apiService } from '../../services/apiService';
+import { parseBookingDate } from '../../services/bookingService';
 import { useAuth } from '../../context/AuthContext';
 
 export default function CreateAgreement() {
@@ -64,20 +65,20 @@ export default function CreateAgreement() {
           if (booking) {
             // Fetch member details
             const member = await apiService.getMembers(subscriberId).then(members => 
-              members.find(m => m.id === booking.memberId)
+              members.find(m => m.id === booking.member_id)
             );
 
             // Fetch car details
             const car = await apiService.getCars(subscriberId).then(cars => 
-              cars.find(c => c.id === booking.carId)
+              cars.find(c => c.id === booking.car_id)
             );
 
             if (member && car) {
-              const d = new Date(booking.start);
+              const d = new Date(parseBookingDate(booking.start_date, booking.pickup_time));
               if (isValid(d)) {
-                const startDate = format(d, 'yyyy-MM-dd');
-                const time = format(d, 'HH:mm');
-                const duration = booking.duration || 0;
+                const startDate = booking.start_date;
+                const time = booking.pickup_time || '00:00';
+                const duration = booking.duration_days || 0;
                 const endDate = format(addDays(parseISO(startDate), duration), 'yyyy-MM-dd');
 
                 const modelName = (car.make && car.model) 
@@ -301,8 +302,8 @@ export default function CreateAgreement() {
         try {
           const booking = await apiService.getBookingById(formData.booking_id, subscriberId);
           if (booking) {
-            const bookingStartDate = booking.start.split('T')[0];
-            const bookingDuration = booking.duration;
+            const bookingStartDate = booking.start_date;
+            const bookingDuration = booking.duration_days;
             const bookingEndDate = format(addDays(parseISO(bookingStartDate), bookingDuration), 'yyyy-MM-dd');
             const bookingTotalPrice = booking.total_price || 0;
 

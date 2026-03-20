@@ -191,11 +191,11 @@ const AuditPayoutManagement: React.FC = () => {
 
   const pendingPayoutsSum = readyForReview
     .filter(r => r.status === 'completed' && r.payout_status === 'pending')
-    .reduce((sum, r) => sum + (Number(r.commission_earned) || 0), 0);
+    .reduce((sum, r) => sum + (r.commission_earned || 0), 0);
 
   const readyForPayoutSum = readyForReview
     .filter(r => r.status === 'completed' && r.payout_status === 'approved')
-    .reduce((sum, r) => sum + (Number(r.commission_earned) || 0), 0);
+    .reduce((sum, r) => sum + (r.commission_earned || 0), 0);
 
   // Payout Summary Logic
   const payoutSummary = useMemo(() => {
@@ -212,8 +212,8 @@ const AuditPayoutManagement: React.FC = () => {
       };
       
       existing.total_bookings += 1;
-      existing.total_revenue += (Number(r.form_price) || 0);
-      existing.payout_due += (Number(r.commission_earned) || 0);
+      existing.total_revenue += (r.form_price || 0);
+      existing.payout_due += (r.commission_earned || 0);
       
       agentMap.set(r.agent_id, existing);
     });
@@ -463,8 +463,8 @@ const AuditPayoutManagement: React.FC = () => {
                             </div>
                           </td>
                           <td className="py-4 px-6">
-                            <div className="text-sm font-bold text-slate-900">RM {(Number(record.form_price) || 0).toFixed(2)}</div>
-                            <div className="text-[10px] text-emerald-600 font-bold">Comm: RM {(Number(record.commission_earned) || 0).toFixed(2)}</div>
+                            <div className="text-sm font-bold text-slate-900">RM {(record.form_price || 0).toFixed(2)}</div>
+                            <div className="text-[10px] text-emerald-600 font-bold">Comm: RM {(record.commission_earned || 0).toFixed(2)}</div>
                           </td>
                           <td className="py-4 px-6">
                             <div className="flex flex-col gap-1">
@@ -598,7 +598,7 @@ const AuditPayoutManagement: React.FC = () => {
                       <div className="flex items-center gap-8">
                         <div className="text-right">
                           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Settled</p>
-                          <p className="text-xl font-bold text-slate-900">RM {(Number(history.total_amount) || 0).toFixed(2)}</p>
+                          <p className="text-xl font-bold text-slate-900">RM {(history.total_amount || 0).toFixed(2)}</p>
                         </div>
                         {expandedHistoryId === history.id ? <ChevronDown className="w-5 h-5 text-slate-400" /> : <ChevronRight className="w-5 h-5 text-slate-400" />}
                       </div>

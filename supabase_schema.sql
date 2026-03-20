@@ -18,10 +18,10 @@
 -- DROP FUNCTION IF EXISTS verify_login_uid CASCADE;
 
 -- TROUBLESHOOTING: Missing Columns
--- If you get an error like "Could not find the 'designated_uid' column", 
+-- If you get an error like "Could not find the 'access_id' column", 
 -- it means your table exists but is missing a column. Run these fixes:
 --
--- ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS designated_uid TEXT;
+-- ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS access_id TEXT;
 -- ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'staff';
 -- ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS pin_hash TEXT;
 -- ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS commission_tier_override TEXT DEFAULT 'auto';
@@ -157,7 +157,7 @@ ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS subscription_start_date TIMESTA
 CREATE TABLE IF NOT EXISTS public.staff (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     name TEXT NOT NULL,
-    staff_uid TEXT UNIQUE NOT NULL,    -- 'idmichael'
+    access_id TEXT UNIQUE NOT NULL,    -- 'idmichael'
     pin_code TEXT NOT NULL,            -- '1234'
     subscriber_id TEXT NOT NULL,       -- 'ecateam'
     is_active BOOLEAN DEFAULT true,
@@ -175,18 +175,18 @@ SET commission_tier_override = sm.commission_tier_override
 FROM staff_members sm
 WHERE s.id = sm.id AND s.commission_tier_override = 'auto' AND sm.commission_tier_override != 'auto';
 
-CREATE INDEX IF NOT EXISTS idx_staff_lookup ON public.staff(staff_uid, subscriber_id);
+CREATE INDEX IF NOT EXISTS idx_staff_lookup ON public.staff(access_id, subscriber_id);
 
 CREATE TABLE IF NOT EXISTS staff_members (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   subscriber_id UUID NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
-  designated_uid TEXT NOT NULL,
+  access_id TEXT NOT NULL,
   role TEXT DEFAULT 'staff',
   pin_hash TEXT,
   commission_tier_override TEXT DEFAULT 'auto',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(subscriber_id, designated_uid)
+  UNIQUE(subscriber_id, access_id)
 );
 
 -- Ensure columns exist if table was already created
@@ -233,30 +233,40 @@ CREATE TABLE IF NOT EXISTS bookings (
   car_id UUID NOT NULL REFERENCES cars(id) ON DELETE CASCADE,
   member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   agent_id UUID, -- The staff member who created it
-  start TIMESTAMP WITH TIME ZONE NOT NULL,
+  pickup_datetime TIMESTAMP WITH TIME ZONE NOT NULL,
   duration INTEGER NOT NULL,
-  end_time TIMESTAMP WITH TIME ZONE,
+  duration_days INTEGER,
+  actual_end_time TIMESTAMP WITH TIME ZONE,
   status TEXT DEFAULT 'active',
   total_price NUMERIC DEFAULT 0,
+  commission_earned NUMERIC DEFAULT 0,
   created_by TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   is_dates_matched BOOLEAN DEFAULT FALSE,
   has_discrepancy BOOLEAN DEFAULT FALSE,
   discrepancy_reason TEXT,
+  is_receipt_verified BOOLEAN DEFAULT FALSE,
+  payout_status TEXT DEFAULT 'pending',
   start_date DATE,
   end_date DATE,
-  pickup_time TIME,
-  return_time TIME
+  pickup_time TEXT,
+  return_time TEXT
 );
 
 -- Ensure columns exist if table was already created
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS is_dates_matched BOOLEAN DEFAULT FALSE;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS has_discrepancy BOOLEAN DEFAULT FALSE;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS pickup_datetime TIMESTAMP WITH TIME ZONE;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS duration INTEGER;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS duration_days INTEGER;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS actual_end_time TIMESTAMP WITH TIME ZONE;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS discrepancy_reason TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS is_receipt_verified BOOLEAN DEFAULT FALSE;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payout_status TEXT DEFAULT 'pending';
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS start_date DATE;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS end_date DATE;
-ALTER TABLE bookings ADD COLUMN IF NOT EXISTS pickup_time TIME;
-ALTER TABLE bookings ADD COLUMN IF NOT EXISTS return_time TIME;
-ALTER TABLE bookings ADD COLUMN IF NOT EXISTS discrepancy_reason TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS pickup_time TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS return_time TEXT;
 
 -- 6. Agreements (Sales)
 CREATE TABLE IF NOT EXISTS agreements (
@@ -462,13 +472,13 @@ BEGIN
     UNION ALL
     -- 2. Check if user is an agent in staff_members
     SELECT subscriber_id FROM public.staff_members 
-    WHERE id = auth.uid() OR designated_uid = auth.uid()::text 
+    WHERE id = auth.uid() OR access_id = auth.uid()::text 
     UNION ALL
     -- 3. Fallback: check staff table (slug-based)
     SELECT s.id 
     FROM public.staff st
     JOIN public.subscribers s ON s.name ILIKE st.subscriber_id
-    WHERE st.id = auth.uid() OR st.staff_uid = auth.uid()::text
+    WHERE st.id = auth.uid() OR st.access_id = auth.uid()::text
     LIMIT 1
   );
 END;
@@ -496,7 +506,7 @@ CREATE POLICY "Staff members access" ON staff_members
   FOR ALL USING (
     auth.uid() = subscriber_id -- Subscriber
     OR 
-    designated_uid = auth.uid()::text -- Agent (can see/update self)
+    access_id = auth.uid()::text -- Agent (can see/update self)
     OR
     (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
   );
@@ -868,18 +878,18 @@ BEGIN
   -- Update the staff_members record
   UPDATE public.staff_members
   SET id = p_new_id
-  WHERE designated_uid = p_uid;
+  WHERE access_id = p_uid;
 
   -- Update other tables that might have the old ID
-  -- Note: We don't know the old ID easily without a join, but we can update by designated_uid if we had it there.
+  -- Note: We don't know the old ID easily without a join, but we can update by access_id if we had it there.
   -- Since we only have the new ID and the UID, we can update based on the old ID if we find it.
   -- But if we have ON UPDATE CASCADE on FKs, we only need to update the PK in staff_members.
   -- For tables without FKs, we might need manual updates.
   
-  UPDATE public.bookings SET agent_id = p_new_id WHERE agent_id IN (SELECT id FROM public.staff_members WHERE designated_uid = p_uid);
-  UPDATE public.agreements SET agent_id = p_new_id WHERE agent_id IN (SELECT id FROM public.staff_members WHERE designated_uid = p_uid);
-  UPDATE public.digital_forms SET agent_id = p_new_id WHERE agent_id IN (SELECT id FROM public.staff_members WHERE designated_uid = p_uid);
-  UPDATE public.logs SET user_id = p_new_id WHERE user_id IN (SELECT id FROM public.staff_members WHERE designated_uid = p_uid);
+  UPDATE public.bookings SET agent_id = p_new_id WHERE agent_id IN (SELECT id FROM public.staff_members WHERE access_id = p_uid);
+  UPDATE public.agreements SET agent_id = p_new_id WHERE agent_id IN (SELECT id FROM public.staff_members WHERE access_id = p_uid);
+  UPDATE public.digital_forms SET agent_id = p_new_id WHERE agent_id IN (SELECT id FROM public.staff_members WHERE access_id = p_uid);
+  UPDATE public.logs SET user_id = p_new_id WHERE user_id IN (SELECT id FROM public.staff_members WHERE access_id = p_uid);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -894,7 +904,7 @@ BEGIN
   END IF;
 
   -- Step 1: The Identity Lookup
-  SELECT * INTO v_staff FROM public.staff WHERE staff_uid = p_uid LIMIT 1;
+  SELECT * INTO v_staff FROM public.staff WHERE access_id = p_uid LIMIT 1;
   
   IF FOUND THEN
     IF v_staff.is_active = false THEN
@@ -914,7 +924,7 @@ BEGIN
       'subscriber_slug', v_staff.subscriber_id, 
       'staff_id', v_staff.id, 
       'staff_name', v_staff.name, 
-      'staff_uid', v_staff.staff_uid,
+      'access_id', v_staff.access_id,
       'pin_code', v_staff.pin_code,
       'tier', v_company.tier
     );
@@ -1166,10 +1176,10 @@ SELECT
     a.created_at,
     b.id as booking_id,
     b.total_price as booking_price,
-    b.start as booking_start,
-    b.duration as booking_duration,
-    b.start_date as booking_start_date,
-    b.end_date as booking_end_date,
+    COALESCE(b.start_date, b.pickup_datetime::date) as booking_start,
+    b.duration_days as booking_duration,
+    COALESCE(b.start_date, b.pickup_datetime::date) as booking_start_date,
+    COALESCE(b.end_date, (b.pickup_datetime + (b.duration_days || ' days')::interval)::date) as booking_end_date,
     b.pickup_time as booking_pickup_time,
     b.return_time as booking_return_time,
     b.has_discrepancy,
@@ -1204,8 +1214,8 @@ BEGIN
     LEFT JOIN cars c ON bk.car_id = c.id
     LEFT JOIN members m ON bk.member_id = m.id
     WHERE bk.subscriber_id = p_subscriber_id
-      AND bk.start >= p_start_date
-      AND bk.start <= p_end_date
+      AND COALESCE(bk.start_date, bk.pickup_datetime::date) >= p_start_date::date
+      AND COALESCE(bk.start_date, bk.pickup_datetime::date) <= p_end_date::date
       AND bk.status IN ('active', 'confirmed', 'completed')
       AND NOT EXISTS (
         SELECT 1 FROM agreements a 
@@ -1228,5 +1238,33 @@ BEGIN
     'orphanedBookings', v_orphaned_bookings,
     'orphanedAgreements', v_orphaned_agreements
   );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION run_heuristic_match(target_subscriber_id UUID)
+RETURNS INTEGER AS $$
+DECLARE
+  match_count INTEGER := 0;
+  r RECORD;
+BEGIN
+  -- Find orphaned agreements and try to match them with orphaned bookings
+  -- Criteria: Same car plate and same start date
+  FOR r IN 
+    SELECT a.id as agreement_id, b.id as booking_id
+    FROM agreements a
+    JOIN cars c ON a.car_plate_number = c.plate
+    JOIN bookings b ON b.car_id = c.id
+    WHERE a.subscriber_id = target_subscriber_id
+      AND b.subscriber_id = target_subscriber_id
+      AND (a.booking_id IS NULL OR a.booking_id::text = '')
+      AND NOT EXISTS (SELECT 1 FROM agreements a2 WHERE a2.booking_id = b.id)
+      AND a.start_date = COALESCE(b.start_date, b.pickup_datetime::date)
+      AND b.status IN ('active', 'confirmed', 'completed')
+  LOOP
+    UPDATE agreements SET booking_id = r.booking_id WHERE id = r.agreement_id;
+    match_count := match_count + 1;
+  END LOOP;
+  
+  RETURN match_count;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

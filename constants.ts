@@ -14,10 +14,10 @@ const year = now.getFullYear();
 const month = now.getMonth();
 
 export const INITIAL_BOOKINGS: Booking[] = [
-  { id: 'b1', carId: '1', memberId: 'm1', start: new Date(year, month, 5).toISOString(), duration: 2 },
-  { id: 'b2', carId: '2', memberId: 'm2', start: new Date(year, month, 5).toISOString(), duration: 1 },
-  { id: 'b3', carId: '3', memberId: 'm1', start: new Date(year, month, 12).toISOString(), duration: 3 },
-  { id: 'b4', carId: '1', memberId: 'm3', start: new Date(year, month, 15).toISOString(), duration: 1 },
-  { id: 'b5', carId: '4', memberId: 'm2', start: new Date(year, month, 15).toISOString(), duration: 4 },
-  { id: 'b6', carId: '2', memberId: 'm3', start: new Date(year, month, 18).toISOString(), duration: 2 },
+  { id: 'b1', car_id: '1', member_id: 'm1', start_date: new Date(year, month, 5).toISOString().split('T')[0], pickup_time: '10:00', duration_days: 2 },
+  { id: 'b2', car_id: '2', member_id: 'm2', start_date: new Date(year, month, 5).toISOString().split('T')[0], pickup_time: '10:00', duration_days: 1 },
+  { id: 'b3', car_id: '3', member_id: 'm1', start_date: new Date(year, month, 12).toISOString().split('T')[0], pickup_time: '10:00', duration_days: 3 },
+  { id: 'b4', car_id: '1', member_id: 'm3', start_date: new Date(year, month, 15).toISOString().split('T')[0], pickup_time: '10:00', duration_days: 1 },
+  { id: 'b5', car_id: '4', member_id: 'm2', start_date: new Date(year, month, 15).toISOString().split('T')[0], pickup_time: '10:00', duration_days: 4 },
+  { id: 'b6', car_id: '2', member_id: 'm3', start_date: new Date(year, month, 18).toISOString().split('T')[0], pickup_time: '10:00', duration_days: 2 },
 ];

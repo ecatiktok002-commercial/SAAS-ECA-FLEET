@@ -137,8 +137,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({ currentMonth, bookings, car
                   }}
                 >
                   {day.dayBookings.map((booking: Booking) => {
-                    const car = cars.find(c => c.id === booking.carId);
-                    const member = members.find(m => m.id === booking.memberId);
+                    const car = cars.find(c => c.id === booking.car_id);
+                    const member = members.find(m => m.id === booking.member_id);
                     const { segment, left, width } = getBookingSegmentData(booking, day.date);
                     return (
                       <BookingPill 

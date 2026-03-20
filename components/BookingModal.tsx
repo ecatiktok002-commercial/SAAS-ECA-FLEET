@@ -9,6 +9,7 @@ import "yet-another-react-lightbox/styles.css";
 import { Car, Booking, Member, StaffMember } from '../types';
 import { getAvailableCars, validateBooking, findAvailableCarByModel, suggestUpgrade } from '../services/bookingService';
 import { apiService } from '../services/apiService';
+import { parseBookingDate } from '../services/bookingService';
 import HandoverForm from './HandoverForm';
 import PinModal from './PinModal';
 
@@ -38,10 +39,10 @@ const BookingModal: React.FC<BookingModalProps> = ({
   // Modes: 'category' (Auto-assign based on model) or 'specific' (Manual plate selection)
   const [bookingMode, setBookingMode] = useState<'category' | 'specific'>('category');
   
-  const [carId, setCarId] = useState(''); // Used for 'specific' mode
+  const [car_id, setCarId] = useState(''); // Used for 'specific' mode
   const [selectedModel, setSelectedModel] = useState(''); // Used for 'category' mode
   
-  const [memberId, setMemberId] = useState('');
+  const [member_id, setMemberId] = useState('');
   
   const [duration, setDuration] = useState(1);
   const [selectedDateTimeStr, setSelectedDateTimeStr] = useState('');
@@ -135,11 +136,12 @@ const BookingModal: React.FC<BookingModalProps> = ({
       const modelCars = cars.filter(c => c.name === model);
       const available = modelCars.filter(car => {
          const bookingData = { 
-           carId: car.id, 
-           start: start.toISOString(), 
-           duration: Number(duration),
-           memberId: '', // Dummy for validation
-           ...(isEarlyReturn && actualEndTime ? { actual_end_time: new Date(actualEndTime).toISOString() } : { actual_end_time: null })
+           car_id: car.id, 
+           start_date: start.toISOString().split('T')[0], 
+           pickup_time: start.toISOString().split('T')[1].substring(0, 5),
+           duration_days: Number(duration),
+           member_id: '', // Dummy for validation
+           ...(isEarlyReturn && actualEndTime ? { end_time: new Date(actualEndTime).toISOString() } : { end_time: null })
          };
          // Exclude current booking if editing
          const otherBookings = editingBooking 
@@ -161,13 +163,13 @@ const BookingModal: React.FC<BookingModalProps> = ({
       if (editingBooking) {
         // Editing: Switch to specific mode to show current assignment
         setBookingMode('specific');
-        setCarId(editingBooking.carId);
-        setMemberId(editingBooking.memberId || '');
-        setDuration(editingBooking.duration);
+        setCarId(editingBooking.car_id);
+        setMemberId(editingBooking.member_id || '');
+        setDuration(editingBooking.duration_days);
         
-        if (editingBooking.actual_end_time) {
+        if (editingBooking.end_time) {
           setIsEarlyReturn(true);
-          const d = new Date(editingBooking.actual_end_time);
+          const d = new Date(editingBooking.end_time);
           const year = d.getFullYear();
           const month = String(d.getMonth() + 1).padStart(2, '0');
           const day = String(d.getDate()).padStart(2, '0');
@@ -179,10 +181,10 @@ const BookingModal: React.FC<BookingModalProps> = ({
           setActualEndTime('');
         }
         
-        const car = cars.find(c => c.id === editingBooking.carId);
+        const car = cars.find(c => c.id === editingBooking.car_id);
         if (car) setSelectedModel(car.name);
         
-        const d = new Date(editingBooking.start);
+        const d = new Date(parseBookingDate(editingBooking.start_date, editingBooking.pickup_time));
         const year = d.getFullYear();
         const month = String(d.getMonth() + 1).padStart(2, '0');
         const day = String(d.getDate()).padStart(2, '0');
@@ -194,7 +196,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
         setBookingMode('category');
         setCarId(preselectedCarId || '');
         
-        // Pre-select memberId if it corresponds to currentStaff
+        // Pre-select member_id if it corresponds to currentStaff
         if (currentStaff) {
           const ownMember = members.find(m => m.staff_id === currentStaff.id);
           if (ownMember) setMemberId(ownMember.id);
@@ -238,8 +240,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
     ? getAvailableCars(selectedDate, existingBookings.filter(b => b.id !== editingBooking?.id), cars) 
     : [];
 
-  const dropdownCars = editingBooking && !specificAvailableCars.find(c => c.id === carId)
-    ? [...specificAvailableCars, cars.find(c => c.id === carId)].filter(Boolean) as Car[]
+  const dropdownCars = editingBooking && !specificAvailableCars.find(c => c.id === car_id)
+    ? [...specificAvailableCars, cars.find(c => c.id === car_id)].filter(Boolean) as Car[]
     : specificAvailableCars;
 
   // Check if currently selected model is fully booked
@@ -268,7 +270,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
     setUpgradeSuggestion(null);
 
     if (!selectedDateTimeStr) return setError('Please select a start date and time');
-    if (!memberId) return setError('Please select a fleet member');
+    if (!member_id) return setError('Please select a fleet member');
     if (isEarlyReturn) {
       if (!actualEndTime) return setError('Please select an actual end time');
       if (new Date(actualEndTime).getTime() <= new Date(selectedDateTimeStr).getTime()) {
@@ -277,7 +279,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
     }
     
     // Logic split based on mode
-    let finalCarId = carId;
+    let finalCarId = car_id;
 
     if (bookingMode === 'category') {
       if (!selectedModel) return setError('Please select a Vehicle Model');
@@ -315,17 +317,18 @@ const BookingModal: React.FC<BookingModalProps> = ({
       if (!finalCarId) return setError('Please select a specific car');
     }
 
-    const selectedMember = members.find(m => m.id === memberId);
+    const selectedMember = members.find(m => m.id === member_id);
     if (!selectedMember) return setError('Invalid member selected');
     
     const finalStaffName = selectedMember.name;
 
     const bookingData = {
-      carId: finalCarId,
-      memberId,
-      start: new Date(selectedDateTimeStr).toISOString(),
-      duration: Number(duration),
-      ...(isEarlyReturn && actualEndTime ? { actual_end_time: new Date(actualEndTime).toISOString() } : { actual_end_time: null })
+      car_id: finalCarId,
+      member_id,
+      start_date: new Date(selectedDateTimeStr).toISOString().split('T')[0],
+      pickup_time: new Date(selectedDateTimeStr).toISOString().split('T')[1].substring(0, 5),
+      duration_days: Number(duration),
+      ...(isEarlyReturn && actualEndTime ? { end_time: new Date(actualEndTime).toISOString() } : { end_time: null })
     };
 
     // Double check validation for specific car (Category mode is already validated by findAvailableCarByModel)
@@ -365,7 +368,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
   };
 
   const handleDeleteClick = async () => {
-    const selectedMember = members.find(m => m.id === memberId);
+    const selectedMember = members.find(m => m.id === member_id);
     if (!selectedMember) {
       setError('Please select a fleet member to delete');
       return;
@@ -515,7 +518,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
               <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2 tracking-wider">Specific Vehicle</label>
               <div className="relative">
                 <select 
-                  value={carId} 
+                  value={car_id} 
                   onChange={(e) => setCarId(e.target.value)}
                   disabled={!isEditable}
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all appearance-none font-semibold text-slate-700 text-sm disabled:opacity-60"
@@ -536,7 +539,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2 tracking-wider">Fleet Member (Staff / Owner)</label>
             <div className="relative">
               <select 
-                value={memberId} 
+                value={member_id} 
                 onChange={(e) => setMemberId(e.target.value)}
                 disabled={!isEditable}
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all appearance-none font-semibold text-slate-700 text-sm disabled:opacity-60"
@@ -685,7 +688,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
             {isEditable && (
               <button 
                 type="submit"
-                disabled={(!carId && !selectedModel) || !memberId}
+                disabled={(!car_id && !selectedModel) || !member_id}
                 className="w-full py-4 bg-slate-900 rounded-xl text-white font-bold uppercase text-xs tracking-widest hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
               >
                 {editingBooking ? 'Update Booking' : 'Confirm'}
@@ -708,8 +711,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
       {isHandoverOpen && editingBooking && subscriberId && (
         <HandoverForm 
           bookingId={editingBooking.id} 
-          carId={editingBooking.carId}
-          vehiclePlate={cars.find(c => c.id === editingBooking.carId)?.plate || 'Unknown Vehicle'}
+          car_id={editingBooking.car_id}
+          vehiclePlate={cars.find(c => c.id === editingBooking.car_id)?.plate || 'Unknown Vehicle'}
           onClose={() => setIsHandoverOpen(false)} 
           onSuccess={() => {
             setIsHandoverOpen(false);

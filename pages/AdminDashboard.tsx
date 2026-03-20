@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/apiService';
+import { parseBookingDate } from '../services/bookingService';
 import { 
   Users, Car, CalendarCheck, DollarSign, FileText, AlertTriangle, 
   TrendingUp, Clock, ArrowRight, Plus, Zap, AlertCircle, CheckCircle2,
@@ -102,7 +103,7 @@ const AdminDashboard: React.FC = () => {
       ]);
 
       if (userUid) {
-        const staff = staffMembers.find(s => s.designated_uid === userUid);
+        const staff = staffMembers.find(s => s.staff_uid === userUid);
         setCurrentStaff(staff || null);
       }
 
@@ -132,7 +133,7 @@ const AdminDashboard: React.FC = () => {
       
       completedAgreements.forEach(a => {
         const createdDate = a.created_at.split('T')[0];
-        const price = Number(a.total_price || 0);
+        const price = a.total_price || 0;
         if (createdDate === todayStr) salesToday += price;
         if (createdDate >= startOfWeekStr) salesThisWeek += price;
         if (createdDate >= startOfMonthStr) salesThisMonth += price;
@@ -141,10 +142,10 @@ const AdminDashboard: React.FC = () => {
       // 2. Idle Vehicles
       const activeCars = cars.filter(c => c.status === 'active');
       const carsOnRentToday = bookings.filter(b => {
-        const start = new Date(b.start);
-        const end = new Date(start.getTime() + b.duration * 24 * 60 * 60 * 1000);
+        const start = new Date(parseBookingDate(b.start_date, b.pickup_time));
+        const end = b.end_time ? new Date(b.end_time) : new Date(start.getTime() + b.duration_days * 24 * 60 * 60 * 1000);
         return start <= now && end >= now && b.status !== 'cancelled';
-      }).map(b => b.carId);
+      }).map(b => b.car_id);
       
       const uniqueCarsOnRent = new Set(carsOnRentToday);
       const idleVehicles = activeCars.length - uniqueCarsOnRent.size;
@@ -167,10 +168,10 @@ const AdminDashboard: React.FC = () => {
       filteredBookings.forEach(b => {
         if (b.status === 'cancelled') return;
         
-        const start = new Date(b.start);
-        const end = new Date(start.getTime() + b.duration * 24 * 60 * 60 * 1000);
-        const car = cars.find(c => c.id === b.carId);
-        const member = members.find(m => m.id === b.memberId);
+        const start = new Date(parseBookingDate(b.start_date, b.pickup_time));
+        const end = b.end_time ? new Date(b.end_time) : new Date(start.getTime() + b.duration_days * 24 * 60 * 60 * 1000);
+        const car = cars.find(c => c.id === b.car_id);
+        const member = members.find(m => m.id === b.member_id);
         
         // Pending Deliveries
         if (start.toISOString().split('T')[0] === todayStr && start > now) {
@@ -206,7 +207,7 @@ const AdminDashboard: React.FC = () => {
         if (createdDate >= startOfMonthStr) {
           const key = a.created_by || a.agent_name || 'Unknown';
           const current = agentMap.get(key) || { name: a.agent_name || 'Unknown', total: 0 };
-          current.total += Number(a.total_price || 0);
+          current.total += (a.total_price || 0);
           agentMap.set(key, current);
         }
       });
@@ -229,10 +230,10 @@ const AdminDashboard: React.FC = () => {
         const tierOverride = currentStaff?.commission_tier_override || 'auto';
         
         const getCommissionForAmount = (a: Agreement, runningTotal: number) => {
-          const totalPrice = Number(a.total_price || 0);
+          const totalPrice = a.total_price || 0;
           // 1. Use stored commission if available
           if (a.commission_earned !== undefined && a.commission_earned !== null) {
-            return Number(a.commission_earned);
+            return a.commission_earned;
           }
 
           // 2. Use dynamic rate from staff profile
@@ -295,7 +296,7 @@ const AdminDashboard: React.FC = () => {
           let runningTotal = 0;
           monthAgreements.forEach(a => {
             const commission = getCommissionForAmount(a, runningTotal);
-            runningTotal += Number(a.total_price || 0);
+            runningTotal += (a.total_price || 0);
             lifetime += commission;
 
             if (monthKey === lastMonthKey) {
@@ -323,7 +324,7 @@ const AdminDashboard: React.FC = () => {
 
         const chartData = Object.entries(weeklyData).map(([label, amount]) => ({
           date: label,
-          amount: Number(Number(amount).toFixed(2))
+          amount: Number(amount.toFixed(2))
         }));
 
         setDailyCommissions(chartData);
@@ -347,8 +348,8 @@ const AdminDashboard: React.FC = () => {
       await apiService.addMarketingEvent({
         name: newEvent.name,
         goal_type: newEvent.goal_type,
-        target_goal: Number(newEvent.target_goal),
-        reward_amount: Number(newEvent.reward_amount),
+        target_goal: newEvent.target_goal,
+        reward_amount: newEvent.reward_amount,
         start_date: newEvent.start_date,
         end_date: newEvent.end_date
       }, subscriberId);

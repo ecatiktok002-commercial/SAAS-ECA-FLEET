@@ -25,11 +25,7 @@ const BookingPill: React.FC<BookingPillProps> = ({ booking, car, member, segment
     end: 'rounded-r-lg z-[20] mr-0.5'
   }[segment];
 
-  const startTime = new Date(booking.start).toLocaleTimeString([], { 
-    hour: '2-digit', 
-    minute: '2-digit', 
-    hour12: false 
-  });
+  const startTime = booking.pickup_time || '00:00';
 
   const showLabel = segment === 'start' || segment === 'single';
   const isRightAnchored = isLastColumn && showLabel;

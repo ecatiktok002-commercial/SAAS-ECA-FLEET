@@ -8,7 +8,7 @@ interface AvailabilityModalProps {
   onClose: () => void;
   cars: Car[];
   bookings: Booking[];
-  onBookCar: (carId: string) => void;
+  onBookCar: (car_id: string) => void;
 }
 
 const AvailabilityModal: React.FC<AvailabilityModalProps> = ({ isOpen, onClose, cars, bookings, onBookCar }) => {

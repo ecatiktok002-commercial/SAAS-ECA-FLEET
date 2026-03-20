@@ -91,7 +91,7 @@ const FleetModal: React.FC<FleetModalProps> = ({
     if (!expenseCarId || !expenseAmount || !expenseDate) return;
     
     onAddExpense({
-      carId: expenseCarId,
+      car_id: expenseCarId,
       category: expenseCategory,
       amount: parseFloat(expenseAmount),
       date: expenseDate,
@@ -371,7 +371,7 @@ const FleetModal: React.FC<FleetModalProps> = ({
                     <div className="text-center py-4 text-slate-400 text-sm">No expenses recorded yet.</div>
                   ) : (
                     expenses.map(expense => {
-                      const car = cars.find(c => c.id === expense.carId);
+                      const car = cars.find(c => c.id === expense.car_id);
                       return (
                         <div key={expense.id} className="flex items-center justify-between p-3 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors">
                           <div className="flex items-center gap-3">

@@ -1,18 +1,26 @@
 
 import { Booking, Car } from '../types';
 
+export const parseBookingDate = (dateStr: string, timeStr?: string): number => {
+  if (!dateStr) return 0;
+  const time = timeStr || '00:00';
+  const timeParts = time.split(':');
+  const formattedTime = timeParts.length >= 3 ? time : `${time}:00`;
+  return new Date(`${dateStr}T${formattedTime}`).getTime();
+};
+
 /**
  * Checks if a new booking overlaps with any existing bookings for the same car.
  */
 export const validateBooking = (newBooking: Omit<Booking, 'id'>, existingBookings: Booking[]): boolean => {
-  const newStart = new Date(newBooking.start).getTime();
-  const newEnd = newBooking.actual_end_time ? new Date(newBooking.actual_end_time).getTime() : newStart + (newBooking.duration * 24 * 60 * 60 * 1000);
+  const newStart = parseBookingDate(newBooking.start_date, newBooking.pickup_time);
+  const newEnd = newBooking.end_time ? new Date(newBooking.end_time).getTime() : newStart + (newBooking.duration_days * 24 * 60 * 60 * 1000);
 
-  const carBookings = existingBookings.filter(b => b.carId === newBooking.carId);
+  const carBookings = existingBookings.filter(b => b.car_id === newBooking.car_id);
 
   for (const b of carBookings) {
-    const bStart = new Date(b.start).getTime();
-    const bEnd = b.actual_end_time ? new Date(b.actual_end_time).getTime() : bStart + (b.duration * 24 * 60 * 60 * 1000);
+    const bStart = parseBookingDate(b.start_date, b.pickup_time);
+    const bEnd = b.end_time ? new Date(b.end_time).getTime() : bStart + (b.duration_days * 24 * 60 * 60 * 1000);
 
     if (newStart < bEnd && newEnd > bStart) {
       return false; 
@@ -25,7 +33,7 @@ export const validateBooking = (newBooking: Omit<Booking, 'id'>, existingBooking
 /**
  * CATEGORY BASED POOLING:
  * Checks if ANY car of a specific model is available.
- * Returns the carId of the first available car, or null if fully booked.
+ * Returns the car_id of the first available car, or null if fully booked.
  */
 export const findAvailableCarByModel = (
   modelName: string, 
@@ -33,7 +41,7 @@ export const findAvailableCarByModel = (
   duration: number, 
   bookings: Booking[], 
   cars: Car[],
-  actual_end_time?: string
+  end_time?: string
 ): string | null => {
   // 1. Get all cars of this model
   const modelCars = cars.filter(c => c.name === modelName);
@@ -41,7 +49,14 @@ export const findAvailableCarByModel = (
   // 2. Iterate through each car to find one that is free
   for (const car of modelCars) {
     const isFree = validateBooking(
-      { carId: car.id, start: start.toISOString(), duration, memberId: '', actual_end_time }, // memberId irrelevant for check
+      { 
+        car_id: car.id, 
+        start_date: start.toISOString().split('T')[0], 
+        pickup_time: start.toISOString().split('T')[1].substring(0, 5), 
+        duration_days: duration, 
+        member_id: '', 
+        end_time 
+      }, // member_id irrelevant for check
       bookings
     );
     
@@ -64,7 +79,7 @@ export const suggestUpgrade = (
   duration: number, 
   bookings: Booking[], 
   cars: Car[],
-  actual_end_time?: string
+  end_time?: string
 ): Car | null => {
   const tiers = ['Economy', 'SUV', 'Luxury', 'Electric'];
   const currentCar = cars.find(c => c.name === currentModel);
@@ -81,7 +96,14 @@ export const suggestUpgrade = (
     // Check if any car in this tier is free
     for (const car of potentialUpgrades) {
       const isFree = validateBooking(
-        { carId: car.id, start: start.toISOString(), duration, memberId: '', actual_end_time },
+        { 
+          car_id: car.id, 
+          start_date: start.toISOString().split('T')[0], 
+          pickup_time: start.toISOString().split('T')[1].substring(0, 5), 
+          duration_days: duration, 
+          member_id: '', 
+          end_time 
+        },
         bookings
       );
       if (isFree) return car;
@@ -115,17 +137,17 @@ export const optimizeBookings = (bookings: Booking[], cars: Car[]): Booking[] =>
     const modelCars = carsByModel[modelName];
     // Get all bookings for this model
     const modelBookings = bookings.filter(b => 
-      modelCars.some(c => c.id === b.carId)
+      modelCars.some(c => c.id === b.car_id)
     );
 
     // Split into Locked (Past/Ongoing) and Optimizable (Future)
     // Locked: Start time < Now. These stay on their assigned car.
     // Optimizable: Start time >= Now. These can be shuffled.
-    const lockedBookings = modelBookings.filter(b => new Date(b.start).getTime() < now);
-    const optimizableBookings = modelBookings.filter(b => new Date(b.start).getTime() >= now);
+    const lockedBookings = modelBookings.filter(b => parseBookingDate(b.start_date, b.pickup_time) < now);
+    const optimizableBookings = modelBookings.filter(b => parseBookingDate(b.start_date, b.pickup_time) >= now);
 
     // Sort optimizable bookings by start time to pack them chronologically
-    optimizableBookings.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+    optimizableBookings.sort((a, b) => parseBookingDate(a.start_date, a.pickup_time) - parseBookingDate(b.start_date, b.pickup_time));
 
     // 3. Initialize Car Availability based on Locked Bookings
     // Maps CarID -> Time when it becomes free (End of last locked booking)
@@ -133,13 +155,13 @@ export const optimizeBookings = (bookings: Booking[], cars: Car[]): Booking[] =>
     
     modelCars.forEach(c => {
         // Find all locked bookings for this specific car
-        const carLockedBookings = lockedBookings.filter(b => b.carId === c.id);
+        const carLockedBookings = lockedBookings.filter(b => b.car_id === c.id);
         
         // The car is available after the latest end time of its locked bookings
         // If no locked bookings, available immediately (0)
         let maxEnd = 0;
         carLockedBookings.forEach(b => {
-            const bEnd = b.actual_end_time ? new Date(b.actual_end_time).getTime() : new Date(b.start).getTime() + (b.duration * 24 * 60 * 60 * 1000);
+            const bEnd = b.end_time ? new Date(b.end_time).getTime() : parseBookingDate(b.start_date, b.pickup_time) + (b.duration_days * 24 * 60 * 60 * 1000);
             if (bEnd > maxEnd) maxEnd = bEnd;
         });
         
@@ -148,8 +170,8 @@ export const optimizeBookings = (bookings: Booking[], cars: Car[]): Booking[] =>
 
     // 4. Re-assign Optimizable Bookings
     optimizableBookings.forEach(booking => {
-      const bStart = new Date(booking.start).getTime();
-      const bEnd = booking.actual_end_time ? new Date(booking.actual_end_time).getTime() : bStart + (booking.duration * 24 * 60 * 60 * 1000);
+      const bStart = parseBookingDate(booking.start_date, booking.pickup_time);
+      const bEnd = booking.end_time ? new Date(booking.end_time).getTime() : bStart + (booking.duration_days * 24 * 60 * 60 * 1000);
 
       // Find the "best" car for this booking.
       // Best = The car that becomes free closest to booking start time (without overlap).
@@ -175,14 +197,14 @@ export const optimizeBookings = (bookings: Booking[], cars: Car[]): Booking[] =>
       if (bestCarId) {
         carAvailability[bestCarId] = bEnd; // Update when this car becomes free
         
-        // If the optimized carId is different from current, mark for update
-        if (booking.carId !== bestCarId) {
-          updates.push({ ...booking, carId: bestCarId });
+        // If the optimized car_id is different from current, mark for update
+        if (booking.car_id !== bestCarId) {
+          updates.push({ ...booking, car_id: bestCarId });
         }
       } else {
         // Fallback: If no slot found (e.g. overcapacity), keep original assignment
         // and update availability to prevent stacking
-        const currentCarId = booking.carId;
+        const currentCarId = booking.car_id;
         const currentLastEnd = carAvailability[currentCarId] || 0;
         if (bStart >= currentLastEnd) {
            carAvailability[currentCarId] = bEnd;
@@ -202,10 +224,10 @@ export const getAvailableCars = (date: Date, bookings: Booking[], cars: Car[]): 
   const checkEnd = checkStart + (1 * 60 * 60 * 1000); 
 
   return cars.filter(car => {
-    const carBookings = bookings.filter(b => b.carId === car.id);
+    const carBookings = bookings.filter(b => b.car_id === car.id);
     const hasOverlap = carBookings.some(b => {
-      const bStart = new Date(b.start).getTime();
-      const bEnd = b.actual_end_time ? new Date(b.actual_end_time).getTime() : bStart + (b.duration * 24 * 60 * 60 * 1000);
+      const bStart = parseBookingDate(b.start_date, b.pickup_time);
+      const bEnd = b.end_time ? new Date(b.end_time).getTime() : bStart + (b.duration_days * 24 * 60 * 60 * 1000);
       return checkStart < bEnd && checkEnd > bStart;
     });
     return !hasOverlap;
@@ -218,24 +240,24 @@ export const getAvailableCars = (date: Date, bookings: Booking[], cars: Car[]): 
  */
 export const assignTracks = (bookings: Booking[]): Booking[] => {
   const sorted = [...bookings].sort((a, b) => {
-    const startA = new Date(a.start).getTime();
-    const startB = new Date(b.start).getTime();
+    const startA = parseBookingDate(a.start_date, a.pickup_time);
+    const startB = parseBookingDate(b.start_date, b.pickup_time);
     if (startA !== startB) return startA - startB;
-    return b.duration - a.duration;
+    return b.duration_days - a.duration_days;
   });
 
   const assigned: Booking[] = [];
 
   for (const b of sorted) {
     let track = 0;
-    const bStart = new Date(b.start).getTime();
-    const bEnd = b.actual_end_time ? new Date(b.actual_end_time).getTime() : bStart + (b.duration * 24 * 60 * 60 * 1000);
+    const bStart = parseBookingDate(b.start_date, b.pickup_time);
+    const bEnd = b.end_time ? new Date(b.end_time).getTime() : bStart + (b.duration_days * 24 * 60 * 60 * 1000);
 
     while (true) {
       const conflict = assigned.some(other => {
         if (other.track !== track) return false;
-        const otherStart = new Date(other.start).getTime();
-        const otherEnd = other.actual_end_time ? new Date(other.actual_end_time).getTime() : otherStart + (other.duration * 24 * 60 * 60 * 1000);
+        const otherStart = parseBookingDate(other.start_date, other.pickup_time);
+        const otherEnd = other.end_time ? new Date(other.end_time).getTime() : otherStart + (other.duration_days * 24 * 60 * 60 * 1000);
         return bStart < otherEnd && bEnd > otherStart;
       });
 
@@ -252,8 +274,8 @@ export const isBookingOnDate = (booking: Booking, date: Date): boolean => {
   const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
   const endOfDay = startOfDay + (24 * 60 * 60 * 1000);
   
-  const bookingStart = new Date(booking.start).getTime();
-  const bookingEnd = booking.actual_end_time ? new Date(booking.actual_end_time).getTime() : bookingStart + (booking.duration * 24 * 60 * 60 * 1000);
+  const bookingStart = parseBookingDate(booking.start_date, booking.pickup_time);
+  const bookingEnd = booking.end_time ? new Date(booking.end_time).getTime() : bookingStart + (booking.duration_days * 24 * 60 * 60 * 1000);
   
   return bookingStart < endOfDay && bookingEnd > startOfDay;
 };
@@ -262,8 +284,8 @@ export const getBookingSegmentData = (booking: Booking, date: Date) => {
   const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
   const dayEnd = dayStart + (24 * 60 * 60 * 1000);
   
-  const bStart = new Date(booking.start).getTime();
-  const bEnd = booking.actual_end_time ? new Date(booking.actual_end_time).getTime() : bStart + (booking.duration * 24 * 60 * 60 * 1000);
+  const bStart = parseBookingDate(booking.start_date, booking.pickup_time);
+  const bEnd = booking.end_time ? new Date(booking.end_time).getTime() : bStart + (booking.duration_days * 24 * 60 * 60 * 1000);
 
   const intersectionStart = Math.max(dayStart, bStart);
   const intersectionEnd = Math.min(dayEnd, bEnd);
