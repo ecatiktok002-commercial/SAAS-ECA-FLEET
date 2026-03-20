@@ -253,8 +253,8 @@ const AuditPayoutManagement: React.FC = () => {
     );
   };
 
-  const currentMonthStart = startOfMonth(new Date()).toISOString();
-  const currentMonthEnd = endOfMonth(new Date()).toISOString();
+  const currentMonthStart = format(startOfMonth(new Date()), 'yyyy-MM-dd');
+  const currentMonthEnd = format(endOfMonth(new Date()), 'yyyy-MM-dd');
 
   const refreshData = async () => {
     try {

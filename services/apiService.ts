@@ -702,7 +702,9 @@ export const apiService = {
         const bufferDate = new Date(startDate);
         bufferDate.setDate(bufferDate.getDate() - 60);
         
-        query = query.gte('pickup_datetime', bufferDate.toISOString());
+        // Format as YYYY-MM-DD for DATE column
+        const formattedDate = bufferDate.toISOString().split('T')[0];
+        query = query.gte('start_date', formattedDate);
       }
 
       const { data, error } = await query;
@@ -764,10 +766,10 @@ export const apiService = {
     
     let query = supabase
       .from('bookings')
-      .select('pickup_datetime, duration, actual_end_time, id')
+      .select('pickup_datetime, duration, actual_end_time, id, start_date, pickup_time, duration_days, end_date, return_time')
       .eq('subscriber_id', subscriberId)
       .eq('car_id', booking.car_id)
-      .gte('pickup_datetime', bufferStart.toISOString());
+      .gte('start_date', bufferStart.toISOString().split('T')[0]);
       
     if (excludeBookingId) {
       query = query.neq('id', excludeBookingId);
