@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { format } from 'date-fns';
+import { formatInMYT, getNowMYT } from '../utils/dateUtils';
 import { Car, Member, Expense, StaffMember } from '../types';
 
 // Modal for managing Fleet, Members, and Expenses
@@ -61,7 +62,7 @@ const FleetModal: React.FC<FleetModalProps> = ({
   const [expenseCarId, setExpenseCarId] = useState('');
   const [expenseCategory, setExpenseCategory] = useState(EXPENSE_CATEGORIES[0]);
   const [expenseAmount, setExpenseAmount] = useState('');
-  const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0]);
+  const [expenseDate, setExpenseDate] = useState(formatInMYT(getNowMYT(), 'yyyy-MM-dd'));
   const [expenseNotes, setExpenseNotes] = useState('');
 
   const [isAdding, setIsAdding] = useState(false);

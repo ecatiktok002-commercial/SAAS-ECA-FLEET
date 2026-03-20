@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/apiService';
 import { parseBookingDate } from '../services/bookingService';
+import { getNowMYT, utcToMyt } from '../utils/dateUtils';
 import { 
   Users, Car, CalendarCheck, DollarSign, FileText, AlertTriangle, 
   TrendingUp, Clock, ArrowRight, Plus, Zap, AlertCircle, CheckCircle2,
@@ -107,18 +108,18 @@ const AdminDashboard: React.FC = () => {
         setCurrentStaff(staff || null);
       }
 
-      const now = new Date();
-      const todayStr = now.toISOString().split('T')[0];
+      const now = getNowMYT();
+      const todayStr = format(now, 'yyyy-MM-dd');
       
       const startOfWeek = new Date(now);
       startOfWeek.setDate(now.getDate() - now.getDay());
-      const startOfWeekStr = startOfWeek.toISOString().split('T')[0];
+      const startOfWeekStr = format(startOfWeek, 'yyyy-MM-dd');
       
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const startOfMonthStr = startOfMonth.toISOString().split('T')[0];
+      const startOfMonthStr = format(startOfMonth, 'yyyy-MM-dd');
 
       const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const lastMonthKey = lastMonth.toISOString().substring(0, 7);
+      const lastMonthKey = format(lastMonth, 'yyyy-MM');
       let lastMonthEarnings = 0;
 
       // 1. Sales Metrics (Completed/Signed Agreements)
@@ -142,8 +143,8 @@ const AdminDashboard: React.FC = () => {
       // 2. Idle Vehicles
       const activeCars = cars.filter(c => c.status === 'active');
       const carsOnRentToday = bookings.filter(b => {
-        const start = new Date(parseBookingDate(b.start_date, b.pickup_time));
-        const end = b.end_time ? new Date(b.end_time) : new Date(start.getTime() + b.duration_days * 24 * 60 * 60 * 1000);
+        const start = utcToMyt(parseBookingDate(b.start_date, b.pickup_time));
+        const end = b.end_time ? utcToMyt(b.end_time) : new Date(start.getTime() + b.duration_days * 24 * 60 * 60 * 1000);
         return start <= now && end >= now && b.status !== 'cancelled';
       }).map(b => b.car_id);
       
@@ -168,13 +169,13 @@ const AdminDashboard: React.FC = () => {
       filteredBookings.forEach(b => {
         if (b.status === 'cancelled') return;
         
-        const start = new Date(parseBookingDate(b.start_date, b.pickup_time));
-        const end = b.end_time ? new Date(b.end_time) : new Date(start.getTime() + b.duration_days * 24 * 60 * 60 * 1000);
+        const start = utcToMyt(parseBookingDate(b.start_date, b.pickup_time));
+        const end = b.end_time ? utcToMyt(b.end_time) : new Date(start.getTime() + b.duration_days * 24 * 60 * 60 * 1000);
         const car = cars.find(c => c.id === b.car_id);
         const member = members.find(m => m.id === b.member_id);
         
         // Pending Deliveries
-        if (start.toISOString().split('T')[0] === todayStr && start > now) {
+        if (format(start, 'yyyy-MM-dd') === todayStr && start > now) {
           pending.push({
             id: b.id,
             carPlate: car?.plate || 'Unknown',
@@ -264,7 +265,7 @@ const AdminDashboard: React.FC = () => {
         
         // Initialize last 13 weeks (approx 90 days)
         for (let i = 12; i >= 0; i--) {
-          const d = new Date();
+          const d = getNowMYT();
           d.setDate(d.getDate() - (i * 7));
           // Find the start of that week (Sunday)
           const weekStart = new Date(d);
@@ -384,7 +385,7 @@ const AdminDashboard: React.FC = () => {
   };
 
   const formatTimeDiff = (date: Date) => {
-    const now = new Date();
+    const now = getNowMYT();
     const diffMs = Math.abs(date.getTime() - now.getTime());
     const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
     const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
@@ -825,7 +826,8 @@ const AdminDashboard: React.FC = () => {
               <div className="p-6 flex-1 bg-slate-50/50">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {events.length > 0 ? events.map(event => {
-                    const isActive = new Date(event.start_date) <= new Date() && new Date(event.end_date) >= new Date();
+                    const now = getNowMYT();
+                    const isActive = utcToMyt(event.start_date) <= now && utcToMyt(event.end_date) >= now;
                     return (
                       <div key={event.id} className={`p-4 rounded-xl border ${isActive ? 'bg-gradient-to-br from-indigo-500 to-purple-600 border-transparent text-white shadow-md' : 'bg-white border-slate-200 text-slate-900'}`}>
                         <div className="flex justify-between items-start mb-4">

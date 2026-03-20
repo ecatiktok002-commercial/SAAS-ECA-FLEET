@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Trophy, Star, Target, Zap, Clock, CheckCircle2 } from 'lucide-react';
 import { MarketingEvent, Booking } from '../types';
+import { getNowMYT, utcToMyt } from '../utils/dateUtils';
 import confetti from 'canvas-confetti';
 
 interface AgentGamificationWidgetProps {
@@ -63,18 +64,18 @@ export const AgentGamificationWidget: React.FC<AgentGamificationWidgetProps> = (
   const formatRM = (amount: number) => `RM ${amount.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const activeEvents = events.filter(e => {
-    const now = new Date();
-    return new Date(e.start_date) <= now && new Date(e.end_date) >= now;
+    const now = getNowMYT();
+    return utcToMyt(e.start_date) <= now && utcToMyt(e.end_date) >= now;
   });
 
   // Calculate event progress
   const eventProgress = activeEvents.map(event => {
     const eventBookings = bookings.filter(b => {
-      const bookingDate = new Date(b.start_date);
+      const bookingDate = utcToMyt(b.start_date);
       return b.agent_id === userId && 
              b.status === 'completed' &&
-             bookingDate >= new Date(event.start_date) && 
-             bookingDate <= new Date(event.end_date);
+             bookingDate >= utcToMyt(event.start_date) && 
+             bookingDate <= utcToMyt(event.end_date);
     });
 
     let current = 0;
@@ -88,8 +89,8 @@ export const AgentGamificationWidget: React.FC<AgentGamificationWidgetProps> = (
     const isCompleted = current >= event.target_goal;
 
     // Time left calculation
-    const now = new Date();
-    const end = new Date(event.end_date);
+    const now = getNowMYT();
+    const end = utcToMyt(event.end_date);
     const diffMs = end.getTime() - now.getTime();
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
     const diffHrs = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));

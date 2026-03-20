@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Save, Upload, CheckCircle2 } from 'lucide-react';
 import { addDays, differenceInDays, parseISO, format, isValid } from 'date-fns';
+import { getNowMYT, formatInMYT, utcToMyt } from '../../utils/dateUtils';
 import { apiService } from '../../services/apiService';
 import { parseBookingDate } from '../../services/bookingService';
 import { useAuth } from '../../context/AuthContext';
@@ -74,7 +75,7 @@ export default function CreateAgreement() {
             );
 
             if (member && car) {
-              const d = new Date(parseBookingDate(booking.start_date, booking.pickup_time));
+              const d = utcToMyt(parseBookingDate(booking.start_date, booking.pickup_time));
               if (isValid(d)) {
                 const startDate = booking.start_date;
                 const time = booking.pickup_time || '00:00';

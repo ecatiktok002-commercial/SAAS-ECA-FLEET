@@ -10,6 +10,7 @@ import { Car, Booking, Member, StaffMember } from '../types';
 import { getAvailableCars, validateBooking, findAvailableCarByModel, suggestUpgrade } from '../services/bookingService';
 import { apiService } from '../services/apiService';
 import { parseBookingDate } from '../services/bookingService';
+import { getNowMYT, getMYTInputString, getMYTDateString, getMYTTimeString, mytToUtc } from '../utils/dateUtils';
 import HandoverForm from './HandoverForm';
 import PinModal from './PinModal';
 
@@ -129,7 +130,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
   const modelAvailability = useMemo(() => {
     if (!selectedDateTimeStr) return {};
     
-    const start = new Date(selectedDateTimeStr);
     const map: Record<string, number> = {};
 
     uniqueModels.forEach(model => {
@@ -137,11 +137,11 @@ const BookingModal: React.FC<BookingModalProps> = ({
       const available = modelCars.filter(car => {
          const bookingData = { 
            car_id: car.id, 
-           start_date: start.toISOString().split('T')[0], 
-           pickup_time: start.toISOString().split('T')[1].substring(0, 5),
+           start_date: getMYTDateString(selectedDateTimeStr), 
+           pickup_time: getMYTTimeString(selectedDateTimeStr),
            duration_days: Number(duration),
            member_id: '', // Dummy for validation
-           ...(isEarlyReturn && actualEndTime ? { end_time: new Date(actualEndTime).toISOString() } : { end_time: null })
+           ...(isEarlyReturn && actualEndTime ? { end_time: mytToUtc(actualEndTime).toISOString() } : { end_time: null })
          };
          // Exclude current booking if editing
          const otherBookings = editingBooking 
@@ -169,13 +169,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
         
         if (editingBooking.end_time) {
           setIsEarlyReturn(true);
-          const d = new Date(editingBooking.end_time);
-          const year = d.getFullYear();
-          const month = String(d.getMonth() + 1).padStart(2, '0');
-          const day = String(d.getDate()).padStart(2, '0');
-          const hours = String(d.getHours()).padStart(2, '0');
-          const minutes = String(d.getMinutes()).padStart(2, '0');
-          setActualEndTime(`${year}-${month}-${day}T${hours}:${minutes}`);
+          setActualEndTime(getMYTInputString(editingBooking.end_time));
         } else {
           setIsEarlyReturn(false);
           setActualEndTime('');
@@ -184,13 +178,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
         const car = cars.find(c => c.id === editingBooking.car_id);
         if (car) setSelectedModel(car.name);
         
-        const d = new Date(parseBookingDate(editingBooking.start_date, editingBooking.pickup_time));
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        const hours = String(d.getHours()).padStart(2, '0');
-        const minutes = String(d.getMinutes()).padStart(2, '0');
-        setSelectedDateTimeStr(`${year}-${month}-${day}T${hours}:${minutes}`);
+        setSelectedDateTimeStr(getMYTInputString(parseBookingDate(editingBooking.start_date, editingBooking.pickup_time)));
       } else if (initialDate) {
         // New: Default to category mode
         setBookingMode('category');
@@ -218,18 +206,13 @@ const BookingModal: React.FC<BookingModalProps> = ({
         
         setDuration(1);
         
-        const now = new Date();
+        const now = getNowMYT();
         const d = new Date(initialDate);
         if (d.getHours() === 0 && d.getMinutes() === 0) {
            d.setHours(now.getHours(), 0, 0, 0); 
         }
 
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        const hours = String(d.getHours()).padStart(2, '0');
-        const minutes = String(d.getMinutes()).padStart(2, '0');
-        setSelectedDateTimeStr(`${year}-${month}-${day}T${hours}:${minutes}`);
+        setSelectedDateTimeStr(getMYTInputString(d));
       }
     }
   }, [isOpen, initialDate, editingBooking, preselectedCarId, cars]);
@@ -338,10 +321,10 @@ const BookingModal: React.FC<BookingModalProps> = ({
     const bookingData = {
       car_id: finalCarId,
       member_id,
-      start_date: new Date(selectedDateTimeStr).toISOString().split('T')[0],
-      pickup_time: new Date(selectedDateTimeStr).toISOString().split('T')[1].substring(0, 5),
+      start_date: getMYTDateString(selectedDateTimeStr),
+      pickup_time: getMYTTimeString(selectedDateTimeStr),
       duration_days: Number(duration),
-      ...(isEarlyReturn && actualEndTime ? { end_time: new Date(actualEndTime).toISOString() } : { end_time: null })
+      ...(isEarlyReturn && actualEndTime ? { end_time: mytToUtc(actualEndTime).toISOString() } : { end_time: null })
     };
 
     // Double check validation for specific car (Category mode is already validated by findAvailableCarByModel)

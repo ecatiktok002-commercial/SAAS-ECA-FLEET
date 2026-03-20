@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { Users, Search, Phone, CreditCard, Download, MessageCircle, ExternalLink } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { formatInMYT, getNowMYT } from '../utils/dateUtils';
 import { apiService } from '../services/apiService';
 import * as XLSX from 'xlsx';
 
@@ -78,7 +79,7 @@ const CustomersPage: React.FC = () => {
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Customers');
     
     // Generate filename with date
-    const date = new Date().toISOString().split('T')[0];
+    const date = formatInMYT(getNowMYT(), 'yyyy-MM-dd');
     XLSX.writeFile(workbook, `Customer_Database_${date}.xlsx`);
   };
 

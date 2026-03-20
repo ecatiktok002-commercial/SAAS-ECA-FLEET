@@ -1,5 +1,6 @@
 import React from 'react';
 import { format } from 'date-fns';
+import { formatInMYT, getNowMYT } from '../utils/dateUtils';
 
 interface MalayPrintableAgreementTemplateProps {
   agreementId?: string;
@@ -48,7 +49,7 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
   const formatDate = (dateString?: string) => {
     if (!dateString) return "-";
     try {
-      return format(new Date(dateString), 'dd/MM/yyyy HH:mm');
+      return formatInMYT(dateString, 'dd/MM/yyyy HH:mm');
     } catch (e) {
       return dateString;
     }
@@ -72,7 +73,7 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
                 </div>
                 <div className="text-right">
                   <p className="text-sm">No. Rujukan: <span className="font-bold">{agreementId}</span></p>
-                  <p className="text-sm">Tarikh: {format(new Date(), 'dd/MM/yyyy')}</p>
+                  <p className="text-sm">Tarikh: {formatInMYT(getNowMYT(), 'dd/MM/yyyy')}</p>
                 </div>
               </div>
             </div>

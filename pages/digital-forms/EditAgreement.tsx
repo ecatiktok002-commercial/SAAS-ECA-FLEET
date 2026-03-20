@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, Upload, CheckCircle2, Eye, Trash2 } from 'lucide-react';
 import { addDays, differenceInDays, parseISO, format, isValid } from 'date-fns';
+import { getNowMYT, formatInMYT, utcToMyt } from '../../utils/dateUtils';
 import { apiService } from '../../services/apiService';
 import * as auditService from '../../services/auditService';
 import { useAuth } from '../../context/AuthContext';
@@ -270,7 +271,7 @@ export default function EditAgreement() {
       // Handle receipt update
       if (receiptData !== undefined) {
         updates.payment_receipt = receiptData;
-        updates.updated_at = new Date().toISOString();
+        updates.updated_at = getNowMYT().toISOString();
       }
 
       if (Object.keys(updates).length === 0) {

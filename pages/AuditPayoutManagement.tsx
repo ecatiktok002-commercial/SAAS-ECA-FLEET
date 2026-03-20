@@ -26,6 +26,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, isValid } from 'date-fns';
+import { getNowMYT, formatInMYT, utcToMyt } from '../utils/dateUtils';
 import { 
   BarChart, 
   Bar, 
@@ -150,7 +151,7 @@ const AuditPayoutManagement: React.FC = () => {
       return;
     }
 
-    const monthYear = safeFormat(new Date().toISOString(), 'MMMM yyyy');
+    const monthYear = formatInMYT(getNowMYT(), 'MMMM yyyy');
     if (!window.confirm(`Process monthly payout for ${monthYear}? This will reconcile ${approvedRecords.length} records.`)) return;
 
     try {
@@ -253,8 +254,9 @@ const AuditPayoutManagement: React.FC = () => {
     );
   };
 
-  const currentMonthStart = format(startOfMonth(new Date()), 'yyyy-MM-dd');
-  const currentMonthEnd = format(endOfMonth(new Date()), 'yyyy-MM-dd');
+  const now = getNowMYT();
+  const currentMonthStart = format(startOfMonth(now), 'yyyy-MM-dd');
+  const currentMonthEnd = format(endOfMonth(now), 'yyyy-MM-dd');
 
   const refreshData = async () => {
     try {

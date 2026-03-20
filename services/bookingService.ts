@@ -1,12 +1,13 @@
 
 import { Booking, Car } from '../types';
+import { mytToUtc, getNowMYT } from '../utils/dateUtils';
 
 export const parseBookingDate = (dateStr: string, timeStr?: string): number => {
   if (!dateStr) return 0;
   const time = timeStr || '00:00';
   const timeParts = time.split(':');
   const formattedTime = timeParts.length >= 3 ? time : `${time}:00`;
-  return new Date(`${dateStr}T${formattedTime}`).getTime();
+  return mytToUtc(`${dateStr}T${formattedTime}`).getTime();
 };
 
 /**
@@ -123,7 +124,7 @@ export const suggestUpgrade = (
  */
 export const optimizeBookings = (bookings: Booking[], cars: Car[]): Booking[] => {
   const updates: Booking[] = [];
-  const now = new Date().getTime(); // System time to determine past vs future
+  const now = getNowMYT().getTime(); // System time to determine past vs future
   
   // 1. Group cars by Model
   const carsByModel: Record<string, Car[]> = {};

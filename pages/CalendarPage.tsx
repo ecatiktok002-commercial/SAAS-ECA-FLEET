@@ -13,6 +13,7 @@ import { optimizeBookings } from '../services/bookingService';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { AlertTriangle } from 'lucide-react';
+import { getNowMYT, utcToMyt } from '../utils/dateUtils';
 
 const CalendarPage: React.FC = () => {
   const { subscriberId: currentSubscriberId, userId: currentUserId, userUid, staffRole } = useAuth();
@@ -21,7 +22,7 @@ const CalendarPage: React.FC = () => {
   const [currentStaff, setCurrentStaff] = useState<StaffMember | null>(null);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
 
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [currentMonth, setCurrentMonth] = useState(getNowMYT());
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [cars, setCars] = useState<Car[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
@@ -45,13 +46,15 @@ const CalendarPage: React.FC = () => {
       setError(null);
       setIsTablesMissing(false);
       
-      const start = new Date(currentMonth);
+      const start = utcToMyt(currentMonth);
       start.setMonth(start.getMonth() - 2);
       start.setDate(1);
+      start.setHours(0, 0, 0, 0);
       
-      const end = new Date(currentMonth);
+      const end = utcToMyt(currentMonth);
       end.setMonth(end.getMonth() + 3);
       end.setDate(0);
+      end.setHours(23, 59, 59, 999);
 
       const [fetchedCars, fetchedMembers, fetchedBookings, fetchedExpenses, fetchedStaff] = await Promise.all([
         apiService.getCars(currentSubscriberId),
@@ -183,7 +186,7 @@ const CalendarPage: React.FC = () => {
 
   const handleBookingClick = (booking: Booking) => {
     setEditingBooking(booking);
-    setSelectedDate(new Date(parseBookingDate(booking.start_date, booking.pickup_time)));
+    setSelectedDate(utcToMyt(parseBookingDate(booking.start_date, booking.pickup_time)));
     setIsBookingModalOpen(true);
   };
 
@@ -549,7 +552,7 @@ const CalendarPage: React.FC = () => {
           <h2 className="text-base md:text-lg font-bold text-slate-800 tracking-tight flex-1 text-center md:text-left min-w-[120px]">
             {monthName}
           </h2>
-          <button onClick={() => setCurrentMonth(new Date())} className="px-3 py-1.5 text-[10px] font-bold text-blue-600 bg-blue-50 rounded-lg uppercase tracking-wide hover:bg-blue-100 transition-colors">
+          <button onClick={() => setCurrentMonth(getNowMYT())} className="px-3 py-1.5 text-[10px] font-bold text-blue-600 bg-blue-50 rounded-lg uppercase tracking-wide hover:bg-blue-100 transition-colors">
             Today
           </button>
           
@@ -576,7 +579,7 @@ const CalendarPage: React.FC = () => {
           </button>
           
           <button 
-            onClick={() => handleDateClick(new Date())}
+            onClick={() => handleDateClick(getNowMYT())}
             className="flex-1 md:flex-none bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg shadow-slate-900/10 active:scale-[0.98] transition-all"
           >
             + Booking

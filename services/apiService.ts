@@ -2,6 +2,7 @@
 import { Booking, Car, Member, LogEntry, Expense, StaffMember, Agreement, DigitalForm, Company, MarketingEvent, AuditRecord, PayoutHistory } from '../types';
 import { supabase } from './supabase';
 import { parseBookingDate } from './bookingService';
+import { mytToUtc, formatInMYT, getNowMYT } from '../utils/dateUtils';
 
 // Service for managing fleet data
 const logSupabaseError = (context: string, error: any) => {
@@ -177,13 +178,11 @@ const mapBookingFromDB = (dbBooking: any): Booking => {
   let pickupTime = dbBooking.pickup_time;
   
   if (!startDate && dbBooking.pickup_datetime) {
-    const dt = new Date(dbBooking.pickup_datetime);
-    startDate = dt.toISOString().split('T')[0];
+    startDate = formatInMYT(dbBooking.pickup_datetime, 'yyyy-MM-dd');
   }
   
   if (!pickupTime && dbBooking.pickup_datetime) {
-    const dt = new Date(dbBooking.pickup_datetime);
-    pickupTime = dt.toISOString().split('T')[1].substring(0, 5);
+    pickupTime = formatInMYT(dbBooking.pickup_datetime, 'HH:mm');
   }
   
   // Ensure pickupTime is HH:MM if it came from a TIME column (which might be HH:MM:SS)
@@ -221,9 +220,9 @@ const mapBookingToDB = (booking: any) => {
   // Create pickup_datetime from start_date and pickup_time
   let pickupDatetime = null;
   if (booking.start_date && booking.pickup_time) {
-    pickupDatetime = new Date(`${booking.start_date}T${booking.pickup_time}:00Z`).toISOString();
+    pickupDatetime = mytToUtc(`${booking.start_date}T${booking.pickup_time}:00`).toISOString();
   } else if (booking.start_date) {
-    pickupDatetime = new Date(`${booking.start_date}T00:00:00Z`).toISOString();
+    pickupDatetime = mytToUtc(`${booking.start_date}T00:00:00`).toISOString();
   }
 
   const dbBooking: any = {

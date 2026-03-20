@@ -2,6 +2,7 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import { Booking, Car, Member } from '../types';
 import { isBookingOnDate, getBookingSegmentData, assignTracks } from '../services/bookingService';
+import { getNowMYT } from '../utils/dateUtils';
 import BookingPill from './BookingPill';
 
 // Calendar View Component
@@ -41,7 +42,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ currentMonth, bookings, car
     
     const prevMonthLastDay = new Date(year, month, 0);
     
-    const today = new Date();
+    const today = getNowMYT();
     today.setHours(0,0,0,0);
 
     const getDayContent = (d: Date) => {

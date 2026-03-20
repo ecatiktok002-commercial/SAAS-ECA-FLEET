@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { Plus, Car as CarIcon, AlertCircle, CheckCircle2, Trash2, Edit, Search, Lock } from 'lucide-react';
 import { Car, CarStatus, ExpiryStatus } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { getNowMYT } from '../utils/dateUtils';
 import * as Storage from '../services/storageService';
 import CarForm from '../components/CarForm';
 import AlertModal from '../components/AlertModal';
@@ -32,7 +33,7 @@ const FleetGuardianPage: React.FC = () => {
        return { type, daysRemaining: 0, status: 'good', date: 'Not Set' };
     }
 
-    const today = new Date();
+    const today = getNowMYT();
     today.setHours(0, 0, 0, 0);
     const target = new Date(dateStr);
     target.setHours(0, 0, 0, 0);

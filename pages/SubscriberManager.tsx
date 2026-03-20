@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
+import { getNowMYT, formatInMYT, utcToMyt } from '../utils/dateUtils';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/apiService';
 import { Company } from '../types';
@@ -85,12 +86,12 @@ const SubscriberManager: React.FC = () => {
       ]);
       
       // Trial Automation: Check for expired trials
-      const now = new Date();
+      const now = getNowMYT();
       const expiredTrials = subsData.filter(sub => 
         sub.is_trial && 
         sub.status === 'ACTIVE' && 
         sub.expiry_date && 
-        new Date(sub.expiry_date) < now
+        utcToMyt(sub.expiry_date) < now
       );
 
       if (expiredTrials.length > 0) {
@@ -133,13 +134,13 @@ const SubscriberManager: React.FC = () => {
       if (selectedDuration === 'trial') {
         isTrial = true;
         tier = 'Tier 3';
-        const date = new Date();
+        const date = getNowMYT();
         date.setDate(date.getDate() + 30);
         expiryDate = date.toISOString();
       } else if (selectedDuration === 'unlimited') {
         expiryDate = null;
       } else {
-        const date = new Date();
+        const date = getNowMYT();
         date.setMonth(date.getMonth() + parseInt(selectedDuration));
         expiryDate = date.toISOString();
       }
@@ -197,15 +198,16 @@ const SubscriberManager: React.FC = () => {
       if (selectedDuration === "trial") {
         isTrial = true;
         tier = 'Tier 3';
-        const date = new Date();
+        const date = getNowMYT();
         date.setDate(date.getDate() + 30);
         newDate = date.toISOString();
       } else if (selectedDuration === "unlimited") {
         newDate = null;
       } else {
         // If subscriber already has an expiry in the future, extend from there
-        const currentExpiry = subscriber.expiry_date ? new Date(subscriber.expiry_date) : new Date();
-        const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
+        const now = getNowMYT();
+        const currentExpiry = subscriber.expiry_date ? utcToMyt(subscriber.expiry_date) : now;
+        const baseDate = currentExpiry > now ? currentExpiry : now;
         const date = new Date(baseDate);
         date.setMonth(date.getMonth() + parseInt(selectedDuration));
         newDate = date.toISOString();
@@ -248,7 +250,7 @@ const SubscriberManager: React.FC = () => {
   // Calculate Metrics
   const metrics = useMemo(() => {
     // Find current month in revenueStats (which is now cash-basis)
-    const now = new Date();
+    const now = getNowMYT();
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const currentMonthName = monthNames[now.getMonth()];
     
@@ -257,7 +259,7 @@ const SubscriberManager: React.FC = () => {
 
     let activeSubs = 0;
     subscribers.forEach(sub => {
-      const isExpired = sub.expiry_date && new Date(sub.expiry_date) < new Date();
+      const isExpired = sub.expiry_date && utcToMyt(sub.expiry_date) < now;
       const isActive = sub.status === 'ACTIVE' && (sub.expiry_date === null || !isExpired);
 
       if (isActive) {
@@ -464,7 +466,7 @@ const SubscriberManager: React.FC = () => {
                       );
                     }
 
-                    const isExpired = sub.expiry_date && new Date(sub.expiry_date) < new Date();
+                    const isExpired = sub.expiry_date && utcToMyt(sub.expiry_date) < getNowMYT();
                     const isActive = sub.is_active && !isExpired;
 
                     return (

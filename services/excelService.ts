@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { Car } from '../types';
+import { formatInMYT, getNowMYT } from '../utils/dateUtils';
 
 export const exportData = (cars: Car[]) => {
   const worksheet = XLSX.utils.json_to_sheet(cars.map(car => ({
@@ -15,7 +16,7 @@ export const exportData = (cars: Car[]) => {
   
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Fleet');
-  XLSX.writeFile(workbook, `Fleet_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
+  XLSX.writeFile(workbook, `Fleet_Export_${formatInMYT(getNowMYT(), 'yyyy-MM-dd')}.xlsx`);
 };
 
 export const parseExcel = (file: File): Promise<Car[]> => {
