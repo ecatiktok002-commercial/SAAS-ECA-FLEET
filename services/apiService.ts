@@ -232,7 +232,6 @@ const mapBookingToDB = (booking: any) => {
     agent_id: booking.agent_id,
     pickup_datetime: pickupDatetime,
     duration: booking.duration_days,
-    duration_days: booking.duration_days,
     actual_end_time: booking.end_time,
     status: booking.status,
     total_price: booking.total_price,
@@ -242,11 +241,7 @@ const mapBookingToDB = (booking: any) => {
     has_discrepancy: booking.has_discrepancy,
     discrepancy_reason: booking.discrepancy_reason,
     is_receipt_verified: booking.is_receipt_verified,
-    payout_status: booking.payout_status,
-    start_date: booking.start_date,
-    end_date: booking.end_date,
-    pickup_time: booking.pickup_time,
-    return_time: booking.return_time
+    payout_status: booking.payout_status
   };
 
   // Remove undefined values to prevent PostgREST from trying to insert into missing columns
@@ -702,9 +697,7 @@ export const apiService = {
         const bufferDate = new Date(startDate);
         bufferDate.setDate(bufferDate.getDate() - 60);
         
-        // Format as YYYY-MM-DD for DATE column
-        const formattedDate = bufferDate.toISOString().split('T')[0];
-        query = query.gte('start_date', formattedDate);
+        query = query.gte('pickup_datetime', bufferDate.toISOString());
       }
 
       const { data, error } = await query;
@@ -766,10 +759,10 @@ export const apiService = {
     
     let query = supabase
       .from('bookings')
-      .select('pickup_datetime, duration, actual_end_time, id, start_date, pickup_time, duration_days, end_date, return_time')
+      .select('pickup_datetime, duration, actual_end_time, id')
       .eq('subscriber_id', subscriberId)
       .eq('car_id', booking.car_id)
-      .gte('start_date', bufferStart.toISOString().split('T')[0]);
+      .gte('pickup_datetime', bufferStart.toISOString());
       
     if (excludeBookingId) {
       query = query.neq('id', excludeBookingId);

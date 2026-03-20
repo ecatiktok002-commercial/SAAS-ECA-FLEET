@@ -21,8 +21,8 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
     .from('bookings')
     .select('*, cars(plate)')
     .eq('subscriber_id', subscriberId)
-    .gte('start_date', monthStartDate)
-    .lte('start_date', monthEndDate)
+    .gte('pickup_datetime', monthStartDate)
+    .lte('pickup_datetime', monthEndDate)
     .or('status.neq.cancelled,status.is.null');
 
   if (bookingsError) {
@@ -143,11 +143,7 @@ export const approveAmendment = async (agreementId: string, subscriberId: string
               .update({
                 pickup_datetime: startTimestamp.toISOString(),
                 actual_end_time: endTimestamp.toISOString(),
-                duration_days: duration,
-                start_date: finalStartDate,
-                end_date: finalEndDate,
-                pickup_time: finalPickupTime,
-                return_time: finalReturnTime
+                duration_days: duration
               })
               .eq('id', bookingId);
               
