@@ -114,11 +114,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .single();
           
           if (companyData) {
-            if (companyData.tier) {
-              const normalizedTier = normalizeTier(companyData.tier);
-              setSubscriptionTier(normalizedTier);
-              localStorage.setItem('subscriptionTier', normalizedTier);
-            }
+            const normalizedTier = companyData.tier ? normalizeTier(companyData.tier) : 'tier_1';
+            setSubscriptionTier(normalizedTier);
+            localStorage.setItem('subscriptionTier', normalizedTier);
+            
             if (companyData.name) {
               setCompanyName(companyData.name);
               localStorage.setItem('companyName', companyData.name);
@@ -137,13 +136,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               
               if (upsertError && upsertError.code !== '23505') { // Ignore duplicate key error
                 console.warn('Self-provisioning subscriber record failed:', upsertError);
+                setSubscriptionTier('tier_1');
+                localStorage.setItem('subscriptionTier', 'tier_1');
               } else {
                 setSubscriptionTier('tier_1');
                 localStorage.setItem('subscriptionTier', 'tier_1');
               }
             } catch (e) {
               console.warn('Self-provisioning error:', e);
+              setSubscriptionTier('tier_1');
+              localStorage.setItem('subscriptionTier', 'tier_1');
             }
+          } else {
+            // Fallback for staff or missing company data
+            setSubscriptionTier('tier_1');
+            localStorage.setItem('subscriptionTier', 'tier_1');
           }
         } else {
           setSubscriptionTier('tier_3');

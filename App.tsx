@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import AdminDashboard from './pages/AdminDashboard';
@@ -19,6 +19,7 @@ import { isConfigured } from './services/supabase';
 // A simple gate to handle Tier/Role redirects
 const StrictTierGate: React.FC<{ children: React.ReactNode; allowedTiers: string[]; allowStaff?: boolean }> = ({ children, allowedTiers, allowStaff = true }) => {
   const { user, subscriptionTier, staffRole, isLoading } = useAuth();
+  const location = useLocation();
   
   if (isLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">Loading...</div>;
@@ -27,10 +28,20 @@ const StrictTierGate: React.FC<{ children: React.ReactNode; allowedTiers: string
   if (!user) return <Navigate to="/login" replace />;
   
   // Rule: Agent/Staff can NEVER see Staff Management or other restricted pages
-  if (staffRole === 'staff' && !allowStaff) return <Navigate to="/" replace />;
+  if (staffRole === 'staff' && !allowStaff) {
+    if (location.pathname === '/') return <Navigate to="/calendar" replace />;
+    return <Navigate to="/" replace />;
+  }
   
   // Rule: Feature requires specific Tier
-  if (!subscriptionTier || !allowedTiers.includes(subscriptionTier)) return <Navigate to="/" replace />;
+  if (!subscriptionTier || !allowedTiers.includes(subscriptionTier)) {
+    if (location.pathname === '/') {
+      // If we are already on /, don't redirect to / to avoid infinite loop.
+      // Instead, show an error or redirect to login.
+      return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">Your account is not fully configured. Please contact support.</div>;
+    }
+    return <Navigate to="/" replace />;
+  }
 
   return <>{children}</>;
 };

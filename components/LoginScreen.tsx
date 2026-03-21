@@ -11,7 +11,7 @@ interface LoginScreenProps {
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const navigate = useNavigate();
-  const { login, subscriberId: existingSubscriberId, staffRole: existingStaffRole } = useAuth();
+  const { login, subscriberId: existingSubscriberId, staffRole: existingStaffRole, subscriptionTier: existingSubscriptionTier } = useAuth();
   const [step, setStep] = useState<1 | 2 | 3>(1); // 1: UID, 2: Staff PIN, 3: Superadmin PIN
   const [uidInput, setUidInput] = useState('');
   const [pin, setPin] = useState('');
@@ -22,10 +22,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
   // Redirect if already logged in fully
   useEffect(() => {
-    if (existingSubscriberId && existingStaffRole) {
+    if (existingSubscriberId && existingStaffRole && existingSubscriptionTier) {
       navigate('/');
     }
-  }, [existingSubscriberId, existingStaffRole, navigate]);
+  }, [existingSubscriberId, existingStaffRole, existingSubscriptionTier, navigate]);
 
   // Step 1: Handle UID Verification (Smart Detection)
   const handleVerifyUid = async (e: React.FormEvent) => {

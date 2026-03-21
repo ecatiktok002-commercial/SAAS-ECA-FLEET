@@ -63,41 +63,45 @@ export const AgentGamificationWidget: React.FC<AgentGamificationWidgetProps> = (
 
   const formatRM = (amount: number) => `RM ${amount.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const activeEvents = events.filter(e => {
-    const now = getNowMYT();
-    return utcToMyt(e.start_date) <= now && utcToMyt(e.end_date) >= now;
-  });
+  const activeEvents = React.useMemo(() => {
+    return events.filter(e => {
+      const now = getNowMYT();
+      return utcToMyt(e.start_date) <= now && utcToMyt(e.end_date) >= now;
+    });
+  }, [events]);
 
   // Calculate event progress
-  const eventProgress = activeEvents.map(event => {
-    const eventBookings = bookings.filter(b => {
-      const bookingDate = utcToMyt(b.start_date);
-      return b.agent_id === userId && 
-             b.status === 'completed' &&
-             bookingDate >= utcToMyt(event.start_date) && 
-             bookingDate <= utcToMyt(event.end_date);
+  const eventProgress = React.useMemo(() => {
+    return activeEvents.map(event => {
+      const eventBookings = bookings.filter(b => {
+        const bookingDate = utcToMyt(b.start_date);
+        return b.agent_id === userId && 
+               b.status === 'completed' &&
+               bookingDate >= utcToMyt(event.start_date) && 
+               bookingDate <= utcToMyt(event.end_date);
+      });
+
+      let current = 0;
+      if (event.goal_type === 'Total Orders') {
+        current = eventBookings.length;
+      } else {
+        current = eventBookings.reduce((sum, b) => sum + (b.total_price || 0), 0);
+      }
+
+      const percent = Math.min((current / event.target_goal) * 100, 100);
+      const isCompleted = current >= event.target_goal;
+
+      // Time left calculation
+      const now = getNowMYT();
+      const end = utcToMyt(event.end_date);
+      const diffMs = end.getTime() - now.getTime();
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      const diffHrs = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const timeLeft = diffDays > 0 ? `${diffDays}d ${diffHrs}h` : `${diffHrs}h`;
+
+      return { ...event, current, percent, isCompleted, timeLeft };
     });
-
-    let current = 0;
-    if (event.goal_type === 'Total Orders') {
-      current = eventBookings.length;
-    } else {
-      current = eventBookings.reduce((sum, b) => sum + (b.total_price || 0), 0);
-    }
-
-    const percent = Math.min((current / event.target_goal) * 100, 100);
-    const isCompleted = current >= event.target_goal;
-
-    // Time left calculation
-    const now = getNowMYT();
-    const end = utcToMyt(event.end_date);
-    const diffMs = end.getTime() - now.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const diffHrs = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const timeLeft = diffDays > 0 ? `${diffDays}d ${diffHrs}h` : `${diffHrs}h`;
-
-    return { ...event, current, percent, isCompleted, timeLeft };
-  });
+  }, [activeEvents, bookings, userId]);
 
   // Trigger confetti for newly completed events
   useEffect(() => {
