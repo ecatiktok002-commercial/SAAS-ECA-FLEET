@@ -186,12 +186,12 @@ const AuditPayoutManagement: React.FC = () => {
   };
 
   const orphans = useMemo(() => 
-    records.filter(r => !r.booking_id), 
+    records.filter(r => r.booking_id == null), 
     [records]
   );
 
   const readyForReview = useMemo(() => 
-    records.filter(r => r.booking_id != null && !r.is_receipt_verified), 
+    records.filter(r => r.booking_id != null), 
     [records]
   );
 
