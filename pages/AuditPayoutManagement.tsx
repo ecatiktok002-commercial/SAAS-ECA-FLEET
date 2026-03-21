@@ -20,12 +20,13 @@ import {
   BarChart3,
   ChevronRight,
   ChevronDown,
+  ChevronLeft,
   ArrowRight,
   TrendingUp,
   X,
   RefreshCw
 } from 'lucide-react';
-import { format, parseISO, startOfMonth, endOfMonth, isValid } from 'date-fns';
+import { format, parseISO, startOfMonth, endOfMonth, isValid, addMonths, subMonths } from 'date-fns';
 import { getNowMYT, formatInMYT, utcToMyt } from '../utils/dateUtils';
 import { 
   BarChart, 
@@ -40,6 +41,7 @@ import {
 } from 'recharts';
 import MatchyScanAlert from '../components/MatchyScanAlert';
 import { approveAmendment } from '../services/auditService';
+import toast from 'react-hot-toast';
 
 const safeFormat = (dateStr: string | Date | null | undefined, formatStr: string) => {
   if (!dateStr) return 'N/A';
@@ -71,6 +73,20 @@ const AuditPayoutManagement: React.FC = () => {
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
   const [scanTrigger, setScanTrigger] = useState(0);
   const [isScanning, setIsScanning] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(new Date());
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [selectedMonth]);
+
+  const currentMonthRecords = useMemo(() => {
+    return records.filter(r => {
+      if (!r.form_start) return false;
+      const recordDate = typeof r.form_start === 'string' ? parseISO(r.form_start) : r.form_start;
+      return recordDate.getFullYear() === selectedMonth.getFullYear() &&
+             recordDate.getMonth() === selectedMonth.getMonth();
+    });
+  }, [records, selectedMonth]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -117,6 +133,7 @@ const AuditPayoutManagement: React.FC = () => {
       }
       await apiService.approveAuditRecord(record.form_id, record.booking_id, subscriberId!);
       await refreshData();
+      toast.success('Payout approved!');
     } catch (err) {
       alert('Failed to approve record');
     } finally {
@@ -148,6 +165,7 @@ const AuditPayoutManagement: React.FC = () => {
       
       setSelectedIds([]);
       await refreshData();
+      toast.success('Payouts approved!');
     } catch (err) {
       alert('Failed to approve selected records');
     } finally {
@@ -156,18 +174,17 @@ const AuditPayoutManagement: React.FC = () => {
   };
 
   const handleProcessMonthlyPayout = async () => {
-    const approvedRecords = records.filter(r => r.payout_status === 'approved' && r.status !== 'reconciled');
-    if (approvedRecords.length === 0) {
-      alert('No approved payouts to process.');
+    if (approvedRecordsForMonth.length === 0) {
+      alert('No approved payouts to process for this month.');
       return;
     }
 
-    const monthYear = formatInMYT(getNowMYT(), 'MMMM yyyy');
-    if (!window.confirm(`Process monthly payout for ${monthYear}? This will reconcile ${approvedRecords.length} records.`)) return;
+    const monthYear = format(selectedMonth, 'MMMM yyyy');
+    if (!window.confirm(`Process monthly payout for ${monthYear}? This will reconcile ${approvedRecordsForMonth.length} records.`)) return;
 
     try {
       setProcessing('process');
-      await apiService.processMonthlyPayout(subscriberId!, monthYear, approvedRecords);
+      await apiService.processMonthlyPayout(subscriberId!, monthYear, approvedRecordsForMonth);
       await refreshData();
       setActiveTab('history');
     } catch (err) {
@@ -186,13 +203,13 @@ const AuditPayoutManagement: React.FC = () => {
   };
 
   const orphans = useMemo(() => 
-    records.filter(r => r.booking_id == null), 
-    [records]
+    currentMonthRecords.filter(r => r.booking_id == null), 
+    [currentMonthRecords]
   );
 
   const readyForReview = useMemo(() => 
-    records.filter(r => r.booking_id != null), 
-    [records]
+    currentMonthRecords.filter(r => r.booking_id != null && r.payout_status !== 'approved'), 
+    [currentMonthRecords]
   );
 
   const filteredRecords = useMemo(() => readyForReview.filter(r => 
@@ -204,16 +221,19 @@ const AuditPayoutManagement: React.FC = () => {
   const pendingPayoutsSum = readyForReview
     .reduce((sum, r) => sum + (Number(r.commission_earned) || 0), 0);
 
-  const readyForPayoutSum = records
-    .filter(r => !!r.booking_id && r.payout_status === 'approved' && r.status !== 'reconciled')
+  const approvedRecordsForMonth = useMemo(() => 
+    currentMonthRecords.filter(r => !!r.booking_id && r.payout_status === 'approved' && r.status !== 'reconciled'),
+    [currentMonthRecords]
+  );
+
+  const readyForPayoutSum = approvedRecordsForMonth
     .reduce((sum, r) => sum + (Number(r.commission_earned) || 0), 0);
 
   // Payout Summary Logic
   const payoutSummary = useMemo(() => {
-    const approvedRecords = records.filter(r => !!r.booking_id && r.payout_status === 'approved' && r.status !== 'reconciled');
     const agentMap = new Map<string, { agent_id: string, agent_name: string, total_bookings: number, total_revenue: number, payout_due: number }>();
     
-    approvedRecords.forEach(r => {
+    approvedRecordsForMonth.forEach(r => {
       const existing = agentMap.get(r.agent_id) || {
         agent_id: r.agent_id,
         agent_name: r.agent_name,
@@ -230,7 +250,7 @@ const AuditPayoutManagement: React.FC = () => {
     });
 
     return Array.from(agentMap.values());
-  }, [readyForReview]);
+  }, [approvedRecordsForMonth]);
 
   // Chart Data Logic
   const chartData = useMemo(() => {
@@ -292,7 +312,25 @@ const AuditPayoutManagement: React.FC = () => {
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Audit & Payout Management</h1>
-          <p className="text-slate-500 mt-1">Manage agent commissions, reconcile bookings, and track payout history.</p>
+          <p className="text-slate-500 mt-1 mb-4">Manage agent commissions, reconcile bookings, and track payout history.</p>
+          
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-1 w-fit shadow-sm">
+            <button 
+              onClick={() => setSelectedMonth(prev => subMonths(prev, 1))}
+              className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div className="font-bold text-slate-800 min-w-[140px] text-center">
+              {format(selectedMonth, 'MMMM yyyy')}
+            </div>
+            <button 
+              onClick={() => setSelectedMonth(prev => addMonths(prev, 1))}
+              className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
         </div>
         
         <div className="flex flex-col sm:flex-row items-end gap-4">

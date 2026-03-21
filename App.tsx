@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import AdminDashboard from './pages/AdminDashboard';
@@ -53,6 +54,7 @@ const App: React.FC = () => {
 
   return (
     <AuthProvider>
+      <Toaster position="bottom-right" />
       <Router>
         <AppRoutes />
         <SupabaseErrorBanner />
