@@ -73,14 +73,29 @@ const AuditPayoutManagement: React.FC = () => {
   const [isScanning, setIsScanning] = useState(false);
 
   useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const [auditData, historyData] = await Promise.all([
+          apiService.getAuditRecords(subscriberId!),
+          apiService.getPayoutHistory(subscriberId!)
+        ]);
+        setRecords(auditData);
+        setPayoutHistory(historyData);
+      } catch (err) {
+        console.error('Failed to fetch data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     if (subscriberId) {
-      fetchData();
+      loadData();
     }
   }, [subscriberId]);
 
-  const fetchData = async () => {
+  const refreshData = async () => {
     try {
-      setLoading(true);
       const [auditData, historyData] = await Promise.all([
         apiService.getAuditRecords(subscriberId!),
         apiService.getPayoutHistory(subscriberId!)
@@ -89,8 +104,6 @@ const AuditPayoutManagement: React.FC = () => {
       setPayoutHistory(historyData);
     } catch (err) {
       console.error('Failed to fetch data:', err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -103,7 +116,7 @@ const AuditPayoutManagement: React.FC = () => {
         await approveAmendment(record.form_id, subscriberId!);
       }
       await apiService.approveAuditRecord(record.form_id, record.booking_id, subscriberId!);
-      await fetchData();
+      await refreshData();
     } catch (err) {
       alert('Failed to approve record');
     } finally {
@@ -134,7 +147,7 @@ const AuditPayoutManagement: React.FC = () => {
       }
       
       setSelectedIds([]);
-      await fetchData();
+      await refreshData();
     } catch (err) {
       alert('Failed to approve selected records');
     } finally {
@@ -155,7 +168,7 @@ const AuditPayoutManagement: React.FC = () => {
     try {
       setProcessing('process');
       await apiService.processMonthlyPayout(subscriberId!, monthYear, approvedRecords);
-      await fetchData();
+      await refreshData();
       setActiveTab('history');
     } catch (err) {
       alert('Failed to process monthly payout');
@@ -255,19 +268,6 @@ const AuditPayoutManagement: React.FC = () => {
   const currentMonthStart = format(startOfMonth(now), 'yyyy-MM-dd');
   const currentMonthEnd = format(endOfMonth(now), 'yyyy-MM-dd');
 
-  const refreshData = async () => {
-    try {
-      const [auditData, historyData] = await Promise.all([
-        apiService.getAuditRecords(subscriberId!),
-        apiService.getPayoutHistory(subscriberId!)
-      ]);
-      setRecords(auditData);
-      setPayoutHistory(historyData);
-    } catch (err) {
-      console.error('Failed to fetch data:', err);
-    }
-  };
-
   const handleRunScan = () => {
     setIsScanning(true);
     setScanTrigger(prev => prev + 1);
@@ -275,7 +275,7 @@ const AuditPayoutManagement: React.FC = () => {
 
   const handleScanComplete = () => {
     setIsScanning(false);
-    fetchData(); // Use fetchData to ensure a clean state refresh
+    refreshData(); // Use refreshData to ensure a clean state refresh without unmounting MatchyScanAlert
   };
 
   if (loading) {
