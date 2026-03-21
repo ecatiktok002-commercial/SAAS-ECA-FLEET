@@ -2050,7 +2050,7 @@ export const apiService = {
     return withRetry(async () => {
       if (records.length === 0) return;
 
-      const totalAmount = records.reduce((sum, r) => sum + (r.commission_earned || 0), 0);
+      const totalAmount = records.reduce((sum, r) => sum + (Number(r.commission_earned) || 0), 0);
       
       // Group by agent
       const agentMap = new Map<string, { agent_id: string, agent_name: string, total_bookings: number, total_revenue: number, payout_due: number }>();
@@ -2065,8 +2065,8 @@ export const apiService = {
         };
         
         existing.total_bookings += 1;
-        existing.total_revenue += (r.form_price || 0);
-        existing.payout_due += (r.commission_earned || 0);
+        existing.total_revenue += (Number(r.form_price) || 0);
+        existing.payout_due += (Number(r.commission_earned) || 0);
         
         agentMap.set(r.agent_id, existing);
       });
