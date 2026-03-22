@@ -64,16 +64,64 @@ const CalendarPage: React.FC = () => {
         apiService.getStaffMembers(currentSubscriberId)
       ]);
       
-      // Filter members to only include those that are staff OR the subscriber
-      let staffOnlyMembers = fetchedMembers.filter(m => m.staff_id || m.name.includes('(Owner)'));
+      // Create a set of active staff IDs for efficient filtering
+      const activeStaffIds = new Set(fetchedStaff.map(s => s.id));
       
-      // Identify subscriber member
-      const subscriberMember = fetchedMembers.find(m => !m.staff_id && (m.name.includes('(Owner)') || m.subscriber_id === currentSubscriberId));
+      // Safe Owner Injection
+      let subscriberMember: Member | undefined;
+      try {
+        // First try to find existing subscriber member in fetched data
+        subscriberMember = fetchedMembers.find(m => 
+          m.is_subscriber || 
+          (!m.staff_id && (m.name.includes('(Owner)') || m.subscriber_id === currentSubscriberId))
+        );
+        
+        if (!subscriberMember) {
+          // If not found, fetch current user metadata for a better fallback
+          const { data: { user: currentUser } } = await supabase.auth.getUser();
+          const ownerName = currentUser?.user_metadata?.full_name || currentUser?.email || 'Admin (Owner)';
+          
+          subscriberMember = {
+            id: currentUserId || currentSubscriberId,
+            name: ownerName.includes('(Owner)') ? ownerName : `${ownerName} (Owner)`,
+            subscriber_id: currentSubscriberId,
+            is_active: true,
+            is_subscriber: true,
+            color: 'bg-indigo-600' // Default color for owner
+          } as Member;
+        } else {
+          subscriberMember.is_subscriber = true;
+          if (!subscriberMember.name.includes('(Owner)')) {
+            subscriberMember.name = `${subscriberMember.name} (Owner)`;
+          }
+          if (!subscriberMember.color) {
+            subscriberMember.color = 'bg-indigo-600';
+          }
+        }
+      } catch (ownerErr) {
+        console.warn('Failed to inject owner profile, using generic fallback:', ownerErr);
+        subscriberMember = {
+          id: currentUserId || currentSubscriberId,
+          name: 'Admin (Owner)',
+          subscriber_id: currentSubscriberId,
+          is_active: true,
+          is_subscriber: true,
+          color: 'bg-indigo-600'
+        } as Member;
+      }
       
+      // Filter members to ONLY include those that are ACTIVE staff
+      // We strictly enforce the activeStaffIds filter here
+      let staffOnlyMembers = fetchedMembers.filter(m => 
+        m.staff_id && activeStaffIds.has(m.staff_id)
+      );
+      
+      // Prepend the subscriber (Owner) to the list
       if (subscriberMember) {
-        subscriberMember.is_subscriber = true;
-        // Ensure it's at the top
-        staffOnlyMembers = [subscriberMember, ...staffOnlyMembers.filter(m => m.id !== subscriberMember.id)];
+        staffOnlyMembers = [
+          subscriberMember, 
+          ...staffOnlyMembers.filter(m => m.id !== subscriberMember.id)
+        ];
       }
       
       setCars(fetchedCars);

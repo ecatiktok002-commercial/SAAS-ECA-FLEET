@@ -1151,19 +1151,10 @@ export const apiService = {
         query = query.eq('subscriber_id', subscriberId);
       }
       
-      // Try to filter by is_active, but handle cases where column might not exist yet
+      // Try to filter by is_active
       const { data, error } = await query.eq('is_active', true);
       
       if (error) {
-        // If the error is about the column not existing, try without the filter
-        if (error.message.includes('column staff.is_active does not exist')) {
-          const { data: fallbackData, error: fallbackError } = await query;
-          if (fallbackError) {
-            logSupabaseError('getStaffMembers (fallback)', fallbackError);
-            return [];
-          }
-          return (fallbackData || []).map(mapStaffFromDB);
-        }
         logSupabaseError('getStaffMembers', error);
         return [];
       }
@@ -1311,6 +1302,21 @@ export const apiService = {
         console.warn('Legacy staff_members insert failed:', legacyError);
       }
 
+      // Also insert into members table for calendar visibility
+      const { error: memberError } = await supabase
+        .from('members')
+        .insert([{
+          subscriber_id: targetSubscriberId,
+          name,
+          staff_id: finalId,
+          is_active: true,
+          color: 'bg-blue-500'
+        }]);
+
+      if (memberError) {
+        console.warn('Members insert failed:', memberError);
+      }
+
       return mapStaffFromDB(newStaff);
     });
   },
@@ -1348,6 +1354,19 @@ export const apiService = {
           .from('staff_members')
           .update(legacyUpdates)
           .eq('id', staffId)
+          .eq('subscriber_id', targetSubscriberId);
+      }
+
+      // Update 'members' table for consistency
+      const memberUpdates: any = {};
+      if (updates.name !== undefined) memberUpdates.name = updates.name;
+      if (updates.is_active !== undefined) memberUpdates.is_active = updates.is_active;
+      
+      if (Object.keys(memberUpdates).length > 0) {
+        await supabase
+          .from('members')
+          .update(memberUpdates)
+          .eq('staff_id', staffId)
           .eq('subscriber_id', targetSubscriberId);
       }
 
