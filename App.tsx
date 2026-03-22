@@ -36,7 +36,7 @@ const StrictTierGate: React.FC<{ children: React.ReactNode; allowedTiers: string
   }
   
   // Rule: Feature requires specific Tier
-  if (!subscriptionTier || !allowedTiers.includes(subscriptionTier)) {
+  if (allowedTiers.length > 0 && (!subscriptionTier || !allowedTiers.includes(subscriptionTier))) {
     if (location.pathname === '/') {
       // If we are already on /, don't redirect to / to avoid infinite loop.
       // Instead, show an error or redirect to login.
@@ -107,7 +107,7 @@ const AppRoutes: React.FC = () => {
         } />
 
         <Route path="agent-dashboard" element={
-          <StrictTierGate allowedTiers={['tier_1', 'tier_2', 'tier_3']}>
+          <StrictTierGate allowedTiers={[]}>
             <AgentDashboard />
           </StrictTierGate>
         } />

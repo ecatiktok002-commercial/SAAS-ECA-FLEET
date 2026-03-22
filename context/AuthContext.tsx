@@ -37,7 +37,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userName, setUserName] = useState<string | null>(null);
   const [userUid, setUserUid] = useState<string | null>(null);
   const [staffRole, setStaffRole] = useState<StaffRole | null>(null);
-  const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier | null>(null);
+  const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier | null>(() => {
+    const stored = localStorage.getItem('subscriptionTier');
+    return normalizeTier(stored);
+  });
   const [companyName, setCompanyName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -117,15 +120,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .eq('id', finalSubscriberId)
             .single();
           
-          if (companyData) {
-            const normalizedTier = companyData.tier ? normalizeTier(companyData.tier) : 'tier_1';
-            setSubscriptionTier(normalizedTier);
-            localStorage.setItem('subscriptionTier', normalizedTier);
-            
-            if (companyData.name) {
-              setCompanyName(companyData.name);
-              localStorage.setItem('companyName', companyData.name);
-            }
+          const activeTier = companyData?.tier ? normalizeTier(companyData.tier) : 'tier_1';
+          setSubscriptionTier(activeTier);
+          localStorage.setItem('subscriptionTier', activeTier);
+          
+          if (companyData?.name) {
+            setCompanyName(companyData.name);
+            localStorage.setItem('companyName', companyData.name);
           } else if (finalSubscriberId === session.user.id) {
             // Self-Provisioning: Only if record is missing and it's their own ID
             try {
@@ -140,21 +141,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               
               if (upsertError && upsertError.code !== '23505') { // Ignore duplicate key error
                 console.warn('Self-provisioning subscriber record failed:', upsertError);
-                setSubscriptionTier('tier_1');
-                localStorage.setItem('subscriptionTier', 'tier_1');
-              } else {
-                setSubscriptionTier('tier_1');
-                localStorage.setItem('subscriptionTier', 'tier_1');
               }
             } catch (e) {
               console.warn('Self-provisioning error:', e);
-              setSubscriptionTier('tier_1');
-              localStorage.setItem('subscriptionTier', 'tier_1');
             }
-          } else {
-            // Fallback for staff or missing company data
-            setSubscriptionTier('tier_1');
-            localStorage.setItem('subscriptionTier', 'tier_1');
           }
         } else {
           setSubscriptionTier('tier_3');
