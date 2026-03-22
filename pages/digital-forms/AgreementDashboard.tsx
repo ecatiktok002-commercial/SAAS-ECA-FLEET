@@ -44,7 +44,7 @@ const AgreementDashboard: React.FC = () => {
       let createdBy: string | string[] | undefined = undefined;
       
       // Agents only see their own forms, Subscribers see everything
-      if (staffRole === 'staff') {
+      if (staffRole === 'agent') {
         const ids = [userUid, userId].filter(Boolean) as string[];
         
         // CRITICAL: If we are staff but don't have any ID yet, don't fetch
@@ -208,7 +208,7 @@ const AgreementDashboard: React.FC = () => {
               ) : filteredForms.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
-                    {staffRole === 'staff' ? (
+                    {staffRole === 'agent' ? (
                       <div className="space-y-2">
                         <p className="text-slate-600 font-medium">You have no active agreements.</p>
                         <p className="text-sm">Create a new reservation to get started.</p>

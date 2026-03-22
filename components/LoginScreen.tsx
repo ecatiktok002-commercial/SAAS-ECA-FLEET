@@ -171,7 +171,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       // We save the staff's specific identity to the session
       login(
         detectedRole.subscriber_id, 
-        'staff', 
+        'agent', 
         detectedRole.tier || 'tier_1', 
         detectedRole.staff_id, 
         detectedRole.staff_name, 

@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 
 export type SubscriptionTier = 'tier_1' | 'tier_2' | 'tier_3';
-export type StaffRole = 'admin' | 'staff';
+export type StaffRole = 'admin' | 'agent';
 
 interface AuthContextType {
   subscriberId: string | null;
@@ -92,18 +92,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUserId(getDisplayId(session.user));
         setUserName(isSuperAdmin ? 'Super Admin' : (session.user.user_metadata?.full_name || getDisplayId(session.user)));
         
-        // Determine role: if they are superadmin or if the user ID matches the subscriber ID, they are an admin
+        // Determine role: prioritize stored role, fallback to owner/superadmin logic
+        const storedRole = localStorage.getItem('staffRole') as StaffRole;
         const isSubscriberOwner = session.user.id === finalSubscriberId;
         
-        if (isSuperAdmin || isSubscriberOwner) {
+        if (isSuperAdmin) {
+          setStaffRole('admin');
+          localStorage.setItem('staffRole', 'admin');
+        } else if (storedRole) {
+          setStaffRole(storedRole);
+        } else if (isSubscriberOwner) {
           setStaffRole('admin');
           localStorage.setItem('staffRole', 'admin');
         } else {
-          // If not superadmin or owner, check stored role
-          const storedRole = localStorage.getItem('staffRole') as StaffRole;
-          if (storedRole) {
-            setStaffRole(storedRole);
-          }
+          setStaffRole('agent');
+          localStorage.setItem('staffRole', 'agent');
         }
 
         // Fetch latest tier and company name from DB for non-superadmins
@@ -157,7 +160,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSubscriptionTier('tier_3');
         }
 
-        const storedRole = localStorage.getItem('staffRole') as StaffRole;
+        const storedRoleFromStorage = localStorage.getItem('staffRole') as StaffRole;
         const storedSubscriberId = localStorage.getItem('subscriberId');
         const storedTier = localStorage.getItem('subscriptionTier');
         const storedName = localStorage.getItem('userName');
@@ -165,8 +168,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const storedUserUid = localStorage.getItem('userUid');
         const storedCompanyName = localStorage.getItem('companyName');
         
-        if (storedRole) {
-          setStaffRole(storedRole);
+        if (storedRoleFromStorage) {
+          setStaffRole(storedRoleFromStorage);
           if (storedSubscriberId) setSubscriberId(storedSubscriberId);
           if (storedTier) setSubscriptionTier(normalizeTier(storedTier));
           if (storedName) setUserName(storedName);
@@ -175,7 +178,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           if (storedUserUid) {
             setUserUid(storedUserUid);
-          } else if (storedRole === 'staff' && storedUserId) {
+          } else if (storedRole === 'agent' && storedUserId) {
             // Fallback: Fetch staff_uid if missing from storage
             const { data: staffData } = await supabase
               .from('staff_members')

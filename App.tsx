@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import AdminDashboard from './pages/AdminDashboard';
+import AgentDashboard from './pages/AgentDashboard';
 import CalendarPage from './pages/CalendarPage';
 import LoginScreen from './components/LoginScreen';
 import StaffManagementPage from './pages/StaffManagementPage';
@@ -29,7 +30,7 @@ const StrictTierGate: React.FC<{ children: React.ReactNode; allowedTiers: string
   if (!user) return <Navigate to="/login" replace />;
   
   // Rule: Agent/Staff can NEVER see Staff Management or other restricted pages
-  if (staffRole === 'staff' && !allowStaff) {
+  if (staffRole === 'agent' && !allowStaff) {
     if (location.pathname === '/') return <Navigate to="/calendar" replace />;
     return <Navigate to="/" replace />;
   }
@@ -66,6 +67,10 @@ const App: React.FC = () => {
 const IndexRedirect: React.FC = () => {
   const { subscriptionTier, staffRole } = useAuth();
   
+  if (staffRole === 'agent') {
+    return <Navigate to="/agent-dashboard" replace />;
+  }
+  
   if (subscriptionTier === 'tier_2') {
     return <Navigate to="/calendar" replace />;
   }
@@ -74,7 +79,7 @@ const IndexRedirect: React.FC = () => {
     return <Navigate to="/forms" replace />;
   }
   
-  return <AdminDashboard />;
+  return <Navigate to="/admin-dashboard" replace />;
 };
 
 const AppRoutes: React.FC = () => {
@@ -92,6 +97,18 @@ const AppRoutes: React.FC = () => {
           isSuperAdmin ? <Navigate to="/subscribers" replace /> : 
           <StrictTierGate allowedTiers={['tier_1', 'tier_2', 'tier_3']}>
             <IndexRedirect />
+          </StrictTierGate>
+        } />
+
+        <Route path="admin-dashboard" element={
+          <StrictTierGate allowedTiers={['tier_1', 'tier_2', 'tier_3']} allowStaff={false}>
+            <AdminDashboard />
+          </StrictTierGate>
+        } />
+
+        <Route path="agent-dashboard" element={
+          <StrictTierGate allowedTiers={['tier_1', 'tier_2', 'tier_3']}>
+            <AgentDashboard />
           </StrictTierGate>
         } />
         

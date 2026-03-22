@@ -17,7 +17,7 @@ const Layout: React.FC = () => {
 
     const path = location.pathname;
     const isAdmin = staffRole === 'admin';
-    const isStaff = staffRole === 'staff';
+    const isStaff = staffRole === 'agent';
     const isSuperAdmin = subscriberId === 'superadmin';
 
     if (isSuperAdmin) return;

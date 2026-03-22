@@ -11,7 +11,6 @@ import {
 } from 'lucide-react';
 import { Link, Navigate } from 'react-router-dom';
 import { Agreement, Booking, Car as CarType, MarketingEvent, Member } from '../types';
-import { AgentGamificationWidget } from '../components/AgentGamificationWidget';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
   ResponsiveContainer, Cell 
@@ -40,6 +39,11 @@ interface OverdueReturn {
 const AdminDashboard: React.FC = () => {
   const { subscriberId, staffRole, userUid, userId } = useAuth();
   
+  // Rule: Only Admins can see this dashboard
+  if (staffRole === 'agent') {
+    return <Navigate to="/" replace />;
+  }
+  
   const [stats, setStats] = useState({
     salesToday: 0,
     salesThisWeek: 0,
@@ -52,11 +56,6 @@ const AdminDashboard: React.FC = () => {
   const [leaderboard, setLeaderboard] = useState<AgentStat[]>([]);
   const [events, setEvents] = useState<MarketingEvent[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [currentStaff, setCurrentStaff] = useState<any>(null);
-  const [dailyCommissions, setDailyCommissions] = useState<{ date: string, amount: number }[]>([]);
-  const [totalEarnedToday, setTotalEarnedToday] = useState(0);
-  const [lastMonthEarnings, setLastMonthEarnings] = useState(0);
-  const [lifetimeEarnings, setLifetimeEarnings] = useState(0);
   const [recentAgreements, setRecentAgreements] = useState<Agreement[]>([]);
   
   const [loading, setLoading] = useState(true);
@@ -91,22 +90,16 @@ const AdminDashboard: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const agentId = staffRole === 'staff' ? userId || undefined : undefined;
-      const createdBy = staffRole === 'staff' ? ([userUid, userId].filter(Boolean) as string[]) : undefined;
+      const agentId = undefined;
+      const createdBy = undefined;
 
-      const [bookings, cars, agreements, marketingEvents, members, staffMembers] = await Promise.all([
+      const [bookings, cars, agreements, marketingEvents, members] = await Promise.all([
         apiService.getBookings(subscriberId!),
         apiService.getCars(subscriberId!),
         apiService.getAgreements(subscriberId!, agentId, createdBy),
         apiService.getMarketingEvents(subscriberId!),
-        apiService.getMembers(subscriberId!),
-        apiService.getStaffMembers(subscriberId!)
+        apiService.getMembers(subscriberId!)
       ]);
-
-      if (userUid) {
-        const staff = staffMembers.find(s => s.staff_uid === userUid);
-        setCurrentStaff(staff || null);
-      }
 
       const now = getNowMYT();
       const todayStr = format(now, 'yyyy-MM-dd');
@@ -117,10 +110,6 @@ const AdminDashboard: React.FC = () => {
       
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const startOfMonthStr = format(startOfMonth, 'yyyy-MM-dd');
-
-      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const lastMonthKey = format(lastMonth, 'yyyy-MM');
-      let lastMonthEarnings = 0;
 
       // 1. Sales Metrics (Completed/Signed Agreements)
       const completedAgreements = agreements.filter(a => {
@@ -162,9 +151,7 @@ const AdminDashboard: React.FC = () => {
       const pending: PendingDelivery[] = [];
       const overdue: OverdueReturn[] = [];
 
-      const filteredBookings = staffRole === 'staff' 
-        ? bookings.filter(b => b.agent_id === userId || b.created_by === userUid || b.created_by === userId)
-        : bookings;
+      const filteredBookings = bookings;
 
       filteredBookings.forEach(b => {
         if (b.status === 'cancelled') return;
@@ -198,8 +185,8 @@ const AdminDashboard: React.FC = () => {
       pending.sort((a, b) => a.pickupTime.getTime() - b.pickupTime.getTime());
       overdue.sort((a, b) => a.returnTime.getTime() - b.returnTime.getTime());
 
-      setPendingDeliveries(staffRole === 'staff' ? pending : pending.slice(0, 5));
-      setOverdueReturns(staffRole === 'staff' ? overdue : overdue.slice(0, 5));
+      setPendingDeliveries(pending.slice(0, 5));
+      setOverdueReturns(overdue.slice(0, 5));
 
       // 5. Agent Leaderboard (This month)
       const agentMap = new Map<string, { name: string, total: number }>();
@@ -225,114 +212,6 @@ const AdminDashboard: React.FC = () => {
       setEvents(marketingEvents);
       setBookings(bookings);
       setRecentAgreements(completedAgreements.slice(0, 5));
-
-      // 6. Agent Specific Metrics (Earnings & Chart)
-      if (staffRole === 'staff') {
-        const tierOverride = currentStaff?.commission_tier_override || 'auto';
-        
-        const getCommissionForAmount = (a: Agreement, runningTotal: number) => {
-          const totalPrice = a.total_price || 0;
-          // 1. Use stored commission if available
-          if (a.commission_earned !== undefined && a.commission_earned !== null) {
-            return a.commission_earned;
-          }
-
-          // 2. Use dynamic rate from staff profile
-          if (currentStaff?.commission_rate) {
-            return totalPrice * (currentStaff.commission_rate / 100);
-          }
-
-          // 3. Fallback to tier override if set
-          const tierOverride = currentStaff?.commission_tier_override || 'auto';
-          if (tierOverride !== 'auto') {
-            const rate = tierOverride === 'premium' ? 0.20 : tierOverride === 'prestige' ? 0.25 : 0.30;
-            return totalPrice * rate;
-          }
-          
-          // 4. Default tier logic
-          const getTotalCommission = (total: number) => {
-            if (total <= 5000) return total * 0.20;
-            if (total <= 8000) return (5000 * 0.20) + ((total - 5000) * 0.25);
-            return (5000 * 0.20) + (3000 * 0.25) + ((total - 8000) * 0.30);
-          };
-
-          return getTotalCommission(runningTotal + totalPrice) - getTotalCommission(runningTotal);
-        };
-
-        // Calculate Weekly Commissions for last 90 days (Quarterly)
-        const weeklyData: { [key: string]: number } = {};
-        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        
-        // Initialize last 13 weeks (approx 90 days)
-        for (let i = 12; i >= 0; i--) {
-          const d = getNowMYT();
-          d.setDate(d.getDate() - (i * 7));
-          // Find the start of that week (Sunday)
-          const weekStart = new Date(d);
-          weekStart.setDate(d.getDate() - d.getDay());
-          
-          const weekNum = Math.ceil(weekStart.getDate() / 7);
-          const monthName = monthNames[weekStart.getMonth()];
-          const label = `W${weekNum} - ${monthName}`;
-          weeklyData[label] = 0;
-        }
-
-        // Group agreements by month and sort them by date for progressive calculation
-        const monthGroups: { [key: string]: Agreement[] } = {};
-        completedAgreements.forEach(a => {
-          const monthKey = a.created_at.substring(0, 7);
-          if (!monthGroups[monthKey]) monthGroups[monthKey] = [];
-          monthGroups[monthKey].push(a);
-        });
-
-        let earnedToday = 0;
-        let lifetime = 0;
-        
-        Object.keys(monthGroups).forEach(monthKey => {
-          // Sort agreements in this month by created_at
-          const monthAgreements = monthGroups[monthKey].sort((a, b) => 
-            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-          );
-
-          let runningTotal = 0;
-          monthAgreements.forEach(a => {
-            const commission = getCommissionForAmount(a, runningTotal);
-            runningTotal += (a.total_price || 0);
-            lifetime += commission;
-
-            if (monthKey === lastMonthKey) {
-              lastMonthEarnings += commission;
-            }
-
-            const dateStr = a.created_at.split('T')[0];
-            if (dateStr === todayStr) {
-              earnedToday += commission;
-            }
-
-            // Group into weeks for the chart
-            const date = new Date(a.created_at);
-            const weekStart = new Date(date);
-            weekStart.setDate(date.getDate() - date.getDay());
-            const weekNum = Math.ceil(weekStart.getDate() / 7);
-            const monthName = monthNames[weekStart.getMonth()];
-            const label = `W${weekNum} - ${monthName}`;
-            
-            if (weeklyData[label] !== undefined) {
-              weeklyData[label] += commission;
-            }
-          });
-        });
-
-        const chartData = Object.entries(weeklyData).map(([label, amount]) => ({
-          date: label,
-          amount: Number(amount.toFixed(2))
-        }));
-
-        setDailyCommissions(chartData);
-        setTotalEarnedToday(earnedToday);
-        setLastMonthEarnings(lastMonthEarnings);
-        setLifetimeEarnings(lifetime);
-      }
 
     } catch (err: any) {
       console.error('Failed to fetch dashboard data:', err);
@@ -431,8 +310,7 @@ const AdminDashboard: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-semibold text-slate-900 tracking-tight">
-              {subscriberId === 'superadmin' ? 'Global Fleet Overview' : 
-               staffRole === 'admin' ? 'Operational Command Center' : 'Personal Performance Hub'}
+              {subscriberId === 'superadmin' ? 'Global Fleet Overview' : 'Operational Command Center'}
             </h1>
             <p className="text-slate-500 mt-2 text-sm">
               Real-time fleet operations, sales analytics, and team performance.
@@ -440,201 +318,20 @@ const AdminDashboard: React.FC = () => {
           </div>
         </div>
 
-        {staffRole === 'staff' && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8">
-            <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
-              <ListTodo className="w-5 h-5 text-blue-600" />
-              <h2 className="font-bold text-slate-900 uppercase tracking-tight">Daily Mission Log</h2>
-            </div>
-            <div className="divide-y divide-slate-100">
-              {(() => {
-                const missions = [
-                  ...pendingDeliveries.map(p => ({ ...p, type: 'pickup' })),
-                  ...overdueReturns.map(r => ({ ...r, type: 'return' }))
-                ].sort((a, b) => {
-                  const timeA = 'pickupTime' in a ? a.pickupTime.getTime() : a.returnTime.getTime();
-                  const timeB = 'pickupTime' in b ? b.pickupTime.getTime() : b.returnTime.getTime();
-                  return timeA - timeB;
-                }).slice(0, 3);
-
-                if (missions.length === 0) {
-                  return <div className="p-6 text-center text-slate-500 italic">No urgent missions today. Keep hunting!</div>;
-                }
-
-                return missions.map((m) => (
-                  <div 
-                    key={m.id} 
-                    className={`p-4 hover:bg-slate-50 transition-colors ${m.type === 'return' ? 'cursor-pointer' : ''}`}
-                    onClick={() => {
-                      if (m.type === 'return') setConfirmReturnId(m.id);
-                    }}
-                  >
-                    {confirmReturnId === m.id && m.type === 'return' ? (
-                      <div className="flex flex-col items-center justify-center py-2">
-                        <p className="text-sm font-semibold text-slate-800 mb-3">Is the Vehicle Returned?</p>
-                        <div className="flex gap-3">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleConfirmReturn(m.id);
-                            }}
-                            disabled={isConfirmingReturn}
-                            className="flex items-center gap-1 px-4 py-1.5 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50"
-                          >
-                            <CheckCircle2 className="w-4 h-4" /> Yes
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setConfirmReturnId(null);
-                            }}
-                            disabled={isConfirmingReturn}
-                            className="flex items-center gap-1 px-4 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300 transition-colors disabled:opacity-50"
-                          >
-                            <X className="w-4 h-4" /> No
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${m.type === 'pickup' ? 'bg-blue-100 text-blue-600' : 'bg-rose-100 text-rose-600'}`}>
-                            {m.type === 'pickup' ? <ArrowRight className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
-                          </div>
-                          <div>
-                            <p className="font-bold text-slate-900">{m.carPlate}</p>
-                            <p className="text-sm text-slate-500">{m.customerName}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          {m.type === 'pickup' ? (
-                            <p className="font-bold text-blue-600 uppercase text-sm">
-                              {m.carPlate} OUT IN {formatTimeDiff((m as any).pickupTime).toUpperCase()}
-                            </p>
-                          ) : (
-                            <p className="font-bold text-rose-600 uppercase text-sm">
-                              {m.carPlate} LATE RETURN ({formatTimeDiff((m as any).returnTime).toUpperCase()} LATE)
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ));
-              })()}
-            </div>
-          </div>
-        )}
-
-        {staffRole === 'staff' && currentStaff && (
-          <AgentGamificationWidget 
-            salesThisMonth={stats.salesThisMonth}
-            commissionTierOverride={currentStaff.commission_tier_override || 'auto'}
-            events={events}
-            bookings={bookings}
-            userId={userId || ''}
-          />
-        )}
-
         {/* Top Row: High-Level KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {staffRole === 'staff' ? (
-            <div className="lg:col-span-3 space-y-6">
-              <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-6 rounded-xl border border-transparent shadow-lg text-white">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <Wallet className="w-6 h-6 text-emerald-100" />
-                    <h3 className="text-emerald-50 text-sm font-bold uppercase tracking-widest">My Pocket</h3>
-                  </div>
-                  <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Live Earnings</span>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-emerald-100 text-sm font-medium">Total Earned Today</p>
-                  <p className="text-5xl font-black tracking-tighter">{currencyFormatter.format(totalEarnedToday)}</p>
-                </div>
-                
-                <div className="mt-4 flex items-center gap-2 text-emerald-100/80">
-                  <Clock className="w-4 h-4" />
-                  <p className="text-xs font-bold uppercase tracking-widest">Last Month's Payout:</p>
-                  <p className="text-sm font-black">
-                    {lastMonthEarnings > 0 
-                      ? currencyFormatter.format(lastMonthEarnings) 
-                      : "RM 0.00 — Let's make this your first payout month!"}
-                  </p>
-                </div>
-
-                <div className="mt-6 pt-6 border-t border-white/10 flex justify-between items-end">
-                  <div>
-                    <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1">Monthly Sales</p>
-                    <p className="text-2xl font-bold">{currencyFormatter.format(stats.salesThisMonth)}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1">LIFETIME EARNINGS 🏆</p>
-                    <p className="text-2xl font-bold">{currencyFormatter.format(lifetimeEarnings)}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Weekly Quarterly Chart */}
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <div className="flex items-center gap-3 mb-4">
-                  <BarChart3 className="w-5 h-5 text-emerald-600" />
-                  <h3 className="font-bold text-slate-900 uppercase tracking-tight text-sm">Weekly Earnings Performance (90 Days)</h3>
-                </div>
-                <div className="h-40 w-full">
-                  {dailyCommissions.some(d => d.amount > 0) ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={dailyCommissions}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis 
-                          dataKey="date" 
-                          axisLine={false} 
-                          tickLine={false} 
-                          tick={{ fill: '#64748b', fontSize: 10 }}
-                        />
-                        <YAxis 
-                          axisLine={false} 
-                          tickLine={false} 
-                          tick={{ fill: '#64748b', fontSize: 10 }}
-                          tickFormatter={(value) => `RM${value}`}
-                        />
-                        <Tooltip 
-                          cursor={{ fill: '#f8fafc' }}
-                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                          formatter={(value: any) => [`${currencyFormatter.format(Number(value))}`, 'Commission']}
-                        />
-                        <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
-                          {dailyCommissions.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.amount > 0 ? '#10b981' : '#e2e8f0'} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-center p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                      <TrendingUp className="w-8 h-8 text-slate-300 mb-2" />
-                      <p className="text-slate-900 font-bold text-xs">No earnings yet this quarter</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <h3 className="text-slate-500 text-sm font-medium mb-2">Sales Today</h3>
-                <p className="text-3xl font-bold text-slate-900">{currencyFormatter.format(stats.salesToday)}</p>
-              </div>
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <h3 className="text-slate-500 text-sm font-medium mb-2">Sales This Week</h3>
-                <p className="text-3xl font-bold text-slate-900">{currencyFormatter.format(stats.salesThisWeek)}</p>
-              </div>
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <h3 className="text-slate-500 text-sm font-medium mb-2">Sales This Month</h3>
-                <p className="text-3xl font-bold text-slate-900">{currencyFormatter.format(stats.salesThisMonth)}</p>
-              </div>
-            </>
-          )}
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <h3 className="text-slate-500 text-sm font-medium mb-2">Sales Today</h3>
+            <p className="text-3xl font-bold text-slate-900">{currencyFormatter.format(stats.salesToday)}</p>
+          </div>
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <h3 className="text-slate-500 text-sm font-medium mb-2">Sales This Week</h3>
+            <p className="text-3xl font-bold text-slate-900">{currencyFormatter.format(stats.salesThisWeek)}</p>
+          </div>
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <h3 className="text-slate-500 text-sm font-medium mb-2">Sales This Month</h3>
+            <p className="text-3xl font-bold text-slate-900">{currencyFormatter.format(stats.salesThisMonth)}</p>
+          </div>
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-slate-500 text-sm font-medium">Idle Vehicles</h3>
@@ -645,280 +342,272 @@ const AdminDashboard: React.FC = () => {
         </div>
 
         {/* Middle Row: The Action Center */}
-        {staffRole === 'admin' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Pending Deliveries */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
-                <Clock className="w-5 h-5 text-blue-600" />
-                <h2 className="font-semibold text-slate-900">Pending Deliveries (Today)</h2>
-                <span className="ml-auto bg-blue-100 text-blue-700 py-0.5 px-2.5 rounded-full text-xs font-medium">
-                  {pendingDeliveries.length} To-Do
-                </span>
-              </div>
-              <div className="divide-y divide-slate-100 flex-1 overflow-y-auto max-h-96">
-                {pendingDeliveries.length > 0 ? pendingDeliveries.map(delivery => (
-                  <div key={delivery.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-slate-900">{delivery.customerName}</p>
-                      <p className="text-sm text-slate-500 flex items-center gap-2 mt-1">
-                        <Car className="w-4 h-4" /> {delivery.carPlate}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-slate-900">
-                        {delivery.pickupTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                      <p className="text-xs text-blue-600 font-medium mt-1">
-                        In {formatTimeDiff(delivery.pickupTime)}
-                      </p>
-                    </div>
-                  </div>
-                )) : (
-                  <div className="p-8 text-center text-slate-500">
-                    <CheckCircle2 className="w-8 h-8 mx-auto mb-3 text-emerald-500" />
-                    <p>No pending deliveries today.</p>
-                  </div>
-                )}
-              </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Pending Deliveries */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
+              <Clock className="w-5 h-5 text-blue-600" />
+              <h2 className="font-semibold text-slate-900">Pending Deliveries (Today)</h2>
+              <span className="ml-auto bg-blue-100 text-blue-700 py-0.5 px-2.5 rounded-full text-xs font-medium">
+                {pendingDeliveries.length} To-Do
+              </span>
             </div>
-
-            {/* Overdue Returns */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-slate-100 bg-rose-50/30 flex items-center gap-3">
-                <AlertCircle className="w-5 h-5 text-rose-600" />
-                <h2 className="font-semibold text-slate-900">Overdue Returns (Urgent)</h2>
-                <span className="ml-auto bg-rose-100 text-rose-700 py-0.5 px-2.5 rounded-full text-xs font-medium">
-                  {overdueReturns.length} Late
-                </span>
-              </div>
-              <div className="divide-y divide-slate-100 flex-1 overflow-y-auto max-h-96">
-                {overdueReturns.length > 0 ? overdueReturns.map(returnItem => (
-                  <div 
-                    key={returnItem.id} 
-                    className="p-4 hover:bg-rose-50/50 transition-colors cursor-pointer"
-                    onClick={() => setConfirmReturnId(returnItem.id)}
-                  >
-                    {confirmReturnId === returnItem.id ? (
-                      <div className="flex flex-col items-center justify-center py-2">
-                        <p className="text-sm font-semibold text-slate-800 mb-3">Is the Vehicle Returned?</p>
-                        <div className="flex gap-3">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleConfirmReturn(returnItem.id);
-                            }}
-                            disabled={isConfirmingReturn}
-                            className="flex items-center gap-1 px-4 py-1.5 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50"
-                          >
-                            <CheckCircle2 className="w-4 h-4" /> Yes
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setConfirmReturnId(null);
-                            }}
-                            disabled={isConfirmingReturn}
-                            className="flex items-center gap-1 px-4 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300 transition-colors disabled:opacity-50"
-                          >
-                            <X className="w-4 h-4" /> No
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-slate-900">{returnItem.customerName}</p>
-                          <p className="text-sm text-slate-500 flex items-center gap-2 mt-1">
-                            <Car className="w-4 h-4" /> {returnItem.carPlate}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium text-slate-900">
-                            {format(returnItem.returnTime, 'dd/MM/yyyy HH:mm')}
-                          </p>
-                          <p className="text-xs text-rose-600 font-medium mt-1">
-                            Late by {formatTimeDiff(returnItem.returnTime)}
-                          </p>
-                        </div>
-                      </div>
-                    )}
+            <div className="divide-y divide-slate-100 flex-1 overflow-y-auto max-h-96">
+              {pendingDeliveries.length > 0 ? pendingDeliveries.map(delivery => (
+                <div key={delivery.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-slate-900">{delivery.customerName}</p>
+                    <p className="text-sm text-slate-500 flex items-center gap-2 mt-1">
+                      <Car className="w-4 h-4" /> {delivery.carPlate}
+                    </p>
                   </div>
-                )) : (
-                  <div className="p-8 text-center text-slate-500">
-                    <CheckCircle2 className="w-8 h-8 mx-auto mb-3 text-emerald-500" />
-                    <p>No overdue returns.</p>
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-slate-900">
+                      {delivery.pickupTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                    <p className="text-xs text-blue-600 font-medium mt-1">
+                      In {formatTimeDiff(delivery.pickupTime)}
+                    </p>
                   </div>
-                )}
-              </div>
+                </div>
+              )) : (
+                <div className="p-8 text-center text-slate-500">
+                  <CheckCircle2 className="w-8 h-8 mx-auto mb-3 text-emerald-500" />
+                  <p>No pending deliveries today.</p>
+                </div>
+              )}
             </div>
           </div>
-        )}
 
-        {/* Recent Earnings Table (Agent Only) */}
-        {staffRole === 'staff' && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <DollarSign className="w-5 h-5 text-emerald-600" />
-                <h2 className="font-bold text-slate-900 uppercase tracking-tight">Recent Earnings Table</h2>
-              </div>
-              <Link to="/agreements" className="text-sm font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1">
-                View All <ArrowRight className="w-4 h-4" />
-              </Link>
+          {/* Overdue Returns */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-slate-100 bg-rose-50/30 flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-rose-600" />
+              <h2 className="font-semibold text-slate-900">Overdue Returns (Urgent)</h2>
+              <span className="ml-auto bg-rose-100 text-rose-700 py-0.5 px-2.5 rounded-full text-xs font-medium">
+                {overdueReturns.length} Late
+              </span>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-widest">
-                  <tr>
-                    <th className="px-6 py-4">Date</th>
-                    <th className="px-6 py-4">Customer</th>
-                    <th className="px-6 py-4">Vehicle</th>
-                    <th className="px-6 py-4 text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {recentAgreements.length > 0 ? recentAgreements.map((agreement) => (
-                    <tr key={agreement.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 text-sm text-slate-600">
-                        {format(new Date(agreement.created_at), 'dd/MM/yyyy')}
-                      </td>
-                      <td className="px-6 py-4 text-sm font-bold text-slate-900">
-                        {agreement.customer_name}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600">
-                        {agreement.car_plate_number || agreement.car_model}
-                      </td>
-                      <td className="px-6 py-4 text-sm font-black text-emerald-600 text-right">
-                        {currencyFormatter.format(agreement.total_price)}
-                      </td>
-                    </tr>
-                  )) : (
-                    <tr>
-                      <td colSpan={4} className="px-6 py-8 text-center text-slate-500 italic">
-                        No transactions found.
-                      </td>
-                    </tr>
+            <div className="divide-y divide-slate-100 flex-1 overflow-y-auto max-h-96">
+              {overdueReturns.length > 0 ? overdueReturns.map(returnItem => (
+                <div 
+                  key={returnItem.id} 
+                  className="p-4 hover:bg-rose-50/50 transition-colors cursor-pointer"
+                  onClick={() => setConfirmReturnId(returnItem.id)}
+                >
+                  {confirmReturnId === returnItem.id ? (
+                    <div className="flex flex-col items-center justify-center py-2">
+                      <p className="text-sm font-semibold text-slate-800 mb-3">Is the Vehicle Returned?</p>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleConfirmReturn(returnItem.id);
+                          }}
+                          disabled={isConfirmingReturn}
+                          className="flex items-center gap-1 px-4 py-1.5 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50"
+                        >
+                          <CheckCircle2 className="w-4 h-4" /> Yes
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmReturnId(null);
+                          }}
+                          disabled={isConfirmingReturn}
+                          className="flex items-center gap-1 px-4 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300 transition-colors disabled:opacity-50"
+                        >
+                          <X className="w-4 h-4" /> No
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-slate-900">{returnItem.customerName}</p>
+                        <p className="text-sm text-slate-500 flex items-center gap-2 mt-1">
+                          <Car className="w-4 h-4" /> {returnItem.carPlate}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-slate-900">
+                          {format(returnItem.returnTime, 'dd/MM/yyyy HH:mm')}
+                        </p>
+                        <p className="text-xs text-rose-600 font-medium mt-1">
+                          Late by {formatTimeDiff(returnItem.returnTime)}
+                        </p>
+                      </div>
+                    </div>
                   )}
-                </tbody>
-              </table>
+                </div>
+              )) : (
+                <div className="p-8 text-center text-slate-500">
+                  <CheckCircle2 className="w-8 h-8 mx-auto mb-3 text-emerald-500" />
+                  <p>No overdue returns.</p>
+                </div>
+              )}
             </div>
           </div>
-        )}
+        </div>
+
+        {/* Recent Earnings Table */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <DollarSign className="w-5 h-5 text-emerald-600" />
+              <h2 className="font-bold text-slate-900 uppercase tracking-tight">Recent Transactions</h2>
+            </div>
+            <Link to="/agreements" className="text-sm font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1">
+              View All <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-widest">
+                <tr>
+                  <th className="px-6 py-4">Date</th>
+                  <th className="px-6 py-4">Customer</th>
+                  <th className="px-6 py-4">Vehicle</th>
+                  <th className="px-6 py-4 text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {recentAgreements.length > 0 ? recentAgreements.map((agreement) => (
+                  <tr key={agreement.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      {format(new Date(agreement.created_at), 'dd/MM/yyyy')}
+                    </td>
+                    <td className="px-6 py-4 text-sm font-bold text-slate-900">
+                      {agreement.customer_name}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      {agreement.car_plate_number || agreement.car_model}
+                    </td>
+                    <td className="px-6 py-4 text-sm font-black text-emerald-600 text-right">
+                      {currencyFormatter.format(agreement.total_price)}
+                    </td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-8 text-center text-slate-500 italic">
+                      No transactions found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
         {/* Bottom Row: Strategy & Team */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Pop-Up Events Engine */}
-          {staffRole === 'admin' && (
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Zap className="w-5 h-5 text-amber-500" />
-                  <h2 className="font-semibold text-slate-900">Pop-Up Events Engine</h2>
-                </div>
-                <button 
-                  onClick={() => setShowEventModal(true)}
-                  className="flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  <Plus className="w-4 h-4" /> Add Event
-                </button>
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Zap className="w-5 h-5 text-amber-500" />
+                <h2 className="font-semibold text-slate-900">Pop-Up Events Engine</h2>
               </div>
-              <div className="p-6 flex-1 bg-slate-50/50">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {events.length > 0 ? events.map(event => {
-                    const now = getNowMYT();
-                    const isActive = utcToMyt(event.start_date) <= now && utcToMyt(event.end_date) >= now;
-                    return (
-                      <div key={event.id} className={`p-4 rounded-xl border ${isActive ? 'bg-gradient-to-br from-indigo-500 to-purple-600 border-transparent text-white shadow-md' : 'bg-white border-slate-200 text-slate-900'}`}>
-                        <div className="flex justify-between items-start mb-4">
-                          <h3 className="font-bold text-lg">{event.name}</h3>
-                          <div className="flex items-center gap-2">
-                            {isActive && <span className="bg-white/20 px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wider">Active</span>}
-                            <button 
-                              onClick={async () => {
-                                try {
-                                  await apiService.deleteMarketingEvent(event.id, subscriberId!);
-                                  fetchDashboardData();
-                                } catch (err) {
-                                  console.error('Failed to delete event:', err);
-                                }
-                              }}
-                              className={`p-1 rounded-md transition-colors ${isActive ? 'hover:bg-white/20 text-white/70 hover:text-white' : 'hover:bg-slate-100 text-slate-400 hover:text-rose-500'}`}
-                              title="Delete Event"
-                            >
-                              &times;
-                            </button>
-                          </div>
+              <button 
+                onClick={() => setShowEventModal(true)}
+                className="flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Plus className="w-4 h-4" /> Add Event
+              </button>
+            </div>
+            <div className="p-6 flex-1 bg-slate-50/50">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {events.length > 0 ? events.map(event => {
+                  const now = getNowMYT();
+                  const isActive = utcToMyt(event.start_date) <= now && utcToMyt(event.end_date) >= now;
+                  return (
+                    <div key={event.id} className={`p-4 rounded-xl border ${isActive ? 'bg-gradient-to-br from-indigo-500 to-purple-600 border-transparent text-white shadow-md' : 'bg-white border-slate-200 text-slate-900'}`}>
+                      <div className="flex justify-between items-start mb-4">
+                        <h3 className="font-bold text-lg">{event.name}</h3>
+                        <div className="flex items-center gap-2">
+                          {isActive && <span className="bg-white/20 px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wider">Active</span>}
+                          <button 
+                            onClick={async () => {
+                              try {
+                                await apiService.deleteMarketingEvent(event.id, subscriberId!);
+                                fetchDashboardData();
+                              } catch (err) {
+                                console.error('Failed to delete event:', err);
+                              }
+                            }}
+                            className={`p-1 rounded-md transition-colors ${isActive ? 'hover:bg-white/20 text-white/70 hover:text-white' : 'hover:bg-slate-100 text-slate-400 hover:text-rose-500'}`}
+                            title="Delete Event"
+                          >
+                            &times;
+                          </button>
                         </div>
-                        <div className="space-y-2">
-                          <div>
-                            <p className={`text-xs ${isActive ? 'text-indigo-100' : 'text-slate-500'}`}>Goal: {event.goal_type}</p>
-                            <p className="text-lg font-bold">
-                              {event.goal_type === 'Total Orders' ? `${event.target_goal} Orders` : currencyFormatter.format(event.target_goal)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className={`text-xs ${isActive ? 'text-indigo-100' : 'text-slate-500'}`}>Reward</p>
-                            <p className="text-lg font-bold text-emerald-500">{currencyFormatter.format(event.reward_amount)}</p>
-                          </div>
-                        </div>
-                        <p className={`text-xs mt-4 ${isActive ? 'text-indigo-200' : 'text-slate-400'}`}>
-                          {format(new Date(event.start_date), 'dd/MM/yyyy')} - {format(new Date(event.end_date), 'dd/MM/yyyy')}
-                        </p>
                       </div>
-                    );
-                  }) : (
-                    <div className="col-span-full text-center py-8 text-slate-500">
-                      <Zap className="w-8 h-8 mx-auto mb-3 text-slate-300" />
-                      <p>No active marketing events.</p>
+                      <div className="space-y-2">
+                        <div>
+                          <p className={`text-xs ${isActive ? 'text-indigo-100' : 'text-slate-500'}`}>Goal: {event.goal_type}</p>
+                          <p className="text-lg font-bold">
+                            {event.goal_type === 'Total Orders' ? `${event.target_goal} Orders` : currencyFormatter.format(event.target_goal)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className={`text-xs ${isActive ? 'text-indigo-100' : 'text-slate-500'}`}>Reward</p>
+                          <p className="text-lg font-bold text-emerald-500">{currencyFormatter.format(event.reward_amount)}</p>
+                        </div>
+                      </div>
+                      <p className={`text-xs mt-4 ${isActive ? 'text-indigo-200' : 'text-slate-400'}`}>
+                        {format(new Date(event.start_date), 'dd/MM/yyyy')} - {format(new Date(event.end_date), 'dd/MM/yyyy')}
+                      </p>
                     </div>
-                  )}
-                </div>
+                  );
+                }) : (
+                  <div className="col-span-full text-center py-8 text-slate-500">
+                    <Zap className="w-8 h-8 mx-auto mb-3 text-slate-300" />
+                    <p>No active marketing events.</p>
+                  </div>
+                )}
               </div>
             </div>
-          )}
+          </div>
 
-          {/* Agent Leaderboard (Admin Only) */}
-          {staffRole === 'admin' && (
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-slate-100 flex items-center gap-3">
-                <TrendingUp className="w-5 h-5 text-emerald-600" />
-                <h2 className="font-semibold text-slate-900">Agent Leaderboard (This Month)</h2>
-              </div>
-              <div className="p-6">
-                <div className="space-y-6">
-                  {leaderboard.length > 0 ? leaderboard.map((agent, idx) => (
-                    <div key={idx} className="space-y-2">
-                      <div className="flex justify-between items-end">
-                        <div className="flex items-center gap-3">
-                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                            idx === 0 ? 'bg-amber-100 text-amber-700' : 
-                            idx === 1 ? 'bg-slate-100 text-slate-700' : 
-                            idx === 2 ? 'bg-orange-100 text-orange-800' : 'bg-slate-50 text-slate-500'
-                          }`}>
-                            {idx + 1}
-                          </span>
-                          <p className="text-sm font-medium text-slate-900">{agent.name}</p>
-                        </div>
-                        <p className="text-sm font-bold text-slate-900">{currencyFormatter.format(agent.total)}</p>
+          {/* Agent Leaderboard */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center gap-3">
+              <TrendingUp className="w-5 h-5 text-emerald-600" />
+              <h2 className="font-semibold text-slate-900">Agent Leaderboard (This Month)</h2>
+            </div>
+            <div className="p-6">
+              <div className="space-y-6">
+                {leaderboard.length > 0 ? leaderboard.map((agent, idx) => (
+                  <div key={idx} className="space-y-2">
+                    <div className="flex justify-between items-end">
+                      <div className="flex items-center gap-3">
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                          idx === 0 ? 'bg-amber-100 text-amber-700' : 
+                          idx === 1 ? 'bg-slate-100 text-slate-700' : 
+                          idx === 2 ? 'bg-orange-100 text-orange-800' : 'bg-slate-50 text-slate-500'
+                        }`}>
+                          {idx + 1}
+                        </span>
+                        <p className="text-sm font-medium text-slate-900">{agent.name}</p>
                       </div>
-                      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden ml-9" style={{ width: 'calc(100% - 36px)' }}>
-                        <div 
-                          className="h-full bg-emerald-500 rounded-full transition-all duration-1000" 
-                          style={{ width: `${agent.percentage}%` }}
-                        />
-                      </div>
+                      <p className="text-sm font-bold text-slate-900">{currencyFormatter.format(agent.total)}</p>
                     </div>
-                  )) : (
-                    <div className="text-center py-8 text-slate-500">
-                      <TrendingUp className="w-8 h-8 mx-auto mb-3 text-slate-300" />
-                      <p>No sales recorded this month.</p>
+                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden ml-9" style={{ width: 'calc(100% - 36px)' }}>
+                      <div 
+                        className="h-full bg-emerald-500 rounded-full transition-all duration-1000" 
+                        style={{ width: `${agent.percentage}%` }}
+                      />
                     </div>
-                  )}
-                </div>
+                  </div>
+                )) : (
+                  <div className="text-center py-8 text-slate-500">
+                    <TrendingUp className="w-8 h-8 mx-auto mb-3 text-slate-300" />
+                    <p>No sales recorded this month.</p>
+                  </div>
+                )}
               </div>
             </div>
-          )}
+          </div>
         </div>
       </div>
 

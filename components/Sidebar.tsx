@@ -14,7 +14,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
   const location = useLocation();
   
   // Initialize based on role
-  const [isCollapsed, setIsCollapsed] = useState(staffRole === 'staff');
+  const [isCollapsed, setIsCollapsed] = useState(staffRole === 'agent');
   const [isHovered, setIsHovered] = useState(false);
   
   // Upsell Modal State
@@ -31,7 +31,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
     const items = [];
     const isSuperAdmin = subscriberId === 'superadmin';
     const isAdmin = staffRole === 'admin';
-    const isStaff = staffRole === 'staff';
+    const isStaff = staffRole === 'agent';
 
     // Master Admin (Superadmin) specific items
     if (isSuperAdmin) {

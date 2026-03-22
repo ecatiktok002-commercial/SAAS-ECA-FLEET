@@ -1226,12 +1226,9 @@ export const apiService = {
       const uid = (designatedUid || name.toLowerCase().replace(/\s+/g, '')).trim().toLowerCase();
       const email = `${uid}@ecafleet.com`;
 
-      // 1. Get the confirmed user ID (handles existing users too)
-      const { data: confirmedId, error: rpcError } = await supabase.rpc('auto_confirm_user', { p_email: email });
-      
-      if (rpcError) {
-        console.error('RPC Error in auto_confirm_user:', rpcError);
-      }
+      // We no longer use auto_confirm_user because staff members use virtual login
+      // and do not need an auth.users record.
+      const confirmedId = null;
 
       // 2. Insert into both tables for compatibility
       // We need the subscriber slug
