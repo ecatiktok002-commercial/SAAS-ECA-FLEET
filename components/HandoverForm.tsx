@@ -103,7 +103,7 @@ const HandoverForm: React.FC<HandoverFormProps> = ({ bookingId, car_id, vehicleP
         const file = photos[label];
         if (file) {
           const ext = file.name.split('.').pop();
-          const path = `${bookingId}/${timestamp}_${label}.${ext}`;
+          const path = `${subscriberId}/${bookingId}/${timestamp}_${label}.${ext}`;
           uploadedUrls[label] = await uploadImage(file, path);
         }
       }

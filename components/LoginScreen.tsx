@@ -135,7 +135,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     }
   };
 
-  // Step 2: Handle Staff PIN Login
+  // Step 2: Handle Staff PIN Login (Restored for Virtual Users)
   const handleStaffLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pin) {
@@ -152,8 +152,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         throw new Error('Invalid state. Please restart login.');
       }
 
-      // Step 3: The PIN & Session Isolation
-      // Compare input PIN to the pin_code retrieved in Step 1
+      // --- RESTORED: LOCAL PIN VERIFICATION ---
+      // Because staff are "virtual", we must verify the PIN locally
       if (detectedRole.pin_code) {
         if (pin !== detectedRole.pin_code) {
           throw new Error('Incorrect Security PIN.');
@@ -168,12 +168,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         throw new Error('No PIN configured for this account. Contact Admin.');
       }
 
-      // Once PIN is verified, perform the Hidden Master Login for the staff member's company
+      // --- RESTORED: HIDDEN MASTER LOGIN ---
+      // Once verified, log into Supabase using the Master Company account
       const sharedUid = (detectedRole.subscriber_slug || '').toLowerCase();
       const email = `${sharedUid}@ecafleet.com`;
       const password = sharedUid;
 
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -183,7 +184,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       }
 
       // Success! Log in via Context
-      // We save the staff's specific identity to the session
       const finalRole = (detectedRole.role === 'admin' || detectedRole.role === 'staff') 
         ? detectedRole.role as any 
         : 'staff';

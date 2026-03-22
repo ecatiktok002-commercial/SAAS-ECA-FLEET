@@ -157,3 +157,4 @@ function extractPathFromUrl(url: string): string | null {
   // But usually we store full URLs.
   return null;
 }
+

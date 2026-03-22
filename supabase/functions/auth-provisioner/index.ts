@@ -19,14 +19,15 @@ Deno.serve(async (req) => {
     )
 
     // Parse request body
-    const { uid, subscriber_id } = await req.json()
+    const { uid, subscriber_id, pin_code } = await req.json()
 
-    if (!uid || !subscriber_id) {
-      throw new Error('Missing uid or subscriber_id')
+    if (!uid || !subscriber_id || !pin_code) {
+      throw new Error('Missing uid, subscriber_id, or pin_code')
     }
 
     const email = `${uid}@ecafleet.com`
-    const password = uid // Using UID as password as per user requirement
+    // Secure the password by combining it with a system salt and their PIN
+    const password = `EcaFleet!${uid}${pin_code}`
 
     // 1. Check if user already exists in Auth
     const { data: userList, error: listError } = await supabaseAdmin.auth.admin.listUsers()

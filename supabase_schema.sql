@@ -1112,7 +1112,10 @@ RETURNS VOID AS $$
 BEGIN
   -- Only allow updating if the new ID matches the currently authenticated user
   IF auth.uid() = p_new_id THEN
-    UPDATE subscribers SET id = p_new_id WHERE name = p_name;
+    -- CRITICAL FIX: Only update if the subscriber doesn't exist OR their ID is empty
+    UPDATE subscribers 
+    SET id = p_new_id 
+    WHERE name = p_name AND (id IS NULL OR id = p_new_id);
   ELSE
     RAISE EXCEPTION 'Unauthorized';
   END IF;
