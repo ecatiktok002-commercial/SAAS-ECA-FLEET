@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 
 export type SubscriptionTier = 'tier_1' | 'tier_2' | 'tier_3';
-export type StaffRole = 'admin' | 'agent';
+export type StaffRole = 'admin' | 'staff' | 'agent';
 
 interface AuthContextType {
   subscriberId: string | null;
@@ -108,8 +108,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setStaffRole('admin');
           localStorage.setItem('staffRole', 'admin');
         } else {
-          setStaffRole('agent');
-          localStorage.setItem('staffRole', 'agent');
+          // Try to fetch role from staff table if we have a userUid
+          const storedUserUid = localStorage.getItem('userUid');
+          const storedCompanyName = localStorage.getItem('companyName');
+          if (storedUserUid && storedCompanyName) {
+            try {
+              const { data: staffData } = await supabase
+                .from('staff')
+                .select('role')
+                .eq('staff_uid', storedUserUid)
+                .eq('subscriber_id', storedCompanyName)
+                .single();
+              
+              if (staffData?.role) {
+                const role = staffData.role === 'admin' ? 'admin' : 'staff';
+                setStaffRole(role as StaffRole);
+                localStorage.setItem('staffRole', role);
+              } else {
+                setStaffRole('agent');
+                localStorage.setItem('staffRole', 'agent');
+              }
+            } catch (err) {
+              setStaffRole('agent');
+              localStorage.setItem('staffRole', 'agent');
+            }
+          } else {
+            setStaffRole('agent');
+            localStorage.setItem('staffRole', 'agent');
+          }
         }
 
         // Fetch latest tier and company name from DB for non-superadmins

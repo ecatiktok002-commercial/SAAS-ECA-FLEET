@@ -40,7 +40,7 @@ const AdminDashboard: React.FC = () => {
   const { subscriberId, staffRole, userUid, userId } = useAuth();
   
   // Rule: Only Admins can see this dashboard
-  if (staffRole === 'agent') {
+  if (staffRole !== 'admin') {
     return <Navigate to="/" replace />;
   }
   

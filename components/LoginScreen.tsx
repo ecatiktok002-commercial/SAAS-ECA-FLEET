@@ -23,7 +23,22 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   // Redirect if already logged in fully
   useEffect(() => {
     if (existingSubscriberId && existingStaffRole && existingSubscriptionTier) {
-      navigate('/');
+      if (existingSubscriberId === 'superadmin') {
+        navigate('/subscribers');
+        return;
+      }
+
+      const isAdmin = existingStaffRole === 'admin';
+      const tierNum = existingSubscriptionTier === 'tier_3' ? 3 : existingSubscriptionTier === 'tier_2' ? 2 : 1;
+
+      if (isAdmin) {
+        navigate('/dashboard');
+      } else {
+        // Staff Redirects based on Tier
+        if (tierNum === 1) navigate('/forms');
+        else if (tierNum === 2) navigate('/calendar');
+        else navigate('/agent-dashboard');
+      }
     }
   }, [existingSubscriberId, existingStaffRole, existingSubscriptionTier, navigate]);
 
@@ -133,7 +148,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     setError('');
 
     try {
-      if (!detectedRole || detectedRole.role !== 'staff') {
+      if (!detectedRole || (detectedRole.role !== 'staff' && detectedRole.role !== 'admin')) {
         throw new Error('Invalid state. Please restart login.');
       }
 
@@ -169,9 +184,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
       // Success! Log in via Context
       // We save the staff's specific identity to the session
+      const finalRole = (detectedRole.role === 'admin' || detectedRole.role === 'staff') 
+        ? detectedRole.role as any 
+        : 'staff';
+
       login(
         detectedRole.subscriber_id, 
-        'agent', 
+        finalRole, 
         detectedRole.tier || 'tier_1', 
         detectedRole.staff_id, 
         detectedRole.staff_name, 

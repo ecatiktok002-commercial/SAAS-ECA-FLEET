@@ -85,6 +85,17 @@ const validateSubscriber = (id: string | null | undefined) => {
 };
 
 /**
+ * Helper to apply subscriber_id filter to a query.
+ * Skips the filter if the subscriberId is 'superadmin'.
+ */
+const applySubscriberFilter = (query: any, subscriberId: string) => {
+  if (subscriberId && subscriberId !== 'superadmin') {
+    return query.eq('subscriber_id', subscriberId);
+  }
+  return query;
+};
+
+/**
  * Universal Key Logic: Retrieves the subscriber_id from the logged-in user's profile.
  * This ensures the frontend is Tier-Agnostic.
  */
@@ -412,7 +423,7 @@ export const apiService = {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let query = supabase.from('cars').select('*');
-      query = query.eq('subscriber_id', subscriberId);
+      query = applySubscriberFilter(query, subscriberId);
 
       const { data, error } = await query;
       
@@ -527,7 +538,7 @@ export const apiService = {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let query = supabase.from('members').select('*');
-      query = query.eq('subscriber_id', subscriberId);
+      query = applySubscriberFilter(query, subscriberId);
 
       if (staffId) {
         let resolvedStaffId = staffId;
@@ -677,7 +688,7 @@ export const apiService = {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let query = supabase.from('bookings').select('*');
-      query = query.eq('subscriber_id', subscriberId);
+      query = applySubscriberFilter(query, subscriberId);
 
       if (agentId) {
         let resolvedAgentId = agentId;
@@ -717,12 +728,14 @@ export const apiService = {
   async getBookingById(id: string, subscriberId: string): Promise<Booking | null> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('bookings')
         .select('*')
-        .eq('id', id)
-        .eq('subscriber_id', subscriberId)
-        .single();
+        .eq('id', id);
+      
+      query = applySubscriberFilter(query, subscriberId);
+      
+      const { data, error } = await query.single();
       
       if (error) {
         logSupabaseError('getBookingById', error);
@@ -759,9 +772,10 @@ export const apiService = {
     let query = supabase
       .from('bookings')
       .select('pickup_datetime, duration, actual_end_time, id')
-      .eq('subscriber_id', subscriberId)
       .eq('car_id', booking.car_id)
       .gte('pickup_datetime', bufferStart.toISOString());
+      
+    query = applySubscriberFilter(query, subscriberId);
       
     if (excludeBookingId) {
       query = query.neq('id', excludeBookingId);
@@ -953,7 +967,7 @@ export const apiService = {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let query = supabase.from('expenses').select('*');
-      query = query.eq('subscriber_id', subscriberId);
+      query = applySubscriberFilter(query, subscriberId);
 
       const { data, error } = await query.order('date', { ascending: false });
       
@@ -1013,7 +1027,7 @@ export const apiService = {
       const to = from + pageSize - 1;
 
       let query = supabase.from('logs').select('*');
-      query = query.eq('subscriber_id', subscriberId);
+      query = applySubscriberFilter(query, subscriberId);
 
       const { data, error } = await query
         .order('timestamp', { ascending: false })
@@ -1064,7 +1078,7 @@ export const apiService = {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let query = supabase.from('handover_records').select('*');
-      query = query.eq('subscriber_id', subscriberId);
+      query = applySubscriberFilter(query, subscriberId);
 
       const { data, error } = await query
         .eq('booking_id', bookingId)
@@ -1512,7 +1526,7 @@ export const apiService = {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let query = supabase.from('agreements').select('*');
-      query = query.eq('subscriber_id', subscriberId);
+      query = applySubscriberFilter(query, subscriberId);
 
       let resolvedAgentId = agentId;
       const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
@@ -1567,7 +1581,7 @@ export const apiService = {
         .eq('id', id);
         
       if (subscriberId) {
-        query = query.eq('subscriber_id', subscriberId);
+        query = applySubscriberFilter(query, subscriberId);
       }
       
       const { data, error } = await query.single();
@@ -1797,7 +1811,7 @@ export const apiService = {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let query = supabase.from('digital_forms').select('*');
-      query = query.eq('subscriber_id', subscriberId);
+      query = applySubscriberFilter(query, subscriberId);
 
       let resolvedAgentId = agentId;
       const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
@@ -1885,12 +1899,14 @@ export const apiService = {
   async getCustomerByIC(subscriberId: string, ic: string): Promise<any | null> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('customers')
         .select('*')
-        .eq('subscriber_id', subscriberId)
-        .eq('ic_passport', ic)
-        .maybeSingle();
+        .eq('ic_passport', ic);
+      
+      query = applySubscriberFilter(query, subscriberId);
+
+      const { data, error } = await query.maybeSingle();
       
       if (error) {
         logSupabaseError('getCustomerByIC', error);
@@ -1903,20 +1919,26 @@ export const apiService = {
   async getCustomersCRM(subscriberId: string): Promise<any[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('customer_crm_view')
-        .select('*')
-        .eq('subscriber_id', subscriberId);
+        .select('*');
+      
+      query = applySubscriberFilter(query, subscriberId);
+
+      const { data, error } = await query;
       
       if (error) {
         logSupabaseError('getCustomersCRM', error);
         
         // Fallback to raw customers table if view is missing or failing
         // This ensures the CRM list is not empty even if the view has issues
-        const { data: rawData, error: rawError } = await supabase
+        let rawQuery = supabase
           .from('customers')
-          .select('*')
-          .eq('subscriber_id', subscriberId);
+          .select('*');
+        
+        rawQuery = applySubscriberFilter(rawQuery, subscriberId);
+
+        const { data: rawData, error: rawError } = await rawQuery;
           
         if (rawError) {
           logSupabaseError('getCustomersCRM_fallback', rawError);
@@ -1947,10 +1969,13 @@ export const apiService = {
   async getAuditRecords(subscriberId: string): Promise<AuditRecord[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('subscriber_audit_view')
-        .select('*')
-        .eq('subscriber_id', subscriberId);
+        .select('*');
+      
+      query = applySubscriberFilter(query, subscriberId);
+
+      const { data, error } = await query;
       
       if (error) {
         logSupabaseError('getAuditRecords', error);
@@ -2029,10 +2054,13 @@ export const apiService = {
   async getPayoutHistory(subscriberId: string): Promise<PayoutHistory[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('payout_history')
-        .select('*')
-        .eq('subscriber_id', subscriberId)
+        .select('*');
+      
+      query = applySubscriberFilter(query, subscriberId);
+
+      const { data, error } = await query
         .order('created_at', { ascending: false });
       
       if (error) {
@@ -2104,10 +2132,13 @@ export const apiService = {
   async getMarketingEvents(subscriberId: string): Promise<MarketingEvent[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('marketing_events')
-        .select('*')
-        .eq('subscriber_id', subscriberId)
+        .select('*');
+      
+      query = applySubscriberFilter(query, subscriberId);
+
+      const { data, error } = await query
         .order('created_at', { ascending: false });
       
       if (error) {

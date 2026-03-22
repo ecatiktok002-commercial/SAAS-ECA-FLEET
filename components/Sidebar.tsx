@@ -10,11 +10,11 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
-  const { staffRole, subscriptionTier, subscriberId, companyName, logout } = useAuth();
+  const { staffRole, subscriptionTier, subscriberTier, subscriberId, companyName, logout } = useAuth();
   const location = useLocation();
   
   // Initialize based on role
-  const [isCollapsed, setIsCollapsed] = useState(staffRole === 'agent');
+  const [isCollapsed, setIsCollapsed] = useState(staffRole !== 'admin');
   const [isHovered, setIsHovered] = useState(false);
   
   // Upsell Modal State
@@ -28,123 +28,83 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
   const isExpanded = !isCollapsed || isHovered;
 
   const getMenuItems = () => {
-    const items = [];
     const isSuperAdmin = subscriberId === 'superadmin';
     const isAdmin = staffRole === 'admin';
-    const isStaff = staffRole === 'agent';
+    const isStaff = !isAdmin;
+    const currentTier = subscriberTier;
 
     // Master Admin (Superadmin) specific items
     if (isSuperAdmin) {
-      items.push({ name: 'Subscribers', path: '/subscribers', icon: <Users className="w-5 h-5" />, isLocked: false });
-      return items;
+      return [{ name: 'Subscribers', path: '/subscribers', icon: <Users className="w-5 h-5" />, isLocked: false }];
     }
 
-    // Strict Tier Access Logic
-    // Tier 1: Digital Form, Staff Management
-    // Tier 2: Calendar, Staff Management
-    // Tier 3: All Features
-
-    // Business Dashboard
-    if (isAdmin) {
-      items.push({ 
-        name: 'Business Dashboard', 
+    const allItems = [
+      { 
+        name: isAdmin ? 'Business Dashboard' : 'Personal Stats', 
         path: '/', 
         icon: <LayoutDashboard className="w-5 h-5" />,
-        isLocked: subscriptionTier !== 'tier_3'
-      });
-    } else if (isStaff && subscriptionTier !== 'tier_2') {
-      items.push({ 
-        name: 'Personal Stats', 
-        path: '/', 
-        icon: <LayoutDashboard className="w-5 h-5" />,
-        isLocked: false
-      });
-    }
-
-    // Audit & Payout
-    if (isAdmin) {
-      items.push({ 
+        allowedTiers: [3],
+        adminOnly: false
+      },
+      { 
         name: 'Audit & Payout', 
         path: '/audit', 
         icon: <FileCheck className="w-5 h-5" />,
-        isLocked: subscriptionTier !== 'tier_3'
-      });
-    }
-
-    // Digital Form
-    if (isAdmin) {
-      items.push({ 
+        allowedTiers: [3],
+        adminOnly: true
+      },
+      { 
         name: 'Digital Form', 
         path: '/forms', 
         icon: <FileText className="w-5 h-5" />,
-        isLocked: subscriptionTier === 'tier_2'
-      });
-    } else if (isStaff && (subscriptionTier === 'tier_1' || subscriptionTier === 'tier_3')) {
-      items.push({ 
-        name: 'Digital Form', 
-        path: '/forms', 
-        icon: <FileText className="w-5 h-5" />,
-        isLocked: false
-      });
-    }
-
-    // Calendar
-    if (isAdmin) {
-      items.push({ 
+        allowedTiers: [1, 3],
+        adminOnly: false
+      },
+      { 
         name: 'Calendar', 
         path: '/calendar', 
         icon: <Calendar className="w-5 h-5" />,
-        isLocked: subscriptionTier === 'tier_1'
-      });
-    } else if (isStaff && (subscriptionTier === 'tier_2' || subscriptionTier === 'tier_3')) {
-      items.push({ 
-        name: 'Calendar', 
-        path: '/calendar', 
-        icon: <Calendar className="w-5 h-5" />,
-        isLocked: false
-      });
-    }
-
-    // Fleet Guardian / Vehicles
-    if (isAdmin) {
-      if (subscriptionTier === 'tier_3') {
-        items.push({ 
-          name: 'Fleet Guardian', 
-          path: '/fleet', 
-          icon: <Car className="w-5 h-5" />,
-          isLocked: false
-        });
-      } else {
-        items.push({ 
-          name: 'Vehicles', 
-          path: '/vehicles', 
-          icon: <Car className="w-5 h-5" />,
-          isLocked: true
-        });
-      }
-    }
-
-    // Customers / CRM
-    if (isAdmin) {
-      items.push({ 
+        allowedTiers: [2, 3],
+        adminOnly: false
+      },
+      { 
+        name: 'Fleet Guardian', 
+        path: '/fleet', 
+        icon: <Car className="w-5 h-5" />,
+        allowedTiers: [3],
+        adminOnly: true
+      },
+      { 
         name: 'Customers / CRM', 
         path: '/customers', 
         icon: <Users className="w-5 h-5" />,
-        isLocked: subscriptionTier !== 'tier_3'
-      });
-    }
-
-    // Staff Management
-    if (isAdmin) {
-      items.push({ 
+        allowedTiers: [3],
+        adminOnly: true
+      },
+      { 
         name: 'Staff Management', 
         path: '/staff', 
         icon: <Settings className="w-5 h-5" />,
-        isLocked: false
-      });
-    }
+        allowedTiers: [1, 2, 3],
+        adminOnly: true
+      }
+    ];
 
-    return items;
+    return allItems
+      .filter(item => {
+        // Rule: Staff can only see items allowed for their tier
+        if (isStaff) {
+          if (item.adminOnly) return false;
+          return item.allowedTiers.includes(currentTier);
+        }
+        // Subscribers see everything
+        return true;
+      })
+      .map(item => ({
+        ...item,
+        // Rule: Subscriber sees locked items if tier not allowed
+        isLocked: isAdmin && !item.allowedTiers.includes(currentTier)
+      }));
   };
 
   const handleLinkClick = (e: React.MouseEvent, item: any) => {
