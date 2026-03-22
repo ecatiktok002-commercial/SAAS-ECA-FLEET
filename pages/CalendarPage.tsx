@@ -64,50 +64,46 @@ const CalendarPage: React.FC = () => {
         apiService.getStaffMembers(currentSubscriberId)
       ]);
       
-      // Create a set of active staff IDs for efficient filtering
-      const activeStaffIds = new Set(fetchedStaff.map(s => s.id));
+      // --- START BULLETPROOF ROSTER LOGIC V3 ---
       
-     // --- START BULLETPROOF ROSTER LOGIC ---
+      // 1. Find the legacy DB Owner (if they have a custom color saved)
+      const dbOwner = fetchedMembers.find(m => m.is_subscriber || (!m.staff_id && m.name.toLowerCase().includes('owner')));
       
-      // 1. Identify the Owner from the DB members (Owner has no staff_id)
-      let subscriberMember = fetchedMembers.find(m => m.is_subscriber || !m.staff_id);
-      
-      // 2. Failsafe: If no owner is found in DB, manually construct one
-      if (!subscriberMember) {
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        const ownerName = currentUser?.user_metadata?.full_name || currentUser?.email?.split('@')[0] || 'Admin';
+      // 2. NUCLEAR OWNER INJECTION
+      const guaranteedOwner: Member = {
+        id: dbOwner?.id || currentSubscriberId, 
+        name: dbOwner?.name || 'ecateam (Owner)',
+        subscriber_id: currentSubscriberId,
+        staff_id: undefined,
+        is_active: true,
+        is_subscriber: true,
+        color: dbOwner?.color || 'bg-slate-900' // Dark badge for Owner
+      };
+
+      // 3. BUILD FROM THE ABSOLUTE TRUTH (fetchedStaff)
+      // Instead of filtering the members table, we build directly from the active staff list.
+      const activeStaffMembers: Member[] = fetchedStaff.map(staff => {
+        // Look in the members table ONLY to find their saved color
+        const memberProfile = fetchedMembers.find(m => m.staff_id === staff.id || m.name === staff.name);
         
-        subscriberMember = {
-          id: currentUserId || currentSubscriberId,
-          name: `${ownerName} (Owner)`,
+        return {
+          id: memberProfile?.id || staff.id, // Use member ID if it exists so Color Editing still works
+          name: staff.name,
           subscriber_id: currentSubscriberId,
+          staff_id: staff.id,
           is_active: true,
-          is_subscriber: true,
-          color: 'bg-slate-900' // Dark badge for Owner
-        } as Member;
-      } else {
-        // Enforce standard Owner UI
-        subscriberMember.is_subscriber = true;
-        if (!subscriberMember.name.includes('(Owner)')) {
-          subscriberMember.name = `${subscriberMember.name} (Owner)`;
-        }
-      }
+          color: memberProfile?.color || 'bg-blue-600' // Fallback color if they are missing from the members table
+        };
+      });
 
-      // 3. Filter out Ghost Staff (They must exist in the activeStaffIds Set)
-      const activeStaffMembers = fetchedMembers.filter(m => 
-        m.staff_id && activeStaffIds.has(m.staff_id)
-      );
-
-      // 4. Combine Owner + Active Staff
-      const unifiedRoster = [subscriberMember, ...activeStaffMembers];
-      
+      // 4. Update React States
       setCars(fetchedCars);
-      setMembers(unifiedRoster);
-      
-      // --- END BULLETPROOF ROSTER LOGIC ---
+      setMembers([guaranteedOwner, ...activeStaffMembers]);
       setBookings(fetchedBookings);
       setExpenses(fetchedExpenses);
       setStaffMembers(fetchedStaff);
+      
+      // --- END BULLETPROOF ROSTER LOGIC V3 ---
 
       // Set current staff from fetched staff members if it matches currentUserId (staff_uid or id)
       if (currentUserId) {
