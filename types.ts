@@ -41,6 +41,7 @@ export interface Member {
   staff_id?: string;
   subscriber_id?: string;
   is_subscriber?: boolean;
+  is_active?: boolean;
 }
 
 export interface Booking {
@@ -48,6 +49,7 @@ export interface Booking {
   car_id: string;
   member_id: string; // Link to Member
   agent_id?: string; // The staff member who created it
+  agent_name?: string; // Snapshot of agent name for historical reference
   subscriber_id?: string;
   start_date: string; // YYYY-MM-DD
   pickup_time: string; // HH:mm

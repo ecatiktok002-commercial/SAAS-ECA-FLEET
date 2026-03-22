@@ -202,6 +202,7 @@ const CalendarPage: React.FC = () => {
       const bookingWithAgent = {
         ...bookingData,
         agent_id: actualAgentId || '',
+        agent_name: staffName,
         subscriber_id: currentSubscriberId,
         created_by: (editingBooking && editingBooking.created_by) ? editingBooking.created_by : (userUid || currentUserId || '')
       };

@@ -223,6 +223,7 @@ CREATE TABLE IF NOT EXISTS members (
   emergency_contact_relation TEXT,
   color TEXT DEFAULT 'bg-blue-500',
   staff_id UUID REFERENCES staff_members(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -233,6 +234,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   car_id UUID NOT NULL REFERENCES cars(id) ON DELETE CASCADE,
   member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   agent_id UUID, -- The staff member who created it
+  agent_name TEXT, -- Snapshot of agent name for historical reference
   pickup_datetime TIMESTAMP WITH TIME ZONE NOT NULL,
   duration INTEGER NOT NULL,
   duration_days INTEGER,

@@ -183,7 +183,7 @@ const mapCarToDB = (car: any) => {
   return dbCar;
 };
 
-const mapBookingFromDB = (dbBooking: any): Booking => {
+  const mapBookingFromDB = (dbBooking: any): Booking => {
   // Extract start_date and pickup_time from pickup_datetime if available
   let startDate = dbBooking.start_date;
   let pickupTime = dbBooking.pickup_time;
@@ -211,6 +211,7 @@ const mapBookingFromDB = (dbBooking: any): Booking => {
     car_id: dbBooking.car_id,
     member_id: dbBooking.member_id,
     agent_id: dbBooking.agent_id,
+    agent_name: dbBooking.agent_name,
     start_date: startDate,
     pickup_time: pickupTime,
     duration_days: dbBooking.duration_days || dbBooking.duration,
@@ -227,7 +228,7 @@ const mapBookingFromDB = (dbBooking: any): Booking => {
   };
 };
 
-const mapBookingToDB = (booking: any) => {
+  const mapBookingToDB = (booking: any) => {
   // Create pickup_datetime from start_date and pickup_time
   let pickupDatetime = null;
   if (booking.start_date && booking.pickup_time) {
@@ -240,6 +241,7 @@ const mapBookingToDB = (booking: any) => {
     car_id: booking.car_id,
     member_id: booking.member_id,
     agent_id: booking.agent_id,
+    agent_name: booking.agent_name,
     pickup_datetime: pickupDatetime,
     duration: booking.duration_days,
     actual_end_time: booking.end_time,
@@ -537,7 +539,7 @@ export const apiService = {
   async getMembers(subscriberId: string, staffId?: string): Promise<Member[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
-      let query = supabase.from('members').select('*');
+      let query = supabase.from('members').select('*').eq('is_active', true);
       query = applySubscriberFilter(query, subscriberId);
 
       if (staffId) {
@@ -832,6 +834,18 @@ export const apiService = {
         const resolvedId = await resolveAgentId(finalBooking.agent_id);
         if (resolvedId) {
           finalBooking.agent_id = resolvedId;
+          
+          // Capture agent name for historical reference if not provided
+          if (!finalBooking.agent_name) {
+            const { data: staffData } = await supabase
+              .from('staff')
+              .select('name')
+              .eq('id', resolvedId)
+              .single();
+            if (staffData) {
+              finalBooking.agent_name = staffData.name;
+            }
+          }
         } else {
           console.warn(`Could not resolve agent_id '${finalBooking.agent_id}' to a valid staff member. Setting to null.`);
           finalBooking.agent_id = undefined;
@@ -1348,14 +1362,28 @@ export const apiService = {
   async deleteStaffMember(staffId: string, subscriberId: string): Promise<void> {
     const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
-      const { error } = await supabase
+      // Soft delete from staff table
+      const { error: staffError } = await supabase
         .from('staff')
         .update({ is_active: false })
         .eq('id', staffId);
       
-      if (error) {
-        logSupabaseError('deleteStaffMember', error);
-        throw new Error('Failed to disable staff member');
+      if (staffError) {
+        logSupabaseError('deleteStaffMember', staffError);
+        throw new Error(staffError.message || 'Failed to delete staff member');
+      }
+
+      // Also soft delete from members table to hide from calendar
+      const { error: memberError } = await supabase
+        .from('members')
+        .update({ is_active: false })
+        .eq('staff_id', staffId);
+      
+      if (memberError) {
+        // If column doesn't exist, ignore it
+        if (memberError.code !== '42703') {
+          console.warn('Failed to soft-delete corresponding member record:', memberError);
+        }
       }
     });
   },

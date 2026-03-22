@@ -70,9 +70,9 @@ const BookingPill: React.FC<BookingPillProps> = ({ booking, car, member, segment
               {car?.plate}
             </span>
             
-            {/* Replaced Name with Start Time (24h) */}
+            {/* Replaced Name with Start Time (24h) or Agent Name if inactive */}
             <span className={`opacity-100 font-bold uppercase tracking-tight text-[8px] md:text-[9px] drop-shadow-sm truncate max-w-[60px] md:max-w-none`}>
-              {startTime}
+              {member ? startTime : (booking.agent_name || 'Inactive Agent')}
             </span>
           </div>
         )}
