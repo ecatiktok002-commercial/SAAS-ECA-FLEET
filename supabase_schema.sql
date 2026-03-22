@@ -849,11 +849,20 @@ JOIN customer_stats s ON c.id = s.customer_id AND c.subscriber_id = s.subscriber
 -- ===============================================================
 -- SMART LOGIN DETECTION RPC
 -- ===============================================================
+-- 1. Drop the existing function to ensure a clean slate
+DROP FUNCTION IF EXISTS auto_confirm_user(TEXT);
+
+-- 2. Create the highly secure version
 CREATE OR REPLACE FUNCTION auto_confirm_user(p_email TEXT)
 RETURNS UUID AS $$
 DECLARE
   v_id UUID;
 BEGIN
+  -- 🔐 CRITICAL SECURITY LOCK: Verify the caller is the Master Admin
+  IF auth.jwt() ->> 'email' != 'superadmin@ecafleet.com' THEN
+    RAISE EXCEPTION 'Unauthorized: Only the Master Admin can confirm users.';
+  END IF;
+
   -- Only allow if the email is in @ecafleet.com
   IF NOT (LOWER(TRIM(p_email)) LIKE '%@ecafleet.com') THEN
     RAISE EXCEPTION 'Invalid email domain';
@@ -872,6 +881,10 @@ BEGIN
   RETURN v_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = auth, public;
+
+-- 3. Explicitly revoke public access and only grant to logged-in users
+REVOKE EXECUTE ON FUNCTION auto_confirm_user(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION auto_confirm_user(TEXT) TO authenticated;
 
 -- RPC to synchronize staff_members.id with auth.users.id during migration
 CREATE OR REPLACE FUNCTION repair_staff_auth_link(p_uid TEXT, p_new_id UUID)
