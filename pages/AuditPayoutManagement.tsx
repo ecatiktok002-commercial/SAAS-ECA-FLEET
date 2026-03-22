@@ -42,6 +42,7 @@ import {
 import MatchyScanAlert from '../components/MatchyScanAlert';
 import { approveAmendment } from '../services/auditService';
 import toast from 'react-hot-toast';
+import { supabase } from '../services/supabase';
 
 const safeFormat = (dateStr: string | Date | null | undefined, formatStr: string) => {
   if (!dateStr) return 'N/A';
@@ -179,16 +180,41 @@ const AuditPayoutManagement: React.FC = () => {
       return;
     }
 
-    const monthYear = format(selectedMonth, 'MMMM yyyy');
-    if (!window.confirm(`Process monthly payout for ${monthYear}? This will reconcile ${approvedRecordsForMonth.length} records.`)) return;
+    const selectedMonthString = format(selectedMonth, 'MMMM yyyy');
+    if (!window.confirm(`Process monthly payout for ${selectedMonthString}? This will reconcile ${approvedRecordsForMonth.length} records.`)) return;
 
     try {
       setProcessing('process');
-      await apiService.processMonthlyPayout(subscriberId!, monthYear, approvedRecordsForMonth);
+      
+      const calculatedTotal = approvedRecordsForMonth.reduce((sum, r) => sum + (Number(r.commission_earned) || 0), 0);
+      const agentBreakdown = payoutSummary;
+
+      console.log("PAYOUT PAYLOAD:", { subscriber_id: subscriberId, month_year: selectedMonthString, total_amount: calculatedTotal, breakdown: agentBreakdown });
+
+      const { error: insertError } = await supabase.from('payout_history').insert([{
+        subscriber_id: subscriberId,
+        total_amount: calculatedTotal,
+        month_year: selectedMonthString,
+        breakdown: agentBreakdown
+      }]);
+
+      if (insertError) throw insertError;
+
+      const formIds = approvedRecordsForMonth.map(r => r.form_id);
+      const { error: updateError } = await supabase
+        .from('agreements')
+        .update({ status: 'reconciled', payout_status: 'paid' })
+        .in('id', formIds)
+        .eq('subscriber_id', subscriberId);
+
+      if (updateError) throw updateError;
+
       await refreshData();
       setActiveTab('history');
-    } catch (err) {
-      alert('Failed to process monthly payout');
+      toast.success('Monthly payout processed successfully');
+    } catch (error) {
+      console.error("SUPABASE REJECTION:", error);
+      toast.error("Process failed. Open F12 console to see the error.");
     } finally {
       setProcessing(null);
     }
@@ -629,7 +655,7 @@ const AuditPayoutManagement: React.FC = () => {
                         </div>
                         <div>
                           <h3 className="font-bold text-slate-900">{history.month_year}</h3>
-                          <p className="text-xs text-slate-500">Processed on {safeFormat(history.payout_date, 'dd/MM/yyyy')}</p>
+                          <p className="text-xs text-slate-500">Processed on {safeFormat(history.created_at, 'dd/MM/yyyy')}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-8">

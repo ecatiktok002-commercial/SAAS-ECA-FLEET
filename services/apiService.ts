@@ -1243,6 +1243,7 @@ export const apiService = {
         name, 
         subscriber_id: slug, 
         access_id: uid,
+        staff_uid: uid,
         pin_code: pin || '1234', 
         is_active: true,
         commission_tier_override: commissionTierOverride,
@@ -2080,8 +2081,7 @@ export const apiService = {
           subscriber_id: targetSubscriberId,
           total_amount: totalAmount,
           month_year: monthYear,
-          breakdown: breakdown,
-          payout_date: new Date().toISOString()
+          breakdown: breakdown
         });
 
       if (historyError) {

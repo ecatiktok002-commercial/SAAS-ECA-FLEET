@@ -1135,13 +1135,12 @@ SELECT cron.schedule(
 
 -- 18. Payout History Table
 CREATE TABLE IF NOT EXISTS payout_history (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   subscriber_id UUID NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
-  total_amount NUMERIC NOT NULL DEFAULT 0,
-  payout_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  month_year TEXT NOT NULL, -- e.g., "Feb 2026"
-  breakdown JSONB NOT NULL, -- JSON breakdown of each agent's share
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  month_year TEXT NOT NULL, -- e.g., "March 2026"
+  total_amount NUMERIC(10,2) DEFAULT 0.00,
+  breakdown JSONB NOT NULL, -- Stores the agent-by-agent calculations
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 ALTER TABLE payout_history ENABLE ROW LEVEL SECURITY;

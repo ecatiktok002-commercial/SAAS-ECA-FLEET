@@ -53,7 +53,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
-          if (error.message.includes('Refresh Token Not Found') || error.message.includes('invalid_grant')) {
+          const errMsg = error.message || '';
+          if (errMsg.includes('Refresh Token Not Found') || errMsg.includes('invalid_grant')) {
             console.warn('Auth session expired or invalid. Logging out.');
             await logout();
             return;
@@ -247,7 +248,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn('Sign out error:', e);
+    }
     setSubscriberId(null);
     setUserId(null);
     setUserName(null);

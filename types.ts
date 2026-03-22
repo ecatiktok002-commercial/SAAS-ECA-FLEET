@@ -241,7 +241,6 @@ export interface PayoutHistory {
   id: string;
   subscriber_id: string;
   total_amount: number;
-  payout_date: string;
   month_year: string;
   breakdown: {
     agent_id: string;
