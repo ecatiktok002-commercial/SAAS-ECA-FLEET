@@ -539,7 +539,7 @@ export const apiService = {
   async getMembers(subscriberId: string, staffId?: string): Promise<Member[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
-      let query = supabase.from('members').select('*').eq('is_active', true);
+      let query = supabase.from('members').select('*');
       query = applySubscriberFilter(query, subscriberId);
 
       if (staffId) {

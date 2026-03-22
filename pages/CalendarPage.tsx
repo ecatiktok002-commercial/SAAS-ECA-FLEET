@@ -67,65 +67,44 @@ const CalendarPage: React.FC = () => {
       // Create a set of active staff IDs for efficient filtering
       const activeStaffIds = new Set(fetchedStaff.map(s => s.id));
       
-      // Safe Owner Injection
-      let subscriberMember: Member | undefined;
-      try {
-        // First try to find existing subscriber member in fetched data
-        subscriberMember = fetchedMembers.find(m => 
-          m.is_subscriber || 
-          (!m.staff_id && (m.name.includes('(Owner)') || m.subscriber_id === currentSubscriberId))
-        );
+     // --- START BULLETPROOF ROSTER LOGIC ---
+      
+      // 1. Identify the Owner from the DB members (Owner has no staff_id)
+      let subscriberMember = fetchedMembers.find(m => m.is_subscriber || !m.staff_id);
+      
+      // 2. Failsafe: If no owner is found in DB, manually construct one
+      if (!subscriberMember) {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        const ownerName = currentUser?.user_metadata?.full_name || currentUser?.email?.split('@')[0] || 'Admin';
         
-        if (!subscriberMember) {
-          // If not found, fetch current user metadata for a better fallback
-          const { data: { user: currentUser } } = await supabase.auth.getUser();
-          const ownerName = currentUser?.user_metadata?.full_name || currentUser?.email || 'Admin (Owner)';
-          
-          subscriberMember = {
-            id: currentUserId || currentSubscriberId,
-            name: ownerName.includes('(Owner)') ? ownerName : `${ownerName} (Owner)`,
-            subscriber_id: currentSubscriberId,
-            is_active: true,
-            is_subscriber: true,
-            color: 'bg-indigo-600' // Default color for owner
-          } as Member;
-        } else {
-          subscriberMember.is_subscriber = true;
-          if (!subscriberMember.name.includes('(Owner)')) {
-            subscriberMember.name = `${subscriberMember.name} (Owner)`;
-          }
-          if (!subscriberMember.color) {
-            subscriberMember.color = 'bg-indigo-600';
-          }
-        }
-      } catch (ownerErr) {
-        console.warn('Failed to inject owner profile, using generic fallback:', ownerErr);
         subscriberMember = {
           id: currentUserId || currentSubscriberId,
-          name: 'Admin (Owner)',
+          name: `${ownerName} (Owner)`,
           subscriber_id: currentSubscriberId,
           is_active: true,
           is_subscriber: true,
-          color: 'bg-indigo-600'
+          color: 'bg-slate-900' // Dark badge for Owner
         } as Member;
+      } else {
+        // Enforce standard Owner UI
+        subscriberMember.is_subscriber = true;
+        if (!subscriberMember.name.includes('(Owner)')) {
+          subscriberMember.name = `${subscriberMember.name} (Owner)`;
+        }
       }
-      
-      // Filter members to ONLY include those that are ACTIVE staff
-      // We strictly enforce the activeStaffIds filter here
-      let staffOnlyMembers = fetchedMembers.filter(m => 
+
+      // 3. Filter out Ghost Staff (They must exist in the activeStaffIds Set)
+      const activeStaffMembers = fetchedMembers.filter(m => 
         m.staff_id && activeStaffIds.has(m.staff_id)
       );
-      
-      // Prepend the subscriber (Owner) to the list
-      if (subscriberMember) {
-        staffOnlyMembers = [
-          subscriberMember, 
-          ...staffOnlyMembers.filter(m => m.id !== subscriberMember.id)
-        ];
-      }
+
+      // 4. Combine Owner + Active Staff
+      const unifiedRoster = [subscriberMember, ...activeStaffMembers];
       
       setCars(fetchedCars);
-      setMembers(staffOnlyMembers);
+      setMembers(unifiedRoster);
+      
+      // --- END BULLETPROOF ROSTER LOGIC ---
       setBookings(fetchedBookings);
       setExpenses(fetchedExpenses);
       setStaffMembers(fetchedStaff);
