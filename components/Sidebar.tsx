@@ -197,7 +197,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
         </nav>
 
         {/* Footer */}
-        {/* Added pb-12 on mobile to lift the button higher, md:pb-3 for desktop */}
+      {/* Added pb-12 on mobile to lift the button higher, md:pb-3 for desktop */}
         <div className="p-3 pb-12 md:pb-3 border-t border-slate-800 shrink-0">
           <div className={`flex items-center ${isExpanded ? 'justify-between px-4' : 'justify-center'} py-3 bg-slate-800 rounded-xl`}>
             {isExpanded && (
@@ -227,6 +227,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
             {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         </div>
+      </div>
 
       <UpsellModal 
         isOpen={!!upsellFeature} 
