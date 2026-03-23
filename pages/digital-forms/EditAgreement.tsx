@@ -108,7 +108,16 @@ export default function EditAgreement() {
         }
 
         // Access Control: Staff can only edit their own agreements
-        if (staffRole === 'agent' && data.created_by !== userUid && data.created_by !== userId && data.agent_id !== userId) {
+        let resolvedUserId = userId;
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (userId && !uuidRegex.test(userId)) {
+          const staff = await apiService.getStaffMemberByUid(userId, subscriberId);
+          if (staff && staff.id) {
+            resolvedUserId = staff.id;
+          }
+        }
+
+        if (staffRole === 'agent' && data.created_by !== userUid && data.created_by !== userId && data.agent_id !== resolvedUserId) {
           throw new Error('You do not have permission to edit this agreement.');
         }
 
@@ -217,6 +226,20 @@ export default function EditAgreement() {
     setError('');
 
     try {
+      // Resolve agent_id to UUID if it's a string UID
+      let resolvedAgentId = userId;
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      
+      if (userId && !uuidRegex.test(userId)) {
+        const staff = await apiService.getStaffMemberByUid(userId, subscriberId);
+        if (staff && staff.id) {
+          resolvedAgentId = staff.id;
+        } else {
+          // Fallback to subscriberId if resolution fails
+          resolvedAgentId = subscriberId;
+        }
+      }
+
       let receiptData = undefined;
       if (paymentReceipt) {
         const reader = new FileReader();

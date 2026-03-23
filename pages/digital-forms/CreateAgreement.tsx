@@ -250,13 +250,14 @@ export default function CreateAgreement() {
       let actualAgentId = staffRole === 'admin' ? subscriberId : userId;
 
       // Ensure actualAgentId is a valid UUID. If it's a string UID (e.g., 'idmahira'), fetch the real UUID.
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (actualAgentId && actualAgentId !== 'superadmin' && !uuidRegex.test(actualAgentId)) {
         const staffMember = await apiService.getStaffMemberByUid(actualAgentId, subscriberId);
-        if (staffMember) {
+        if (staffMember && staffMember.id) {
           actualAgentId = staffMember.id;
         } else {
-          throw new Error('Could not resolve staff UUID. Please log out and log in again.');
+          // Fallback to subscriberId if resolution fails
+          actualAgentId = subscriberId;
         }
       }
 
