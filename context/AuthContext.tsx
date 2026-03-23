@@ -118,7 +118,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         
         setSubscriberId(finalSubscriberId);
-        setUserId(getDisplayId(session.user));
+        setUserId(session.user.id);
         setUserName(isSuperAdmin ? 'Super Admin' : (session.user.user_metadata?.full_name || getDisplayId(session.user)));
         
         // Determine role: prioritize stored role, fallback to owner/superadmin logic
@@ -161,8 +161,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               localStorage.setItem('staffRole', 'agent');
             }
           } else {
-            setStaffRole('agent');
-            localStorage.setItem('staffRole', 'agent');
+            // Fallback: check staff_members table using the UUID
+            try {
+              const { data: staffMemberData } = await supabase
+                .from('staff_members')
+                .select('role')
+                .eq('id', session.user.id)
+                .single();
+              
+              if (staffMemberData?.role) {
+                setStaffRole(staffMemberData.role as StaffRole);
+                localStorage.setItem('staffRole', staffMemberData.role);
+              } else {
+                setStaffRole('agent');
+                localStorage.setItem('staffRole', 'agent');
+              }
+            } catch (err) {
+              setStaffRole('agent');
+              localStorage.setItem('staffRole', 'agent');
+            }
           }
         }
 
