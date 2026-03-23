@@ -2,6 +2,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { Link } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Lightbox from "yet-another-react-lightbox";
 import Zoom from "yet-another-react-lightbox/plugins/zoom";
@@ -414,6 +416,14 @@ const BookingModal: React.FC<BookingModalProps> = ({
     }
   };
 
+  const generateHandoverLink = (type: 'Pickup' | 'Return') => {
+    if (!editingBooking) return;
+    const baseUrl = window.location.origin;
+    const link = `${baseUrl}/handover/${editingBooking.id}?type=${type}`;
+    navigator.clipboard.writeText(link);
+    toast.success(`${type} link copied to clipboard!`);
+  };
+
   return (
     <>
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
@@ -470,6 +480,37 @@ const BookingModal: React.FC<BookingModalProps> = ({
               className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all font-semibold text-slate-700 text-sm disabled:opacity-60"
             />
           </div>
+
+          {/* Customer Handover Links */}
+          {editingBooking && (
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Customer Self-Service Links</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => generateHandoverLink('Pickup')}
+                  className="flex items-center justify-center gap-2 py-2.5 px-3 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm active:scale-95"
+                >
+                  <Link className="w-3.5 h-3.5 text-slate-400" />
+                  Copy Pickup
+                </button>
+                <button
+                  type="button"
+                  onClick={() => generateHandoverLink('Return')}
+                  className="flex items-center justify-center gap-2 py-2.5 px-3 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm active:scale-95"
+                >
+                  <Link className="w-3.5 h-3.5 text-slate-400" />
+                  Copy Return
+                </button>
+              </div>
+              <p className="text-[9px] text-slate-400 text-center leading-tight">
+                Send these links to the customer via WhatsApp for self-service handover.
+              </p>
+            </div>
+          )}
 
           {/* Conditional Input based on Mode */}
           {bookingMode === 'category' ? (

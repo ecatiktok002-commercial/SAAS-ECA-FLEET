@@ -19,6 +19,7 @@ import SupabaseErrorBanner from './components/SupabaseErrorBanner';
 import { isConfigured } from './services/supabase';
 
 import UpgradePlanPage from './pages/UpgradePlanPage';
+import PublicHandoverPage from './pages/PublicHandoverPage';
 
 // A simple gate to handle Tier/Role redirects
 const StrictTierGate: React.FC<{ children: React.ReactNode; allowedTiers: number[]; allowStaff?: boolean }> = ({ children, allowedTiers, allowStaff = true }) => {
@@ -101,6 +102,7 @@ const AppRoutes: React.FC = () => {
     <Routes>
       <Route path="/login" element={<LoginScreen />} />
       <Route path="/forms/sign/:id" element={<SignAgreement />} />
+      <Route path="/handover/:bookingId" element={<PublicHandoverPage />} />
       
       <Route path="/" element={<Layout />}>
         {/* Dashboard: Tier 3 for Admin, Tier 1/3 for Staff */}

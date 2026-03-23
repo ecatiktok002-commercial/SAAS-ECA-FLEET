@@ -9,6 +9,7 @@ interface HandoverFormProps {
   onClose: () => void;
   onSuccess?: () => void;
   subscriberId: string;
+  initialType?: 'Pickup' | 'Return';
 }
 
 type HandoverType = 'Pickup' | 'Return';
@@ -21,8 +22,16 @@ interface DamagePhoto {
   preview: string;
 }
 
-const HandoverForm: React.FC<HandoverFormProps> = ({ bookingId, car_id, vehiclePlate, onClose, onSuccess, subscriberId }) => {
-  const [handoverType, setHandoverType] = useState<HandoverType>('Pickup');
+const HandoverForm: React.FC<HandoverFormProps> = ({ 
+  bookingId, 
+  car_id, 
+  vehiclePlate, 
+  onClose, 
+  onSuccess, 
+  subscriberId,
+  initialType = 'Pickup'
+}) => {
+  const [handoverType, setHandoverType] = useState<HandoverType>(initialType);
   const [mileage, setMileage] = useState('');
   const [fuelLevel, setFuelLevel] = useState('');
   const [conditionDetails, setConditionDetails] = useState('');
