@@ -255,7 +255,7 @@ const FleetModal: React.FC<FleetModalProps> = ({
                                 <button
                                   key={c.value}
                                   onClick={() => {
-                                    onUpdateMember(member.id, { color: c.value });
+                                    onUpdateMember(member.id, { color: c.value, name: member.name });
                                     setIsEditingColor(false);
                                   }}
                                   className={`w-6 h-6 rounded-full ${c.value} border-2 ${member.color === c.value ? (isSubscriber ? 'border-white' : 'border-slate-900') : 'border-transparent'} hover:scale-110 transition-transform`}

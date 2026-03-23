@@ -835,16 +835,17 @@ SELECT
     c.billing_address,
     c.emergency_contact_name,
     c.emergency_contact_relation,
-    s.total_bookings,
+    COALESCE(s.total_bookings, 0) as total_bookings,
     s.last_rental_date,
     COALESCE(c.acquired_by_agent, s.acquired_by_agent) as acquired_by_agent,
     CASE 
         WHEN s.is_currently_active THEN 'Active'
-        WHEN s.total_bookings > 1 THEN 'Repeat'
-        ELSE 'New'
+        WHEN COALESCE(s.total_bookings, 0) > 1 THEN 'Repeat'
+        WHEN COALESCE(s.total_bookings, 0) = 1 THEN 'New'
+        ELSE 'Lead'
     END as status
 FROM customers c
-JOIN customer_stats s ON c.id = s.customer_id AND c.subscriber_id = s.subscriber_id;
+LEFT JOIN customer_stats s ON c.id = s.customer_id AND c.subscriber_id = s.subscriber_id;
 
 -- ===============================================================
 -- SMART LOGIN DETECTION RPC

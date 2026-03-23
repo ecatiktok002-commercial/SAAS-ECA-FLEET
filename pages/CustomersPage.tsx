@@ -14,7 +14,7 @@ interface CustomerCRM {
   total_bookings: number;
   last_rental_date: string | null;
   acquired_by_agent: string | null;
-  status: 'Active' | 'Repeat' | 'New';
+  status: 'Active' | 'Repeat' | 'New' | 'Lead';
 }
 
 const CustomersPage: React.FC = () => {
@@ -89,8 +89,12 @@ const CustomersPage: React.FC = () => {
         return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">Active</span>;
       case 'Repeat':
         return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">Repeat</span>;
+      case 'New':
+        return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">New</span>;
+      case 'Lead':
+        return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">Lead</span>;
       default:
-        return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">New</span>;
+        return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">{status}</span>;
     }
   };
 

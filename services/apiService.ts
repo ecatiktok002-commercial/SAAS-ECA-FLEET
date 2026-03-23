@@ -279,17 +279,20 @@ const mapMemberFromDB = (dbMember: any): Member => ({
   staff_id: dbMember.staff_id
 });
 
-const mapMemberToDB = (member: any) => ({
-  name: member.name,
-  color: member.color,
-  email: member.email,
-  phone: member.phone,
-  identity_number: member.identity_number,
-  billing_address: member.billing_address,
-  emergency_contact_name: member.emergency_contact_name,
-  emergency_contact_relation: member.emergency_contact_relation,
-  staff_id: member.staff_id
-});
+const mapMemberToDB = (member: any) => {
+  const db: any = {};
+  if (member.name !== undefined) db.name = member.name;
+  if (member.color !== undefined) db.color = member.color;
+  if (member.email !== undefined) db.email = member.email;
+  if (member.phone !== undefined) db.phone = member.phone;
+  if (member.identity_number !== undefined) db.identity_number = member.identity_number;
+  if (member.billing_address !== undefined) db.billing_address = member.billing_address;
+  if (member.emergency_contact_name !== undefined) db.emergency_contact_name = member.emergency_contact_name;
+  if (member.emergency_contact_relation !== undefined) db.emergency_contact_relation = member.emergency_contact_relation;
+  if (member.staff_id !== undefined) db.staff_id = member.staff_id;
+  if (member.is_active !== undefined) db.is_active = member.is_active;
+  return db;
+};
 
 const mapLogFromDB = (dbLog: any): LogEntry => ({
   id: dbLog.id,
@@ -646,21 +649,45 @@ export const apiService = {
         }
       }
 
-      let query = supabase
+      // Try to update first
+      const { data, error } = await supabase
         .from('members')
         .update(finalUpdates)
-        .eq('id', id);
-      
-      query = query.eq('subscriber_id', targetSubscriberId);
-
-      const { data, error } = await query
+        .eq('id', id)
+        .eq('subscriber_id', targetSubscriberId)
         .select()
-        .single();
-
+        .maybeSingle();
+      
       if (error) {
         logSupabaseError('updateMember', error);
         throw new Error(error.message || 'Failed to update member');
       }
+
+      // If no row was updated, it might be the "guaranteed" owner who doesn't have a DB record yet
+      if (!data) {
+        console.log(`[apiService] updateMember: No record found for id=${id}. Attempting upsert.`);
+        
+        // For upsert, we need to ensure required fields are present if it's a new record
+        const upsertData = {
+          ...finalUpdates,
+          id,
+          subscriber_id: targetSubscriberId,
+          name: updates.name || 'Owner' // Fallback name if missing
+        };
+
+        const { data: upsertDataResult, error: upsertError } = await supabase
+          .from('members')
+          .upsert(upsertData)
+          .select()
+          .single();
+
+        if (upsertError) {
+          logSupabaseError('updateMember_upsert', upsertError);
+          throw new Error(upsertError.message || 'Failed to create member record');
+        }
+        return mapMemberFromDB(upsertDataResult);
+      }
+
       return mapMemberFromDB(data);
     });
   },

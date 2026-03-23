@@ -67,7 +67,11 @@ const CalendarPage: React.FC = () => {
       // --- START BULLETPROOF ROSTER LOGIC V3 ---
       
       // 1. Find the legacy DB Owner (if they have a custom color saved)
-      const dbOwner = fetchedMembers.find(m => m.is_subscriber || (!m.staff_id && m.name.toLowerCase().includes('owner')));
+      const dbOwner = fetchedMembers.find(m => 
+        m.id === currentSubscriberId || 
+        m.is_subscriber || 
+        (!m.staff_id && m.name.toLowerCase().includes('owner'))
+      );
       
       // 2. NUCLEAR OWNER INJECTION
       const guaranteedOwner: Member = {
