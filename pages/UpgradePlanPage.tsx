@@ -1,9 +1,11 @@
 import React from 'react';
-import { Shield, ArrowUpCircle, CheckCircle2 } from 'lucide-react';
+import { Shield, ArrowUpCircle, CheckCircle2, X } from 'lucide-react'; // Added X here
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom'; // Added for navigation
 
 const UpgradePlanPage: React.FC = () => {
   const { subscriptionTier } = useAuth();
+  const navigate = useNavigate(); // Hook to go back
 
   const tiers = [
     {
@@ -27,7 +29,16 @@ const UpgradePlanPage: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-full bg-slate-50 flex items-center justify-center p-6">
+    <div className="min-h-full bg-slate-50 flex items-center justify-center p-6 relative">
+      
+      {/* ❌ NEW: Fixed Close Button for Mobile/Desktop */}
+      <button 
+        onClick={() => navigate(-1)} // Takes them back to the last page they were on
+        className="absolute top-6 right-6 p-3 bg-white border border-slate-200 text-slate-400 hover:text-slate-900 rounded-2xl shadow-sm transition-all active:scale-90 z-50"
+      >
+        <X className="w-6 h-6" />
+      </button>
+
       <div className="max-w-4xl w-full">
         <div className="text-center mb-12">
           <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 border border-blue-100">
