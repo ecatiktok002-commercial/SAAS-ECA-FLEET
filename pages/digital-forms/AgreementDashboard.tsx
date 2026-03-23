@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 const AgreementDashboard: React.FC = () => {
-  const { subscriberId, staffRole, userId, userUid } = useAuth();
+  const { subscriberId, staffRole, userId, userUid, isOwner } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -43,8 +43,9 @@ const AgreementDashboard: React.FC = () => {
       
       let createdBy: string | string[] | undefined = undefined;
       
+      // Safety Fallback: If not owner and not superadmin, they MUST be filtered
       // Staff/Agents only see their own forms, Subscribers/Admins see everything
-      if (staffRole !== 'admin') {
+      if (staffRole === 'staff' || staffRole === 'agent' || !isOwner) {
         const ids = [userUid, userId].filter(Boolean) as string[];
         
         // CRITICAL: If we are staff but don't have any ID yet, don't fetch

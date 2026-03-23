@@ -15,6 +15,7 @@ interface AuthContextType {
   subscriptionTier: SubscriptionTier | null;
   subscriberTier: number; // Numeric representation for refined App.tsx
   companyName: string | null;
+  isOwner: boolean;
   isLoading: boolean;
   login: (subscriberId: string, staffRole: StaffRole, subscriptionTier: SubscriptionTier, userId?: string, userName?: string, userUid?: string, companyName?: string) => void;
   logout: () => void;
@@ -41,6 +42,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return normalizeTier(stored);
   });
   const [companyName, setCompanyName] = useState<string | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -94,40 +96,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUserId(getDisplayId(session.user));
         setUserName(isSuperAdmin ? 'Super Admin' : (session.user.user_metadata?.full_name || getDisplayId(session.user)));
         
-        // Determine role: prioritize stored role, fallback to owner/superadmin logic
-        const storedRole = localStorage.getItem('staffRole') as StaffRole;
-        const isSubscriberOwner = session.user.id === finalSubscriberId;
+        // Determine role: freshly validate, never leak from localStorage
+        // If a userUid exists in localStorage, they are definitely a staff member, not the owner
+        const storedUserUid = localStorage.getItem('userUid');
+        const isSubscriberOwner = session.user.id === finalSubscriberId && !storedUserUid;
+        setIsOwner(isSubscriberOwner || isSuperAdmin);
         
         if (isSuperAdmin) {
           setStaffRole('admin');
           localStorage.setItem('staffRole', 'admin');
-        } else if (storedRole) {
-          setStaffRole(storedRole);
         } else if (isSubscriberOwner) {
           setStaffRole('admin');
           localStorage.setItem('staffRole', 'admin');
         } else {
           // Try to fetch role from staff table if we have a userUid
-          const storedUserUid = localStorage.getItem('userUid');
           const storedCompanyName = localStorage.getItem('companyName');
           if (storedUserUid && storedCompanyName) {
             try {
-              const { data: staffData } = await supabase
+              // Try to fetch from 'staff' table (Virtual Login)
+              // We use access_id which is the column name in the DB for staff_uid
+              const { data: staffData, error: staffError } = await supabase
                 .from('staff')
-                .select('role')
-                .eq('staff_uid', storedUserUid)
+                .select('*')
+                .eq('access_id', storedUserUid)
                 .eq('subscriber_id', storedCompanyName)
-                .single();
+                .maybeSingle();
               
-              if (staffData?.role) {
+              if (staffData) {
+                // Use role from DB if available, fallback to 'staff'
                 const role = staffData.role === 'admin' ? 'admin' : 'staff';
                 setStaffRole(role as StaffRole);
                 localStorage.setItem('staffRole', role);
               } else {
-                setStaffRole('agent');
-                localStorage.setItem('staffRole', 'agent');
+                // Fallback to 'staff_members' table if not in 'staff' table
+                const { data: legacyStaff } = await supabase
+                  .from('staff_members')
+                  .select('role')
+                  .eq('access_id', storedUserUid)
+                  .eq('subscriber_id', storedCompanyName)
+                  .maybeSingle();
+                
+                if (legacyStaff?.role) {
+                  const role = legacyStaff.role === 'admin' ? 'admin' : 'staff';
+                  setStaffRole(role as StaffRole);
+                  localStorage.setItem('staffRole', role);
+                } else {
+                  setStaffRole('agent');
+                  localStorage.setItem('staffRole', 'agent');
+                }
               }
             } catch (err) {
+              console.warn('Error fetching staff role:', err);
               setStaffRole('agent');
               localStorage.setItem('staffRole', 'agent');
             }
@@ -175,38 +194,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSubscriptionTier('tier_3');
         }
 
-        const storedRoleFromStorage = localStorage.getItem('staffRole') as StaffRole;
-        const storedSubscriberId = localStorage.getItem('subscriberId');
-        const storedTier = localStorage.getItem('subscriptionTier');
-        const storedName = localStorage.getItem('userName');
-        const storedUserId = localStorage.getItem('userId');
-        const storedUserUid = localStorage.getItem('userUid');
-        const storedCompanyName = localStorage.getItem('companyName');
-        
-        if (storedRoleFromStorage) {
-          setStaffRole(storedRoleFromStorage);
-          if (storedSubscriberId) setSubscriberId(storedSubscriberId);
-          if (storedTier) setSubscriptionTier(normalizeTier(storedTier));
-          if (storedName) setUserName(storedName);
-          if (storedUserId) setUserId(storedUserId);
-          if (storedCompanyName) setCompanyName(storedCompanyName);
-          
-          if (storedUserUid) {
-            setUserUid(storedUserUid);
-          } else if (storedRole === 'agent' && storedUserId) {
-            // Fallback: Fetch staff_uid if missing from storage
-            const { data: staffData } = await supabase
-              .from('staff_members')
-              .select('staff_uid')
-              .eq('id', storedUserId)
-              .single();
-            
-            if (staffData?.staff_uid) {
-              setUserUid(staffData.staff_uid);
-              localStorage.setItem('userUid', staffData.staff_uid);
-            }
-          }
-        } else if (isSuperAdmin) {
+        // Removed stale localStorage role restoration to prevent role leaks
+        if (isSuperAdmin) {
           setStaffRole('admin');
         }
       }
@@ -278,6 +267,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setStaffRole(null);
     setSubscriptionTier(null);
     setCompanyName(null);
+    setIsOwner(false);
     localStorage.removeItem('subscriberId');
     localStorage.removeItem('staffRole');
     localStorage.removeItem('subscriptionTier');
@@ -305,6 +295,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       subscriptionTier, 
       subscriberTier: getTierNumber(subscriptionTier),
       companyName,
+      isOwner,
       isLoading, 
       login, 
       logout 
