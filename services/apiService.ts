@@ -1192,15 +1192,24 @@ export const apiService = {
   async getStaffMemberByUid(uid: string, subscriberId: string): Promise<StaffMember | null> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
-      const { data, error } = await supabase
-        .from('staff_members')
+      // We need to find the slug for this subscriberId (UUID)
+      const { data: subData } = await supabase.from('subscribers').select('name').eq('id', subscriberId).single();
+      const slug = subData?.name || subscriberId;
+
+      let query = supabase
+        .from('staff')
         .select('*')
         .eq('access_id', uid)
-        .eq('subscriber_id', subscriberId)
-        .maybeSingle();
+        .eq('subscriber_id', slug)
+        .eq('is_active', true);
 
-      if (error || !data) return null;
-      return mapStaffFromDB(data);
+      const { data, error } = await query.maybeSingle();
+
+      if (error) {
+        logSupabaseError('getStaffMemberByUid', error);
+        return null;
+      }
+      return data ? mapStaffFromDB(data) : null;
     });
   },
 

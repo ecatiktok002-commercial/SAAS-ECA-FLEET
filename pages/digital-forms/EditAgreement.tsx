@@ -100,7 +100,7 @@ export default function EditAgreement() {
 
   useEffect(() => {
     const fetchAgreement = async () => {
-      if (!id || !subscriberId) return;
+      if (!id) return;
       try {
         const data = await apiService.getAgreementById(id, subscriberId);
         if (!data) {
@@ -108,16 +108,7 @@ export default function EditAgreement() {
         }
 
         // Access Control: Staff can only edit their own agreements
-        let resolvedUserId = userId;
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (userId && !uuidRegex.test(userId)) {
-          const staff = await apiService.getStaffMemberByUid(userId, subscriberId);
-          if (staff && staff.id) {
-            resolvedUserId = staff.id;
-          }
-        }
-
-        if (staffRole === 'agent' && data.created_by !== userUid && data.created_by !== userId && data.agent_id !== resolvedUserId) {
+        if (staffRole === 'agent' && data.created_by !== userUid && data.created_by !== userId && data.agent_id !== userId) {
           throw new Error('You do not have permission to edit this agreement.');
         }
 
@@ -226,31 +217,6 @@ export default function EditAgreement() {
     setError('');
 
     try {
-      // 1. Initial ID assignment
-      let resolvedAgentId = (staffRole === 'admin') ? subscriberId : (userId || userUid);
-
-      const isUuid = (val: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val || '');
-
-      // 2. Resolution Logic
-      if (staffRole === 'admin') {
-        // Owners/Admins use the subscriberId (which is already a UUID)
-        resolvedAgentId = subscriberId;
-      } else if (resolvedAgentId && !isUuid(resolvedAgentId)) {
-        // Staff using a slug (like 'idmahira') need translation to UUID
-        const staffMember = await apiService.getStaffMemberByUid(resolvedAgentId, subscriberId || '');
-        if (staffMember) {
-          resolvedAgentId = staffMember.id;
-        } else {
-          // Safety fallback
-          resolvedAgentId = subscriberId; 
-        }
-      }
-
-      // 3. Final Validation: If it's still not a UUID, use subscriberId as the ultimate fallback
-      if (!resolvedAgentId || !isUuid(resolvedAgentId)) {
-        resolvedAgentId = subscriberId;
-      }
-
       let receiptData = undefined;
       if (paymentReceipt) {
         const reader = new FileReader();
