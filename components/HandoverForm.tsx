@@ -172,7 +172,7 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
       <input 
         type="file" 
         accept="image/*" 
-        capture="environment"
+        /* ❌ REMOVED: capture="environment" */
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
         onChange={(e) => handleRequiredPhotoChange(label, e)}
       />
@@ -268,7 +268,7 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
                 <input 
                   type="file" 
                   accept="image/*" 
-                  capture="environment"
+                  /* ❌ REMOVED: capture="environment" */
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                   onChange={handleDamagePhotoAdd}
                 />
