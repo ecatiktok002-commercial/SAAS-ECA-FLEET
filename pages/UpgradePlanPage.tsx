@@ -1,12 +1,29 @@
 import React from 'react';
-import { Shield, ArrowUpCircle, CheckCircle2, X } from 'lucide-react'; // Added X here
+import { Shield, ArrowUpCircle, CheckCircle2, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom'; // Added for navigation
+import { useNavigate, Navigate } from 'react-router-dom';
 
 const UpgradePlanPage: React.FC = () => {
   const { subscriptionTier } = useAuth();
-  const navigate = useNavigate(); // Hook to go back
+  const navigate = useNavigate();
 
+  // 🛡️ Logic: If the subscriber is already Tier 3, redirect them away immediately
+  // This page should never be accessible to top-tier users.
+  if (subscriptionTier === 'tier_3') {
+    return <Navigate to="/dashboard" replace />;
+  }
+  
+// Inside your login success handler:
+const handleLoginSuccess = (user) => {
+  const tier = user.user_metadata?.subscription_tier;
+
+  // If they are on a lower tier, send them to the upgrade reminder first
+  if (tier === 'tier_1' || tier === 'tier_2') {
+    navigate('/upgrade');
+  } else {
+    navigate('/dashboard');
+  }
+};
   const tiers = [
     {
       name: 'Tier 1 (Forms Module)',
@@ -29,12 +46,13 @@ const UpgradePlanPage: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-full bg-slate-50 flex items-center justify-center p-6 relative">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 relative">
       
-      {/* ❌ NEW: Fixed Close Button for Mobile/Desktop */}
+      {/* ❌ Close Button: Redirects to Dashboard */}
       <button 
-        onClick={() => navigate(-1)} // Takes them back to the last page they were on
-        className="absolute top-6 right-6 p-3 bg-white border border-slate-200 text-slate-400 hover:text-slate-900 rounded-2xl shadow-sm transition-all active:scale-90 z-50"
+        onClick={() => navigate('/dashboard')}
+        className="absolute top-6 right-6 p-3 bg-white border border-slate-200 text-slate-400 hover:text-slate-900 rounded-2xl shadow-sm transition-all active:scale-95 z-50"
+        title="Continue to Dashboard"
       >
         <X className="w-6 h-6" />
       </button>
@@ -46,8 +64,7 @@ const UpgradePlanPage: React.FC = () => {
           </div>
           <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-4">Upgrade Your Fleet Command</h1>
           <p className="text-slate-500 text-lg max-w-2xl mx-auto">
-            The feature you're trying to access is locked under a higher tier. 
-            Choose the module that fits your business needs.
+            Scale your operations. Choose the module that fits your current business needs.
           </p>
         </div>
 
