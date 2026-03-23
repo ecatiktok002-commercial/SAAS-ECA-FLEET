@@ -7,23 +7,11 @@ const UpgradePlanPage: React.FC = () => {
   const { subscriptionTier } = useAuth();
   const navigate = useNavigate();
 
-  // 🛡️ Logic: If the subscriber is already Tier 3, redirect them away immediately
-  // This page should never be accessible to top-tier users.
+  // 🛡️ Guard: If the subscriber is already Tier 3, they shouldn't be here
   if (subscriptionTier === 'tier_3') {
     return <Navigate to="/dashboard" replace />;
   }
-  
-// Inside your login success handler:
-const handleLoginSuccess = (user) => {
-  const tier = user.user_metadata?.subscription_tier;
 
-  // If they are on a lower tier, send them to the upgrade reminder first
-  if (tier === 'tier_1' || tier === 'tier_2') {
-    navigate('/upgrade');
-  } else {
-    navigate('/dashboard');
-  }
-};
   const tiers = [
     {
       name: 'Tier 1 (Forms Module)',
@@ -63,7 +51,7 @@ const handleLoginSuccess = (user) => {
             <Shield className="w-10 h-10" />
           </div>
           <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-4">Upgrade Your Fleet Command</h1>
-          <p className="text-slate-500 text-lg max-w-2xl mx-auto">
+          <p className="text-slate-500 text-lg max-w-2xl mx-auto font-medium">
             Scale your operations. Choose the module that fits your current business needs.
           </p>
         </div>
@@ -85,7 +73,7 @@ const handleLoginSuccess = (user) => {
 
               <ul className="space-y-4 mb-8">
                 {tier.features.map((feature) => (
-                  <li key={feature} className="flex items-center gap-3 text-slate-600 text-sm">
+                  <li key={feature} className="flex items-center gap-3 text-slate-600 text-sm font-medium">
                     <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
                     {feature}
                   </li>
@@ -93,23 +81,17 @@ const handleLoginSuccess = (user) => {
               </ul>
 
               {tier.isCurrent ? (
-                <div className="w-full py-3 bg-slate-100 text-slate-500 rounded-xl font-bold text-center text-sm">
+                <div className="w-full py-4 bg-slate-100 text-slate-500 rounded-2xl font-bold text-center text-sm">
                   Current Plan
                 </div>
               ) : (
-                <button className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
+                <button className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold text-sm hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20">
                   <ArrowUpCircle className="w-5 h-5" />
                   Upgrade Now
                 </button>
               )}
             </div>
           ))}
-        </div>
-
-        <div className="mt-12 text-center">
-          <p className="text-slate-400 text-sm font-medium">
-            Need a custom enterprise solution? <button className="text-blue-600 font-bold hover:underline">Contact Sales</button>
-          </p>
         </div>
       </div>
     </div>
