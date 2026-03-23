@@ -117,7 +117,7 @@ const AgentDashboard: React.FC = () => {
       
       completedAgreements.forEach(a => {
         const createdDate = a.created_at.split('T')[0];
-        const price = a.total_price || 0;
+        const price = Number(a.total_price) || 0;
         if (createdDate === todayStr) salesToday += price;
         if (createdDate >= startOfWeekStr) salesThisWeek += price;
         if (createdDate >= startOfMonthStr) salesThisMonth += price;
@@ -185,12 +185,12 @@ const AgentDashboard: React.FC = () => {
 
       // 4. Agent Specific Metrics (Earnings & Chart)
       const getCommissionForAmount = (a: Agreement, runningTotal: number) => {
-        const totalPrice = a.total_price || 0;
+        const totalPrice = Number(a.total_price) || 0;
         if (a.commission_earned !== undefined && a.commission_earned !== null) {
-          return a.commission_earned;
+          return Number(a.commission_earned);
         }
         if (currentStaff?.commission_rate) {
-          return totalPrice * (currentStaff.commission_rate / 100);
+          return totalPrice * (Number(currentStaff.commission_rate) / 100);
         }
         const tierOverride = currentStaff?.commission_tier_override || 'auto';
         if (tierOverride !== 'auto') {
@@ -236,8 +236,8 @@ const AgentDashboard: React.FC = () => {
 
         let runningTotal = 0;
         monthAgreements.forEach(a => {
-          const commission = getCommissionForAmount(a, runningTotal);
-          runningTotal += (a.total_price || 0);
+          const commission = Number(getCommissionForAmount(a, runningTotal)) || 0;
+          runningTotal += Number(a.total_price) || 0;
           lifetime += commission;
 
           if (monthKey === lastMonthKey) {
@@ -264,7 +264,7 @@ const AgentDashboard: React.FC = () => {
 
       const chartData = Object.entries(weeklyData).map(([label, amount]) => ({
         date: label,
-        amount: Number(amount.toFixed(2))
+        amount: Number(Number(amount || 0).toFixed(2))
       }));
 
       setDailyCommissions(chartData);
@@ -560,7 +560,7 @@ const AgentDashboard: React.FC = () => {
                       {agreement.car_plate_number || agreement.car_model}
                     </td>
                     <td className="px-6 py-4 text-sm font-black text-emerald-600 text-right">
-                      {currencyFormatter.format(agreement.total_price)}
+                      {currencyFormatter.format(Number(agreement.total_price) || 0)}
                     </td>
                   </tr>
                 )) : (
