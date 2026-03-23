@@ -95,18 +95,17 @@ export interface LogEntry {
 
 export interface StaffMember {
   id: string;
+  subscriber_id: string;
   name: string;
-  subscriber_id?: string;
   staff_uid: string;
-  role: 'admin' | 'staff';
-  pin_code?: string;
+  pin_hash?: string; // Hashed PIN
+  pin_code?: string; // Plain text PIN for new staff table
+  role?: 'admin' | 'staff';
+  is_active?: boolean;
+  created_at?: string;
   commission_tier_override?: 'auto' | 'premium' | 'prestige' | 'privilege';
   commission_rate?: number;
-  created_at?: string;
-  // --- This is the line we are adding ---
-  is_active?: boolean; 
 }
-
 
 export interface Agreement {
   id: string;
