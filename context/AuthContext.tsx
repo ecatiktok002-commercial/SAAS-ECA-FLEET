@@ -70,8 +70,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Retrieve subscriber_id from metadata
         let sId = session.user.user_metadata?.subscriber_id;
         
-        // Fallback to user.id if still missing
-        let finalSubscriberId = isSuperAdmin ? 'superadmin' : (sId || session.user.id);
+        // Fallback to user.id if still missing, but we'll validate if they are the owner
+        let finalSubscriberId = isSuperAdmin ? 'superadmin' : sId;
+
+        if (!isSuperAdmin && !finalSubscriberId) {
+          // Check if user is a subscriber (owner)
+          const { data: subData } = await supabase
+            .from('subscribers')
+            .select('id')
+            .eq('id', session.user.id)
+            .maybeSingle();
+          
+          if (subData) {
+            finalSubscriberId = subData.id;
+          } else {
+            // Check if user is a staff member to get their subscriber_id
+            const { data: staffMemberData } = await supabase
+              .from('staff_members')
+              .select('subscriber_id')
+              .eq('id', session.user.id)
+              .maybeSingle();
+            
+            if (staffMemberData) {
+              finalSubscriberId = staffMemberData.subscriber_id;
+            } else {
+              // Last resort fallback
+              finalSubscriberId = session.user.id;
+            }
+          }
+        }
         
         // If it's a slug (not a UUID), try to resolve it to a UUID for database compatibility
         if (finalSubscriberId && finalSubscriberId !== 'superadmin' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(finalSubscriberId)) {
@@ -96,7 +123,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // Determine role: prioritize stored role, fallback to owner/superadmin logic
         const storedRole = localStorage.getItem('staffRole') as StaffRole;
-        const isSubscriberOwner = session.user.id === finalSubscriberId;
+        // A user is the subscriber owner only if their ID matches the resolved finalSubscriberId
+        // AND they are not a superadmin.
+        const isSubscriberOwner = !isSuperAdmin && session.user.id === finalSubscriberId;
         
         if (isSuperAdmin) {
           setStaffRole('admin');
@@ -193,7 +222,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           if (storedUserUid) {
             setUserUid(storedUserUid);
-          } else if (storedRole === 'agent' && storedUserId) {
+          } else if (storedRoleFromStorage === 'agent' && storedUserId) {
             // Fallback: Fetch staff_uid if missing from storage
             const { data: staffData } = await supabase
               .from('staff_members')

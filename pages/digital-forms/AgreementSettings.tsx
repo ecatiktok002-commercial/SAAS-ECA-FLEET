@@ -1,9 +1,19 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Settings, Shield, Bell, FileText, Image as ImageIcon, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 const AgreementSettings: React.FC = () => {
   const navigate = useNavigate();
+  const { staffRole } = useAuth();
+
+  useEffect(() => {
+    if (staffRole && staffRole !== 'admin') {
+      navigate('/forms');
+    }
+  }, [staffRole, navigate]);
+
+  if (staffRole && staffRole !== 'admin') return null;
 
   return (
     <div className="p-8 max-w-4xl mx-auto">

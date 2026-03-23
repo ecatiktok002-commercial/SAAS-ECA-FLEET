@@ -366,7 +366,18 @@ const resolveAgentId = async (agentId: string | undefined): Promise<string | und
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(agentId);
   
   if (isUuid) {
-    // Check if it's already a valid staff_members.id
+    // Check if it's already a valid staff.id (Virtual Login)
+    const { data: virtualStaff } = await supabase
+      .from('staff')
+      .select('id')
+      .eq('id', agentId)
+      .maybeSingle();
+      
+    if (virtualStaff) {
+      return virtualStaff.id;
+    }
+
+    // Check if it's already a valid staff_members.id (Legacy)
     const { data: existingStaff } = await supabase
       .from('staff_members')
       .select('id')
@@ -376,9 +387,32 @@ const resolveAgentId = async (agentId: string | undefined): Promise<string | und
     if (existingStaff) {
       return existingStaff.id;
     }
+
+    // Check if it's a valid subscriber.id (Owner acting as agent)
+    const { data: existingSubscriber } = await supabase
+      .from('subscribers')
+      .select('id')
+      .eq('id', agentId)
+      .maybeSingle();
+
+    if (existingSubscriber) {
+      return existingSubscriber.id;
+    }
   }
   
-  // If it's not a valid staff_members.id (e.g. it's an Auth UID or 'idmahira'), try to resolve it via staff_uid
+  // If it's not a valid UUID (e.g. it's an Auth UID or 'idmahira'), try to resolve it via access_id
+  // Check 'staff' table first
+  const { data: virtualStaffData } = await supabase
+    .from('staff')
+    .select('id')
+    .eq('access_id', agentId)
+    .maybeSingle();
+    
+  if (virtualStaffData) {
+    return virtualStaffData.id;
+  }
+
+  // Fallback to 'staff_members' table
   const { data: staffData } = await supabase
     .from('staff_members')
     .select('id')
@@ -1192,24 +1226,34 @@ export const apiService = {
   async getStaffMemberByUid(uid: string, subscriberId: string): Promise<StaffMember | null> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
-      // We need to find the slug for this subscriberId (UUID)
+      // 1. Try 'staff' table (Virtual Login)
       const { data: subData } = await supabase.from('subscribers').select('name').eq('id', subscriberId).single();
       const slug = subData?.name || subscriberId;
 
-      let query = supabase
+      const { data: virtualStaff, error: virtualError } = await supabase
         .from('staff')
         .select('*')
         .eq('access_id', uid)
         .eq('subscriber_id', slug)
-        .eq('is_active', true);
+        .maybeSingle();
 
-      const { data, error } = await query.maybeSingle();
-
-      if (error) {
-        logSupabaseError('getStaffMemberByUid', error);
-        return null;
+      if (virtualStaff && !virtualError) {
+        return mapStaffFromDB(virtualStaff);
       }
-      return data ? mapStaffFromDB(data) : null;
+
+      // 2. Fallback to 'staff_members' table (Legacy)
+      const { data: legacyStaff, error: legacyError } = await supabase
+        .from('staff_members')
+        .select('*')
+        .eq('access_id', uid)
+        .eq('subscriber_id', subscriberId)
+        .maybeSingle();
+
+      if (legacyStaff && !legacyError) {
+        return mapStaffFromDB(legacyStaff);
+      }
+
+      return null;
     });
   },
 

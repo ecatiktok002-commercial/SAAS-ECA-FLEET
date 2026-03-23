@@ -247,17 +247,30 @@ export default function CreateAgreement() {
 
       // Get current staff name if available
       const staffName = userName || 'Agent';
-      let actualAgentId = staffRole === 'admin' ? subscriberId : userId;
 
-      // Ensure actualAgentId is a valid UUID. If it's a string UID (e.g., 'idmahira'), fetch the real UUID.
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      if (actualAgentId && actualAgentId !== 'superadmin' && !uuidRegex.test(actualAgentId)) {
-        const staffMember = await apiService.getStaffMemberByUid(actualAgentId, subscriberId);
+      // 1. Initial ID assignment
+      let actualAgentId = (staffRole === 'admin') ? subscriberId : (userId || userUid);
+
+      const isUuid = (val: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val || '');
+
+      // 2. Resolution Logic
+      if (staffRole === 'admin') {
+        // Owners/Admins use the subscriberId (which is already a UUID)
+        actualAgentId = subscriberId;
+      } else if (actualAgentId && !isUuid(actualAgentId)) {
+        // Staff using a slug (like 'idmahira') need translation to UUID
+        const staffMember = await apiService.getStaffMemberByUid(actualAgentId, subscriberId || '');
         if (staffMember) {
           actualAgentId = staffMember.id;
         } else {
-          throw new Error('Could not resolve staff UUID. Please log out and log in again.');
+          // Safety fallback
+          actualAgentId = subscriberId; 
         }
+      }
+
+      // 3. Final Validation: If it's still not a UUID, use subscriberId as the ultimate fallback
+      if (!actualAgentId || !isUuid(actualAgentId)) {
+        actualAgentId = subscriberId;
       }
 
       // 1. Upsert customer to CRM first

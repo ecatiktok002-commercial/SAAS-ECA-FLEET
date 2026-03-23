@@ -1,9 +1,20 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Image as ImageIcon } from 'lucide-react';
 import BrandingSettings from '../../components/BrandingSettings';
+import { useAuth } from '../../context/AuthContext';
 
 export default function BrandingSettingsPage() {
+  const { staffRole } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (staffRole && staffRole !== 'admin') {
+      navigate('/forms');
+    }
+  }, [staffRole, navigate]);
+
+  if (staffRole && staffRole !== 'admin') return null;
   return (
     <div className="min-h-screen bg-slate-50 font-sans pb-12">
       <nav className="bg-white shadow-sm border-b border-slate-200">

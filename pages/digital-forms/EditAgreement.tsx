@@ -107,8 +107,8 @@ export default function EditAgreement() {
           throw new Error('Agreement not found');
         }
 
-        // Access Control: Staff can only edit their own agreements
-        if (staffRole === 'agent' && data.created_by !== userUid && data.created_by !== userId && data.agent_id !== userId) {
+        // Access Control: Staff and Agents can only edit their own agreements
+        if (staffRole !== 'admin' && data.created_by !== userUid && data.created_by !== userId && data.agent_id !== userId) {
           throw new Error('You do not have permission to edit this agreement.');
         }
 
