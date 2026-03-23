@@ -29,23 +29,24 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       }
 
       const isAdmin = existingStaffRole === 'admin';
-      const tierNum = existingSubscriptionTier === 'tier_3' ? 3 : existingSubscriptionTier === 'tier_2' ? 2 : 1;
+      const tierNum = existingSubscriptionTier === 'tier_3' ? 3 : 
+                      existingSubscriptionTier === 'tier_2' ? 2 : 1;
 
       if (isAdmin) {
+        // EVERY LOGIN: Tier 1 & 2 go to Upgrade Page first
         if (tierNum === 1 || tierNum === 2) {
           navigate('/upgrade');
         } else {
           navigate('/dashboard');
         }
       } else {
-        // Staff Redirects based on Tier
+        // Staff Redirects (Existing logic)
         if (tierNum === 1) navigate('/forms');
         else if (tierNum === 2) navigate('/calendar');
         else navigate('/agent-dashboard');
       }
     }
   }, [existingSubscriberId, existingStaffRole, existingSubscriptionTier, navigate]);
-
   // Step 1: Handle UID Verification (Smart Detection)
   const handleVerifyUid = async (e: React.FormEvent) => {
     e.preventDefault();

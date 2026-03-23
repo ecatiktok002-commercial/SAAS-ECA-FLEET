@@ -80,6 +80,7 @@ const IndexRedirect: React.FC = () => {
   const { staffRole, subscriberTier } = useAuth();
   
   if (staffRole === 'admin') {
+    // If they hit the root URL "/" while logged in, force the upgrade pop-out
     if (subscriberTier === 1 || subscriberTier === 2) {
       return <Navigate to="/upgrade" replace />;
     }
