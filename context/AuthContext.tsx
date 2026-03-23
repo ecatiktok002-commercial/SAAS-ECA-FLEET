@@ -22,12 +22,11 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const normalizeTier = (tier: string | null): SubscriptionTier => {
+const normalizeTier = (tier: any): SubscriptionTier => {
   if (!tier) return 'tier_1';
-  const normalized = tier.toLowerCase().replace(' ', '_');
-  if (normalized === 'tier_1' || normalized === 'tier_2' || normalized === 'tier_3') {
-    return normalized as SubscriptionTier;
-  }
+  const normalized = String(tier).toLowerCase();
+  if (normalized.includes('tier 3') || normalized.includes('tier_3') || normalized === '3') return 'tier_3';
+  if (normalized.includes('tier 2') || normalized.includes('tier_2') || normalized === '2') return 'tier_2';
   return 'tier_1';
 };
 

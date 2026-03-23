@@ -4,11 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate, Navigate } from 'react-router-dom';
 
 const UpgradePlanPage: React.FC = () => {
-  const { subscriptionTier } = useAuth();
+  const { subscriptionTier, subscriberTier } = useAuth();
   const navigate = useNavigate();
 
   // 🛡️ Guard: If the subscriber is already Tier 3, they shouldn't be here
-  if (subscriptionTier === 'tier_3') {
+  if (subscriberTier === 3) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -17,30 +17,31 @@ const UpgradePlanPage: React.FC = () => {
       name: 'Tier 1 (Forms Module)',
       price: 'RM 199/mo',
       features: ['Digital Forms', 'Staff Management'],
-      isCurrent: subscriptionTier === 'tier_1'
+      isCurrent: subscriberTier === 1
     },
     {
       name: 'Tier 2 (Calendar Module)',
       price: 'RM 299/mo',
       features: ['Calendar UI', 'Staff Management'],
-      isCurrent: subscriptionTier === 'tier_2'
+      isCurrent: subscriberTier === 2
     },
     {
       name: 'Tier 3 (Fleet Guardian)',
       price: 'RM 499/mo',
       features: ['All Features', 'CRM', 'Audit & Payouts', 'Fleet Tracking', 'Admin Dashboard'],
-      isCurrent: false
+      isCurrent: subscriberTier === 3
     }
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 relative">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 relative font-sans">
       
       {/* ❌ Close Button: Redirects to Default Allowed Route */}
       <button 
         onClick={() => {
-          if (subscriptionTier === 'tier_1') navigate('/forms');
-          else if (subscriptionTier === 'tier_2') navigate('/calendar');
+          // Send them to their respective allowed starting pages
+          if (subscriberTier === 1) navigate('/forms');
+          else if (subscriberTier === 2) navigate('/calendar');
           else navigate('/dashboard');
         }}
         className="absolute top-6 right-6 p-3 bg-white border border-slate-200 text-slate-400 hover:text-slate-900 rounded-2xl shadow-sm transition-all active:scale-95 z-50"
