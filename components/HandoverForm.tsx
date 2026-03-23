@@ -29,9 +29,9 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
   onClose, 
   onSuccess, 
   subscriberId,
-  initialType = 'Pickup'
+  initialType
 }) => {
-  const [handoverType, setHandoverType] = useState<HandoverType>(initialType);
+  const [handoverType, setHandoverType] = useState<HandoverType>(initialType || 'Pickup');
   const [mileage, setMileage] = useState('');
   const [fuelLevel, setFuelLevel] = useState('');
   const [conditionDetails, setConditionDetails] = useState('');
@@ -213,23 +213,29 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
             </div>
           )}
 
-          {/* Type Toggle */}
-          <div className="flex bg-slate-200/50 p-1 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setHandoverType('Pickup')}
-              className={`flex-1 py-3 text-[11px] font-bold uppercase tracking-widest rounded-lg transition-all ${handoverType === 'Pickup' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              Pickup
-            </button>
-            <button
-              type="button"
-              onClick={() => setHandoverType('Return')}
-              className={`flex-1 py-3 text-[11px] font-bold uppercase tracking-widest rounded-lg transition-all ${handoverType === 'Return' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              Return
-            </button>
-          </div>
+          {/* Type Toggle OR Fixed Header */}
+          {!initialType ? (
+            <div className="flex bg-slate-200/50 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setHandoverType('Pickup')}
+                className={`flex-1 py-3 text-[11px] font-bold uppercase tracking-widest rounded-lg transition-all ${handoverType === 'Pickup' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                Pickup
+              </button>
+              <button
+                type="button"
+                onClick={() => setHandoverType('Return')}
+                className={`flex-1 py-3 text-[11px] font-bold uppercase tracking-widest rounded-lg transition-all ${handoverType === 'Return' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                Return
+              </button>
+            </div>
+          ) : (
+            <div className="bg-slate-100 text-slate-700 py-3 px-4 rounded-xl font-bold uppercase tracking-widest text-center text-xs border border-slate-200 shadow-inner">
+              {handoverType} Inspection Form
+            </div>
+          )}
 
           {/* Section 1: Exterior Photos */}
           <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
