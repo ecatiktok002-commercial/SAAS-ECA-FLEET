@@ -231,7 +231,7 @@ const StaffManagementPage: React.FC = () => {
                   type="text" required value={formData.name}
                   onChange={e => setFormData({ ...formData, name: e.target.value })}
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500/10 focus:bg-white outline-none font-bold text-slate-700 transition-all"
-                  placeholder="e.g. Mahira Atelier"
+                  placeholder="e.g. xxx"
                 />
               </div>
 
@@ -241,7 +241,7 @@ const StaffManagementPage: React.FC = () => {
                   type="text" required value={formData.staff_uid}
                   onChange={e => setFormData({ ...formData, staff_uid: e.target.value.toLowerCase().replace(/\s+/g, '') })}
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500/10 focus:bg-white outline-none font-mono font-bold text-blue-600 transition-all"
-                  placeholder="idmahira"
+                  placeholder="idxxx"
                 />
               </div>
 
