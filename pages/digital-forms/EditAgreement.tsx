@@ -100,7 +100,7 @@ export default function EditAgreement() {
 
   useEffect(() => {
     const fetchAgreement = async () => {
-      if (!id) return;
+      if (!id || !subscriberId) return;
       try {
         const data = await apiService.getAgreementById(id, subscriberId);
         if (!data) {
