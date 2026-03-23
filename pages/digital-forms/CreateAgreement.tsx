@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Save, Upload, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Save, Upload, CheckCircle2, X, Trash2 } from 'lucide-react';
 import { addDays, differenceInDays, parseISO, format, isValid } from 'date-fns';
 import { getNowMYT, formatInMYT, utcToMyt } from '../../utils/dateUtils';
 import { apiService } from '../../services/apiService';
@@ -33,7 +33,7 @@ export default function CreateAgreement() {
     need_einvoice: false,
     booking_id: bookingId || '',
   });
-  const [paymentReceipt, setPaymentReceipt] = useState<File | null>(null);
+  const [paymentReceipts, setPaymentReceipts] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [highlightReturnDate, setHighlightReturnDate] = useState(false);
@@ -224,9 +224,17 @@ export default function CreateAgreement() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setPaymentReceipt(e.target.files[0]);
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files);
+      setPaymentReceipts(prev => {
+        const combined = [...prev, ...newFiles];
+        return combined.slice(0, 3); // Limit to 3
+      });
     }
+  };
+
+  const removeFile = (index: number) => {
+    setPaymentReceipts(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -237,12 +245,15 @@ export default function CreateAgreement() {
 
     try {
       let receiptData = '';
-      if (paymentReceipt) {
-        const reader = new FileReader();
-        receiptData = await new Promise((resolve) => {
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.readAsDataURL(paymentReceipt);
-        });
+      if (paymentReceipts.length > 0) {
+        const receiptDataArray = await Promise.all(paymentReceipts.map(file => {
+          return new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+          });
+        }));
+        receiptData = JSON.stringify(receiptDataArray);
       }
 
       // Get current staff name if available
@@ -649,14 +660,27 @@ export default function CreateAgreement() {
                         htmlFor="file-upload"
                         className="relative cursor-pointer bg-white rounded-lg font-medium text-slate-900 hover:text-slate-700 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-slate-900"
                       >
-                        <span>Upload a file</span>
-                        <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept="image/*,.pdf" />
+                        <span>Upload files</span>
+                        <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept="image/*,.pdf" multiple />
                       </label>
                       <p className="pl-1">or drag and drop</p>
                     </div>
-                    <p className="text-xs text-slate-500">PNG, JPG, PDF up to 10MB</p>
-                    {paymentReceipt && (
-                      <p className="text-sm font-medium text-emerald-600 mt-2">{paymentReceipt.name}</p>
+                    <p className="text-xs text-slate-500">PNG, JPG, PDF up to 10MB (Max 3 files)</p>
+                    {paymentReceipts.length > 0 && (
+                      <div className="mt-4 space-y-2">
+                        {paymentReceipts.map((file, index) => (
+                          <div key={index} className="flex items-center justify-between bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-100">
+                            <span className="text-sm font-medium text-emerald-700 truncate max-w-[200px]">{file.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeFile(index)}
+                              className="text-emerald-600 hover:text-emerald-800 p-1"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </div>

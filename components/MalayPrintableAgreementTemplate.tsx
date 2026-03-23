@@ -33,6 +33,7 @@ interface MalayPrintableAgreementTemplateProps {
   };
   signatureImg?: string | null;
   beforePhotos?: string[];
+  paymentReceipts?: string[];
 }
 
 const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateProps> = ({ 
@@ -42,7 +43,8 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
   payment = {}, 
   brandSettings = {},
   signatureImg = null,
-  beforePhotos = []
+  beforePhotos = [],
+  paymentReceipts = []
 }) => {
   
   // Format dates nicely
@@ -215,6 +217,23 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
                   <div key={index} className="border border-gray-300 p-2 text-center break-inside-avoid">
                     <img src={photoUrl} alt={`Car condition ${index + 1}`} className="w-full h-48 object-cover mb-2" crossOrigin="anonymous" />
                     <p className="text-xs font-bold">Gambar {index + 1}</p>
+                  </div>
+                ))}
+              </div>
+              {/* Spacer to ensure footer doesn't overlap content */}
+              <div className="mt-auto h-20"></div>
+            </div>
+          )}
+
+          {/* PAGE 3+: PAYMENT RECEIPTS */}
+          {paymentReceipts && paymentReceipts.length > 0 && (
+            <div className="p-10 min-h-[1123px] flex flex-col mt-4 break-before-page relative">
+              <h2 className="text-lg font-bold border-b border-black pb-2 mb-6 uppercase">LAMPIRAN: Resit Pembayaran</h2>
+              <div className="grid grid-cols-2 gap-4">
+                {paymentReceipts.map((receiptUrl, index) => (
+                  <div key={index} className="border border-gray-300 p-2 text-center break-inside-avoid">
+                    <img src={receiptUrl} alt={`Payment Receipt ${index + 1}`} className="w-full h-48 object-contain mb-2" crossOrigin="anonymous" />
+                    <p className="text-xs font-bold">Resit {index + 1}</p>
                   </div>
                 ))}
               </div>

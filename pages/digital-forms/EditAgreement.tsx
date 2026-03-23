@@ -33,15 +33,15 @@ export default function EditAgreement() {
     return_time: '',
     need_einvoice: false,
   });
-  const [paymentReceipt, setPaymentReceipt] = useState<File | null>(null);
-  const [existingReceipt, setExistingReceipt] = useState<string | null>(null);
+  const [paymentReceipts, setPaymentReceipts] = useState<File[]>([]);
+  const [existingReceipts, setExistingReceipts] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState('');
   const [highlightReturnDate, setHighlightReturnDate] = useState(false);
   const [highlightReturnTime, setHighlightReturnTime] = useState(false);
   const [customerFound, setCustomerFound] = useState(false);
-  const [receiptRemoved, setReceiptRemoved] = useState(false);
+  const [removedExistingReceipts, setRemovedExistingReceipts] = useState<string[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
@@ -132,7 +132,22 @@ export default function EditAgreement() {
           return_time: data.return_time || '',
           need_einvoice: data.need_einvoice || false,
         });
-        setExistingReceipt(data.payment_receipt || null);
+
+        // Parse existing receipts
+        if (data.payment_receipt) {
+          try {
+            const parsed = JSON.parse(data.payment_receipt);
+            if (Array.isArray(parsed)) {
+              setExistingReceipts(parsed);
+            } else {
+              setExistingReceipts([data.payment_receipt]);
+            }
+          } catch (e) {
+            setExistingReceipts([data.payment_receipt]);
+          }
+        } else {
+          setExistingReceipts([]);
+        }
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -205,9 +220,28 @@ export default function EditAgreement() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setPaymentReceipt(e.target.files[0]);
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files);
+      setPaymentReceipts(prev => {
+        const combined = [...prev, ...newFiles];
+        const totalCount = existingReceipts.length + combined.length;
+        if (totalCount > 3) {
+          alert('Total receipts (existing + new) cannot exceed 3.');
+          return combined.slice(0, 3 - existingReceipts.length);
+        }
+        return combined;
+      });
     }
+  };
+
+  const removeNewFile = (index: number) => {
+    setPaymentReceipts(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const removeExistingReceipt = (index: number) => {
+    const receiptToRemove = existingReceipts[index];
+    setRemovedExistingReceipts(prev => [...prev, receiptToRemove]);
+    setExistingReceipts(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -218,13 +252,23 @@ export default function EditAgreement() {
 
     try {
       let receiptData = undefined;
-      if (paymentReceipt) {
-        const reader = new FileReader();
-        receiptData = await new Promise((resolve) => {
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.readAsDataURL(paymentReceipt);
-        });
-      } else if (receiptRemoved) {
+      
+      const currentReceipts = [...existingReceipts];
+      
+      if (paymentReceipts.length > 0) {
+        const newReceiptDataArray = await Promise.all(paymentReceipts.map(file => {
+          return new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+          });
+        }));
+        currentReceipts.push(...newReceiptDataArray);
+      }
+
+      if (currentReceipts.length > 0) {
+        receiptData = JSON.stringify(currentReceipts);
+      } else if (removedExistingReceipts.length > 0 && existingReceipts.length === 0) {
         receiptData = null;
       }
 
@@ -639,83 +683,103 @@ export default function EditAgreement() {
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Payment Receipt</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Payment Receipts (Max 3)</label>
                 
-                {existingReceipt && !receiptRemoved ? (
-                  <div className="mt-1 bg-slate-50 rounded-xl border border-slate-200 p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="bg-emerald-100 p-2 rounded-lg">
-                          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                <div className="space-y-4">
+                  {existingReceipts.length > 0 && (
+                    <div className="grid grid-cols-1 gap-4">
+                      {existingReceipts.map((receipt, index) => (
+                        <div key={`existing-${index}`} className="bg-slate-50 rounded-xl border border-slate-200 p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="bg-emerald-100 p-2 rounded-lg">
+                                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900">Receipt #{index + 1}</p>
+                                <p className="text-xs text-slate-500">Existing receipt</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPreviewUrl(receipt);
+                                  setIsPreviewOpen(true);
+                                }}
+                                className="inline-flex items-center px-3 py-1.5 border border-slate-200 shadow-sm text-xs font-medium rounded-lg text-slate-700 bg-white hover:bg-slate-50 transition-colors"
+                              >
+                                <Eye className="w-3.5 h-3.5 mr-1.5" />
+                                View
+                              </button>
+                              {isAdmin && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (window.confirm('Are you sure you want to remove this receipt?')) {
+                                      removeExistingReceipt(index);
+                                    }
+                                  }}
+                                  className="inline-flex items-center px-3 py-1.5 border border-transparent shadow-sm text-xs font-medium rounded-lg text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                                  Remove
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">Receipt Attached</p>
-                          <p className="text-xs text-slate-500">A payment receipt is already uploaded for this agreement.</p>
+                      ))}
+                    </div>
+                  )}
+
+                  {paymentReceipts.length > 0 && (
+                    <div className="grid grid-cols-1 gap-4">
+                      {paymentReceipts.map((file, index) => (
+                        <div key={`new-${index}`} className="bg-emerald-50 rounded-xl border border-emerald-100 p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="bg-emerald-100 p-2 rounded-lg">
+                                <Upload className="w-5 h-5 text-emerald-600" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold text-emerald-900 truncate max-w-[200px]">{file.name}</p>
+                                <p className="text-xs text-emerald-600">New file to upload</p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeNewFile(index)}
+                              className="inline-flex items-center px-3 py-1.5 border border-transparent shadow-sm text-xs font-medium rounded-lg text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                              Remove
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPreviewUrl(existingReceipt);
-                            setIsPreviewOpen(true);
-                          }}
-                          className="inline-flex items-center px-3 py-1.5 border border-slate-200 shadow-sm text-xs font-medium rounded-lg text-slate-700 bg-white hover:bg-slate-50 transition-colors"
-                        >
-                          <Eye className="w-3.5 h-3.5 mr-1.5" />
-                          View
-                        </button>
-                        {isAdmin && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (window.confirm('Are you sure you want to remove this receipt?')) {
-                                setReceiptRemoved(true);
-                                setPaymentReceipt(null);
-                              }
-                            }}
-                            className="inline-flex items-center px-3 py-1.5 border border-transparent shadow-sm text-xs font-medium rounded-lg text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
+                      ))}
+                    </div>
+                  )}
+
+                  {(existingReceipts.length + paymentReceipts.length) < 3 && !isLocked && (
+                    <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-lg hover:bg-slate-50 transition-colors">
+                      <div className="space-y-1 text-center">
+                        <Upload className="mx-auto h-12 w-12 text-slate-400" />
+                        <div className="flex text-sm text-slate-600 justify-center">
+                          <label
+                            htmlFor="file-upload"
+                            className={`relative cursor-pointer bg-white rounded-lg font-medium text-slate-900 hover:text-slate-700 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-slate-900 ${isLocked ? 'pointer-events-none opacity-50' : ''}`}
                           >
-                            <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-                            Remove
-                          </button>
-                        )}
+                            <span>Upload files</span>
+                            <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept="image/*,.pdf" disabled={isLocked} multiple />
+                          </label>
+                          <p className="pl-1">or drag and drop</p>
+                        </div>
+                        <p className="text-xs text-slate-500">PNG, JPG, PDF up to 10MB (Max 3 total)</p>
                       </div>
                     </div>
-                    
-                    {isAdmin && !isLocked && (
-                      <div className="mt-4 pt-4 border-t border-slate-200">
-                        <p className="text-xs text-slate-500 mb-2">Or replace with a new file:</p>
-                        <input 
-                          type="file" 
-                          onChange={handleFileChange} 
-                          accept="image/*,.pdf"
-                          className="text-xs text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-slate-900 file:text-white hover:file:bg-slate-800"
-                        />
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-lg hover:bg-slate-50 transition-colors">
-                    <div className="space-y-1 text-center">
-                      <Upload className="mx-auto h-12 w-12 text-slate-400" />
-                      <div className="flex text-sm text-slate-600 justify-center">
-                        <label
-                          htmlFor="file-upload"
-                          className={`relative cursor-pointer bg-white rounded-lg font-medium text-slate-900 hover:text-slate-700 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-slate-900 ${isLocked ? 'pointer-events-none opacity-50' : ''}`}
-                        >
-                          <span>{receiptRemoved ? 'Upload a new file' : 'Upload a file'}</span>
-                          <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept="image/*,.pdf" disabled={isLocked} />
-                        </label>
-                        <p className="pl-1">or drag and drop</p>
-                      </div>
-                      <p className="text-xs text-slate-500">PNG, JPG, PDF up to 10MB</p>
-                      {paymentReceipt && (
-                        <p className="text-sm font-medium text-emerald-600 mt-2">{paymentReceipt.name}</p>
-                      )}
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
 

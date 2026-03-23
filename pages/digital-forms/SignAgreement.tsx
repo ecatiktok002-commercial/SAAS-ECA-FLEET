@@ -249,6 +249,15 @@ export default function SignAgreement() {
             }}
             signatureImg={agreement.signature_data}
             beforePhotos={agreement.photos_url}
+            paymentReceipts={(() => {
+              if (!agreement.payment_receipt) return [];
+              try {
+                const parsed = JSON.parse(agreement.payment_receipt);
+                return Array.isArray(parsed) ? parsed : [agreement.payment_receipt];
+              } catch (e) {
+                return [agreement.payment_receipt];
+              }
+            })()}
           />
         )}
 

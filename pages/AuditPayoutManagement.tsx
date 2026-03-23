@@ -69,7 +69,8 @@ const AuditPayoutManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [processing, setProcessing] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [currentPreviewIndex, setCurrentPreviewIndex] = useState(0);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
   const [scanTrigger, setScanTrigger] = useState(0);
@@ -527,7 +528,29 @@ const AuditPayoutManagement: React.FC = () => {
                           </td>
                           <td className="py-4 px-6">
                             <div className="text-sm font-bold text-slate-900">RM {(Number(record.form_price) || 0).toFixed(2)}</div>
-                            <div className="text-[10px] text-emerald-600 font-bold">Comm: RM {(Number(record.commission_earned) || 0).toFixed(2)}</div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <div className="text-[10px] text-emerald-600 font-bold">Comm: RM {(Number(record.commission_earned) || 0).toFixed(2)}</div>
+                              {record.payment_receipt && (
+                                <button
+                                  onClick={() => {
+                                    try {
+                                      const parsed = JSON.parse(record.payment_receipt!);
+                                      const urls = Array.isArray(parsed) ? parsed : [record.payment_receipt!];
+                                      setPreviewUrls(urls);
+                                      setCurrentPreviewIndex(0);
+                                      setIsPreviewOpen(true);
+                                    } catch (e) {
+                                      setPreviewUrls([record.payment_receipt!]);
+                                      setCurrentPreviewIndex(0);
+                                      setIsPreviewOpen(true);
+                                    }
+                                  }}
+                                  className="text-[10px] text-blue-600 font-bold hover:underline flex items-center gap-0.5"
+                                >
+                                  <ImageIcon className="w-3 h-3" /> View
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td className="py-4 px-6">
                             <div className="flex flex-col gap-1">
@@ -773,33 +796,64 @@ const AuditPayoutManagement: React.FC = () => {
       </div>
 
       {/* Preview Modal */}
-      {isPreviewOpen && previewUrl && (
+      {isPreviewOpen && previewUrls.length > 0 && (
         <div className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-4xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
-              <h3 className="text-lg font-bold text-slate-900">Receipt Preview</h3>
+              <div className="flex flex-col">
+                <h3 className="text-lg font-bold text-slate-900">Receipt Preview</h3>
+                {previewUrls.length > 1 && (
+                  <p className="text-xs text-slate-500">Receipt {currentPreviewIndex + 1} of {previewUrls.length}</p>
+                )}
+              </div>
               <button 
                 onClick={() => {
                   setIsPreviewOpen(false);
-                  setPreviewUrl(null);
+                  setPreviewUrls([]);
                 }}
                 className="text-slate-400 hover:text-slate-600 p-2 rounded-lg hover:bg-slate-100 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-6 overflow-auto flex-1 bg-slate-50 flex items-center justify-center">
-              {previewUrl.startsWith('data:application/pdf') ? (
-                <iframe src={previewUrl} className="w-full h-full min-h-[60vh] rounded-lg border border-slate-200" title="PDF Preview" />
+            <div className="p-6 overflow-auto flex-1 bg-slate-50 flex items-center justify-center relative group">
+              {previewUrls.length > 1 && (
+                <>
+                  <button 
+                    onClick={() => setCurrentPreviewIndex(prev => (prev === 0 ? previewUrls.length - 1 : prev - 1))}
+                    className="absolute left-4 z-10 p-2 bg-white/80 hover:bg-white rounded-full shadow-lg text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <ChevronLeft className="w-6 h-6" />
+                  </button>
+                  <button 
+                    onClick={() => setCurrentPreviewIndex(prev => (prev === previewUrls.length - 1 ? 0 : prev + 1))}
+                    className="absolute right-4 z-10 p-2 bg-white/80 hover:bg-white rounded-full shadow-lg text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <ChevronRight className="w-6 h-6" />
+                  </button>
+                </>
+              )}
+              
+              {previewUrls[currentPreviewIndex].startsWith('data:application/pdf') ? (
+                <iframe src={previewUrls[currentPreviewIndex]} className="w-full h-full min-h-[60vh] rounded-lg border border-slate-200" title="PDF Preview" />
               ) : (
-                <img src={previewUrl} alt="Receipt Preview" className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-sm" />
+                <img src={previewUrls[currentPreviewIndex]} alt="Receipt Preview" className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-sm" />
               )}
             </div>
-            <div className="px-6 py-4 border-t border-slate-100 bg-white flex justify-end">
+            <div className="px-6 py-4 border-t border-slate-100 bg-white flex justify-between items-center">
+              <div className="flex gap-2">
+                {previewUrls.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setCurrentPreviewIndex(idx)}
+                    className={`w-2 h-2 rounded-full transition-all ${currentPreviewIndex === idx ? 'bg-blue-600 w-4' : 'bg-slate-300'}`}
+                  />
+                ))}
+              </div>
               <button
                 onClick={() => {
                   setIsPreviewOpen(false);
-                  setPreviewUrl(null);
+                  setPreviewUrls([]);
                 }}
                 className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
               >
