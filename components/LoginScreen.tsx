@@ -32,7 +32,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       const tierNum = existingSubscriptionTier === 'tier_3' ? 3 : existingSubscriptionTier === 'tier_2' ? 2 : 1;
 
       if (isAdmin) {
-        navigate('/dashboard');
+        if (tierNum === 1 || tierNum === 2) {
+          navigate('/upgrade');
+        } else {
+          navigate('/dashboard');
+        }
       } else {
         // Staff Redirects based on Tier
         if (tierNum === 1) navigate('/forms');
@@ -101,6 +105,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           // Parameters: id, role, tier, uId, uName, uUid, cName
           login(subData.id, 'admin', subData.tier, subData.id, subData.company_code, authData.user.id, subData.company_code);
           if (onLogin) onLogin(subData.id);
+          
+          const tier = authData.user.user_metadata?.subscription_tier || `tier_${subData.tier}`;
+          if (tier === 'tier_1' || tier === 'tier_2' || subData.tier === 1 || subData.tier === 2) {
+            navigate('/upgrade');
+          } else {
+            navigate('/dashboard');
+          }
           return;
         }
       }
@@ -121,6 +132,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           // Parameters: id, role, tier, uId, uName, uUid, cName
           login(legacySubData.id, 'admin', legacySubData.tier, legacySubData.id, legacySubData.company_code, fallback.data.user.id, legacySubData.company_code);
           if (onLogin) onLogin(legacySubData.id);
+          
+          const tier = fallback.data.user.user_metadata?.subscription_tier || `tier_${legacySubData.tier}`;
+          if (tier === 'tier_1' || tier === 'tier_2' || legacySubData.tier === 1 || legacySubData.tier === 2) {
+            navigate('/upgrade');
+          } else {
+            navigate('/dashboard');
+          }
           return;
         }
       }

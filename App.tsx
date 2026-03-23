@@ -80,6 +80,9 @@ const IndexRedirect: React.FC = () => {
   const { staffRole, subscriberTier } = useAuth();
   
   if (staffRole === 'admin') {
+    if (subscriberTier === 1 || subscriberTier === 2) {
+      return <Navigate to="/upgrade" replace />;
+    }
     return <Navigate to="/dashboard" replace />;
   }
   

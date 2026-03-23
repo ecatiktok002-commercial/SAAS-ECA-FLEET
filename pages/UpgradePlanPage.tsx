@@ -29,18 +29,22 @@ const UpgradePlanPage: React.FC = () => {
       name: 'Tier 3 (Fleet Guardian)',
       price: 'RM 499/mo',
       features: ['All Features', 'CRM', 'Audit & Payouts', 'Fleet Tracking', 'Admin Dashboard'],
-      isCurrent: subscriptionTier === 'tier_3'
+      isCurrent: false
     }
   ];
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 relative">
       
-      {/* ❌ Close Button: Redirects to Dashboard */}
+      {/* ❌ Close Button: Redirects to Default Allowed Route */}
       <button 
-        onClick={() => navigate('/dashboard')}
+        onClick={() => {
+          if (subscriptionTier === 'tier_1') navigate('/forms');
+          else if (subscriptionTier === 'tier_2') navigate('/calendar');
+          else navigate('/dashboard');
+        }}
         className="absolute top-6 right-6 p-3 bg-white border border-slate-200 text-slate-400 hover:text-slate-900 rounded-2xl shadow-sm transition-all active:scale-95 z-50"
-        title="Continue to Dashboard"
+        title="Continue to App"
       >
         <X className="w-6 h-6" />
       </button>
