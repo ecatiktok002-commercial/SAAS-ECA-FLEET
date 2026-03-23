@@ -106,7 +106,7 @@ export interface StaffMember {
   // --- This is the line we are adding ---
   is_active?: boolean; 
 }
-}
+
 
 export interface Agreement {
   id: string;
