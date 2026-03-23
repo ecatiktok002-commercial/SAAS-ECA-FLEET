@@ -222,15 +222,22 @@ export default function EditAgreement() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
-      setPaymentReceipts(prev => {
-        const combined = [...prev, ...newFiles];
-        const totalCount = existingReceipts.length + combined.length;
-        if (totalCount > 3) {
-          alert('Total receipts (existing + new) cannot exceed 3.');
-          return combined.slice(0, 3 - existingReceipts.length);
+      const totalCount = existingReceipts.length + paymentReceipts.length + newFiles.length;
+      
+      if (totalCount > 3) {
+        alert('Total receipts (existing + new) cannot exceed 3.');
+        const allowedNewCount = 3 - (existingReceipts.length + paymentReceipts.length);
+        if (allowedNewCount <= 0) {
+          e.target.value = '';
+          return;
         }
-        return combined;
-      });
+        setPaymentReceipts(prev => [...prev, ...newFiles.slice(0, allowedNewCount)]);
+      } else {
+        setPaymentReceipts(prev => [...prev, ...newFiles]);
+      }
+      
+      // Reset input value to allow re-selecting the same file
+      e.target.value = '';
     }
   };
 
@@ -253,9 +260,7 @@ export default function EditAgreement() {
     try {
       let receiptData = undefined;
       
-      const currentReceipts = [...existingReceipts];
-      
-      if (paymentReceipts.length > 0) {
+      if (paymentReceipts.length > 0 || removedExistingReceipts.length > 0) {
         const newReceiptDataArray = await Promise.all(paymentReceipts.map(file => {
           return new Promise<string>((resolve) => {
             const reader = new FileReader();
@@ -263,13 +268,14 @@ export default function EditAgreement() {
             reader.readAsDataURL(file);
           });
         }));
-        currentReceipts.push(...newReceiptDataArray);
-      }
-
-      if (currentReceipts.length > 0) {
-        receiptData = JSON.stringify(currentReceipts);
-      } else if (removedExistingReceipts.length > 0 && existingReceipts.length === 0) {
-        receiptData = null;
+        
+        const finalReceipts = [...existingReceipts, ...newReceiptDataArray];
+        
+        if (finalReceipts.length > 0) {
+          receiptData = JSON.stringify(finalReceipts);
+        } else {
+          receiptData = null;
+        }
       }
 
       // 1. Upsert customer to CRM first

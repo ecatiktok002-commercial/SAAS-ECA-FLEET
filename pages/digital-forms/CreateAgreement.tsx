@@ -227,9 +227,17 @@ export default function CreateAgreement() {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
       setPaymentReceipts(prev => {
-        const combined = [...prev, ...newFiles];
-        return combined.slice(0, 3); // Limit to 3
+        const totalCount = prev.length + newFiles.length;
+        if (totalCount > 3) {
+          alert('You can only upload a maximum of 3 receipts.');
+          const allowedNewCount = 3 - prev.length;
+          if (allowedNewCount <= 0) return prev;
+          return [...prev, ...newFiles.slice(0, allowedNewCount)];
+        }
+        return [...prev, ...newFiles];
       });
+      // Reset input value to allow re-selecting the same file
+      e.target.value = '';
     }
   };
 
@@ -244,7 +252,7 @@ export default function CreateAgreement() {
     setError('');
 
     try {
-      let receiptData = '';
+      let receiptData = null;
       if (paymentReceipts.length > 0) {
         const receiptDataArray = await Promise.all(paymentReceipts.map(file => {
           return new Promise<string>((resolve) => {
