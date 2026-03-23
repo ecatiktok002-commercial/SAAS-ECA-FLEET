@@ -20,17 +20,13 @@ const PublicHandoverPage: React.FC = () => {
       if (!bookingId) return;
       
       try {
-        // Fetch booking with car details
+        setLoading(true);
+        // Fetch booking details via secure RPC tunnel with one-time use validation
         const { data, error } = await supabase
-          .from('bookings')
-          .select(`
-            *,
-            cars (
-              plate
-            )
-          `)
-          .eq('id', bookingId)
-          .single();
+          .rpc('get_public_handover_details', {
+            p_booking_id: bookingId,
+            p_type: initialType
+          });
 
         if (error) throw error;
         if (!data) throw new Error('Booking not found');
@@ -38,14 +34,14 @@ const PublicHandoverPage: React.FC = () => {
         setBooking(data);
       } catch (err: any) {
         console.error('Error fetching booking:', err);
-        setError('Booking not found or link expired.');
+        setError(err.message || 'Booking not found or link expired.');
       } finally {
         setLoading(false);
       }
     };
 
     fetchBooking();
-  }, [bookingId]);
+  }, [bookingId, initialType]);
 
   if (loading) {
     return (
@@ -99,7 +95,7 @@ const PublicHandoverPage: React.FC = () => {
         <div className="mb-8 text-center">
           <h1 className="text-2xl font-bold text-white mb-2">Vehicle Handover</h1>
           <p className="text-slate-400">
-            Please complete the form below for vehicle <span className="text-white font-mono">{booking.cars?.plate}</span>
+            Please complete the form below for vehicle <span className="text-white font-mono">{booking.plate || booking.cars?.plate}</span>
           </p>
         </div>
         
@@ -120,7 +116,7 @@ const PublicHandoverPage: React.FC = () => {
             <HandoverForm
               bookingId={bookingId!}
               car_id={booking.car_id}
-              vehiclePlate={booking.cars?.plate}
+              vehiclePlate={booking.plate || booking.cars?.plate}
               subscriberId={booking.subscriber_id}
               initialType={initialType}
               onClose={() => {}}
