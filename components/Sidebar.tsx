@@ -197,8 +197,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
         </nav>
 
         {/* Footer */}
-      {/* Added pb-12 on mobile to lift the button higher, md:pb-3 for desktop */}
-        <div className="p-3 pb-12 md:pb-3 border-t border-slate-800 shrink-0">
+      <div className="p-3 pb-16 md:pb-3 border-t border-slate-800 shrink-0">
           <div className={`flex items-center ${isExpanded ? 'justify-between px-4' : 'justify-center'} py-3 bg-slate-800 rounded-xl`}>
             {isExpanded && (
               <div className="flex flex-col overflow-hidden mr-2">
@@ -206,15 +205,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
                 <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Logged in</span>
               </div>
             )}
-            
-            {/* Optimized Logout Button for Mobile Touch */}
             <button 
               onClick={logout}
               className="p-3 md:p-2 text-rose-400 hover:text-white hover:bg-rose-500/20 rounded-lg transition-colors shrink-0 flex items-center gap-2"
               title="Log out"
             >
               <LogOut className="w-5 h-5 md:w-4 md:h-4" />
-              {/* Optional: Add text label only on mobile expanded view */}
               {isExpanded && <span className="text-xs font-bold md:hidden">Logout</span>}
             </button>
           </div>
