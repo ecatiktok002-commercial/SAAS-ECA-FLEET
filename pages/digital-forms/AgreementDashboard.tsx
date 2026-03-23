@@ -43,8 +43,8 @@ const AgreementDashboard: React.FC = () => {
       
       let createdBy: string | string[] | undefined = undefined;
       
-      // Agents only see their own forms, Subscribers see everything
-      if (staffRole === 'agent') {
+      // Staff/Agents only see their own forms, Subscribers/Admins see everything
+      if (staffRole !== 'admin') {
         const ids = [userUid, userId].filter(Boolean) as string[];
         
         // CRITICAL: If we are staff but don't have any ID yet, don't fetch
