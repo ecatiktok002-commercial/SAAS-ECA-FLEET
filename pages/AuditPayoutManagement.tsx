@@ -248,7 +248,7 @@ const AuditPayoutManagement: React.FC = () => {
   );
 
   const readyForReview = useMemo(() => 
-    currentMonthRecords.filter(r => r.booking_id != null && r.payout_status === 'pending_review'), 
+    currentMonthRecords.filter(r => r.booking_id != null && (r.payout_status === 'pending_review' || r.payout_status === 'pending')), 
     [currentMonthRecords]
   );
 
@@ -324,10 +324,8 @@ const AuditPayoutManagement: React.FC = () => {
     );
   };
 
-  const now = getNowMYT();
-  const mytDate = utcToMyt(now);
-  const currentMonthStart = format(startOfMonth(mytDate), 'yyyy-MM-dd');
-  const currentMonthEnd = format(endOfMonth(mytDate), 'yyyy-MM-dd');
+  const currentMonthStart = format(startOfMonth(selectedMonth), 'yyyy-MM-dd');
+  const currentMonthEnd = format(endOfMonth(selectedMonth), 'yyyy-MM-dd');
 
   const handleRunScan = () => {
     setIsScanning(true);

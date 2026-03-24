@@ -140,7 +140,7 @@ export interface Agreement {
   created_at: string;
   booking_id?: string | null;
   commission_earned?: number;
-  payout_status?: 'pending' | 'approved' | 'paid';
+  payout_status?: 'pending' | 'pending_review' | 'approved' | 'paid';
   has_pending_changes?: boolean;
   pending_changes?: any;
 }

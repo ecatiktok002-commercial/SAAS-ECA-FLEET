@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { format, addDays, parseISO, isValid, differenceInDays } from 'date-fns';
 import { apiService } from './apiService';
+import { formatInMYT } from '../utils/dateUtils';
 
 /**
  * Executes the Phase 1 Matchy Scan for a specific month and subscriber.
@@ -10,7 +11,7 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
   
   // 1. Call the RPC to do the heuristic match
   const { data: rpcData, error: rpcError } = await supabase.rpc('run_heuristic_match', { target_subscriber_id: subscriberId });
-  const matchCount = (rpcData as any)?.[0]?.matched_count || 0;
+  let matchCount = (rpcData as any)?.[0]?.matched_count || 0;
   
   if (rpcError) {
     console.error("RPC Error in run_heuristic_match:", rpcError);
@@ -41,7 +42,55 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
     throw new Error(`Error fetching agreements: ${recentAgreementsError.message}`);
   }
 
-  // 4. Fetch agreements linked to the bookings (to ensure we don't falsely flag a booking as orphaned if its agreement was created last month)
+  // 4. Client-side Heuristic Match Fallback
+  // If RPC missed some (e.g. due to NULL columns in bookings), try to match them here
+  const unlinkedAgreements = (recentAgreements || []).filter(a => !a.booking_id);
+  const unlinkedBookings = (bookings || []).filter(b => {
+    // Check if any agreement is already linked to this booking
+    // This is a bit expensive but necessary for robustness
+    return true; // We'll filter more precisely in the loop
+  });
+
+  if (unlinkedAgreements.length > 0 && (bookings || []).length > 0) {
+    for (const agreement of unlinkedAgreements) {
+      // Find a matching booking
+      const matchingBooking = (bookings || []).find(b => {
+        // Already linked check
+        const isAlreadyLinked = (recentAgreements || []).some(ra => ra.booking_id === b.id && ra.id !== agreement.id);
+        if (isAlreadyLinked) return false;
+
+        const bStartDate = b.start_date || (b.pickup_datetime ? formatInMYT(b.pickup_datetime, 'yyyy-MM-dd') : null);
+        const bPickupTime = b.pickup_time || (b.pickup_datetime ? formatInMYT(b.pickup_datetime, 'HH:mm') : null);
+        const bDuration = b.duration_days || b.duration;
+
+        // Match criteria: Date, Time (HH:mm), and Duration
+        const dateMatch = agreement.start_date === bStartDate;
+        const timeMatch = agreement.pickup_time?.substring(0, 5) === bPickupTime?.substring(0, 5);
+        const durationMatch = agreement.duration_days === bDuration;
+
+        return dateMatch && timeMatch && durationMatch;
+      });
+
+      if (matchingBooking) {
+        // Link them in the database
+        const { error: linkError } = await supabase
+          .from('agreements')
+          .update({ 
+            booking_id: matchingBooking.id,
+            status: 'completed',
+            payout_status: 'pending_review'
+          })
+          .eq('id', agreement.id);
+        
+        if (!linkError) {
+          agreement.booking_id = matchingBooking.id;
+          matchCount++;
+        }
+      }
+    }
+  }
+
+  // 5. Fetch agreements linked to the bookings (to ensure we don't falsely flag a booking as orphaned if its agreement was created last month)
   const bookingIds = (bookings || []).map(b => b.id);
   let linkedAgreements: any[] = [];
   

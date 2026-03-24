@@ -1183,7 +1183,7 @@ SELECT
     a.end_date as form_end,
     a.payment_receipt,
     a.commission_earned,
-    a.payout_status,
+    COALESCE(a.payout_status, 'pending') as payout_status,
     a.is_receipt_verified,
     CASE 
         WHEN a.status = 'reconciled' THEN 'reconciled'
@@ -1208,7 +1208,8 @@ FROM agreements a
 LEFT JOIN bookings b ON a.booking_id::uuid = b.id
 WHERE a.status IN ('completed', 'reconciled')
    OR (a.status = 'signed' AND a.payment_receipt IS NOT NULL AND a.payment_receipt != '')
-   OR b.status = 'completed';
+   OR b.status = 'completed'
+   OR a.booking_id IS NOT NULL;
 
 -- ===============================================================
 -- 19. Matchy Scan RPC (Audit Data Integrity)
@@ -1227,17 +1228,18 @@ DECLARE
 BEGIN
     UPDATE public.agreements a
     SET booking_id = b.id,
-        status = 'completed'
+        status = 'completed',
+        payout_status = 'pending_review'
     FROM public.bookings b
     WHERE a.subscriber_id = target_subscriber_id
       AND b.subscriber_id = target_subscriber_id
       AND a.booking_id IS NULL 
-      -- 1. Date Match: Both tables now use 'start_date'
-      AND a.start_date = b.start_date 
-      -- 2. Time Match: Both tables now use 'pickup_time'
-      AND to_char(a.pickup_time, 'HH24:MI') = to_char(b.pickup_time, 'HH24:MI')
-      -- 3. Duration Match: Both tables now use 'duration_days'
-      AND a.duration_days = b.duration_days;
+      -- 1. Date Match
+      AND a.start_date = COALESCE(b.start_date, (b.pickup_datetime AT TIME ZONE 'Asia/Kuala_Lumpur')::date)
+      -- 2. Time Match
+      AND to_char(a.pickup_time, 'HH24:MI') = to_char(COALESCE(b.pickup_time, (b.pickup_datetime AT TIME ZONE 'Asia/Kuala_Lumpur')::time), 'HH24:MI')
+      -- 3. Duration Match
+      AND a.duration_days = COALESCE(b.duration_days, b.duration);
 
     GET DIAGNOSTICS updated_rows = ROW_COUNT;
     RETURN QUERY SELECT updated_rows;

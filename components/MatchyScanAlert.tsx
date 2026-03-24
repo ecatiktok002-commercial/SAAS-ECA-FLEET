@@ -111,7 +111,7 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
       // The Supabase Payload
       await apiService.updateAgreement(agreementId, subscriberId, {
         booking_id: bookingId,
-        payout_status: 'pending',
+        payout_status: 'pending_review',
         status: 'completed',
         total_price: newTotalPrice
       });
