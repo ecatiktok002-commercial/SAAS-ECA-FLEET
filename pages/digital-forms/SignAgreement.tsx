@@ -77,7 +77,7 @@ export default function SignAgreement() {
       const signedAt = now.toISOString();
       
       // Determine if it should be completed based on payment receipt
-      const hasReceipt = !!agreement?.payment_receipt && agreement.payment_receipt !== '[]';
+      const hasReceipt = !!agreement?.payment_receipt && agreement.payment_receipt !== '[]' && agreement.payment_receipt !== 'null';
       const finalStatus = hasReceipt ? 'completed' : 'signed';
       
       await apiService.updateAgreement(id!, undefined, {

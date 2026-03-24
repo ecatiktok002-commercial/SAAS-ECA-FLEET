@@ -875,14 +875,26 @@ export const apiService = {
       }
 
       // If completed, also update linked agreement status to 'completed'
-      // but only if it's not already 'reconciled'
+      // but only if it has a valid payment receipt and is not already 'reconciled'
       if (status === 'completed') {
-        await supabase
+        const { data: agreements } = await supabase
           .from('agreements')
-          .update({ status: 'completed' })
+          .select('id, payment_receipt')
           .eq('booking_id', id)
           .eq('subscriber_id', targetSubscriberId)
           .neq('status', 'reconciled');
+
+        if (agreements && agreements.length > 0) {
+          for (const agreement of agreements) {
+            const hasReceipt = !!agreement.payment_receipt && agreement.payment_receipt !== '[]' && agreement.payment_receipt !== 'null';
+            if (hasReceipt) {
+              await supabase
+                .from('agreements')
+                .update({ status: 'completed' })
+                .eq('id', agreement.id);
+            }
+          }
+        }
       }
     });
   },
@@ -1859,35 +1871,23 @@ export const apiService = {
       }
 
       // ROLLBACK & RESTORE LOGIC FOR PAYMENT RECEIPTS:
-      const isRemovingReceipt = finalUpdates.payment_receipt === null || finalUpdates.payment_receipt === '';
-      const isAddingReceipt = finalUpdates.payment_receipt && finalUpdates.payment_receipt !== '';
+      const isRemovingReceipt = finalUpdates.payment_receipt === null || finalUpdates.payment_receipt === '' || finalUpdates.payment_receipt === '[]' || finalUpdates.payment_receipt === 'null';
+      const isAddingReceipt = finalUpdates.payment_receipt && finalUpdates.payment_receipt !== '' && finalUpdates.payment_receipt !== '[]' && finalUpdates.payment_receipt !== 'null';
 
       if (isRemovingReceipt && currentStatus === 'completed') {
         // Downgrade to 'signed' if receipt is removed from a completed agreement
         finalUpdates.status = 'signed';
       } else if (isAddingReceipt && currentStatus === 'signed') {
-        // If adding a receipt back to a signed agreement
-        if (currentAgreement?.booking_id) {
-          try {
-            const { data: booking } = await supabase
-              .from('bookings')
-              .select('status')
-              .eq('id', currentAgreement.booking_id)
-              .eq('subscriber_id', targetSubscriberId || currentAgreement.subscriber_id)
-              .single();
-            
-            if (booking?.status === 'completed') {
-              finalUpdates.status = 'completed';
-            }
-          } catch (err) {
-            console.error('Error checking booking status for agreement restore:', err);
-            // Fallback: if we can't check booking, but a receipt is added, 
-            // we follow the previous auto-complete logic
-            finalUpdates.status = 'completed';
-          }
-        } else {
-          // If no linked booking, mark as completed when receipt is added
-          finalUpdates.status = 'completed';
+        // If adding a receipt back to a signed agreement, mark as completed
+        finalUpdates.status = 'completed';
+      }
+
+      // Ensure we don't set status to 'completed' if there is no valid receipt
+      if (finalUpdates.status === 'completed') {
+        const receiptToCheck = finalUpdates.payment_receipt !== undefined ? finalUpdates.payment_receipt : currentAgreement?.payment_receipt;
+        const hasValidReceipt = !!receiptToCheck && receiptToCheck !== '' && receiptToCheck !== '[]' && receiptToCheck !== 'null';
+        if (!hasValidReceipt) {
+          finalUpdates.status = 'signed';
         }
       }
 
