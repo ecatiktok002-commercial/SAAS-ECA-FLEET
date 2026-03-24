@@ -237,8 +237,9 @@ const AgreementDashboard: React.FC = () => {
                       <div className="flex flex-col gap-2 items-start">
                         {(() => {
                           const status = agreement.status?.toLowerCase().trim();
+                          const hasReceipt = !!agreement.payment_receipt && agreement.payment_receipt !== '[]';
                           
-                          if (status === 'completed') {
+                          if (status === 'completed' || (status === 'signed' && hasReceipt)) {
                             return (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
                                 <CheckCircle2 className="w-3 h-3" />
