@@ -176,7 +176,7 @@ export interface DigitalForm {
   created_at: string;
   booking_id?: string;
   commission_earned?: number;
-  payout_status?: 'pending' | 'approved' | 'paid';
+  payout_status?: 'pending' | 'pending_review' | 'approved' | 'paid';
   is_receipt_verified?: boolean;
   has_pending_changes?: boolean;
   pending_changes?: any;
@@ -206,7 +206,7 @@ export interface AuditRecord {
   form_end: string;
   payment_receipt: string | null;
   commission_earned: number;
-  payout_status: 'pending' | 'approved' | 'paid';
+  payout_status: 'pending' | 'pending_review' | 'approved' | 'paid';
   status: string;
   reference_number?: string;
   is_receipt_verified: boolean;

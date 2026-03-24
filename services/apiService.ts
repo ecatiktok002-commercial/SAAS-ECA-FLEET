@@ -3,6 +3,7 @@ import { Booking, Car, Member, LogEntry, Expense, StaffMember, Agreement, Digita
 import { supabase } from './supabase';
 import { parseBookingDate } from './bookingService';
 import { mytToUtc, formatInMYT, getNowMYT } from '../utils/dateUtils';
+import { format, addDays, parseISO } from 'date-fns';
 
 // Service for managing fleet data
 const logSupabaseError = (context: string, error: any) => {
@@ -2296,6 +2297,64 @@ export const apiService = {
       if (error) {
         logSupabaseError('deleteMarketingEvent', error);
         throw new Error('Failed to delete marketing event');
+      }
+    });
+  },
+
+  async runAgreementAudit(agreementId: string, subscriberId: string): Promise<void> {
+    const targetSubscriberId = await getTenantId();
+    return withRetry(async () => {
+      // 1. Fetch Agreement
+      const agreement = await this.getAgreementById(agreementId, targetSubscriberId);
+      if (!agreement) throw new Error('Agreement not found');
+
+      // 2. Check for Booking
+      if (!agreement.booking_id) return;
+
+      // 3. Fetch Booking
+      const booking = await this.getBookingById(agreement.booking_id, targetSubscriberId);
+      if (!booking) throw new Error('Booking not found');
+
+      // 4. Perform Matchy Logic
+      const bookingStartDate = booking.start_date;
+      const bookingDuration = booking.duration_days;
+      const bookingEndDate = format(addDays(parseISO(bookingStartDate), bookingDuration), 'yyyy-MM-dd');
+      const bookingTotalPrice = booking.total_price || 0;
+
+      const formStartDate = agreement.start_date;
+      const formEndDate = agreement.end_date;
+      const formTotalPrice = agreement.total_price;
+
+      const isDatesMatched = (bookingStartDate === formStartDate) && (bookingEndDate === formEndDate);
+      const isPriceMatched = bookingTotalPrice === formTotalPrice;
+      
+      let hasDiscrepancy = false;
+      let discrepancyReason = '';
+
+      if (!isDatesMatched || !isPriceMatched) {
+        hasDiscrepancy = true;
+        const reasons = [];
+        if (!isDatesMatched) reasons.push('Date mismatch');
+        if (!isPriceMatched) reasons.push('Price mismatch');
+        discrepancyReason = reasons.join(' & ');
+      }
+
+      // 5. Update Booking Audit Status
+      await this.updateBookingAuditStatus(agreement.booking_id, targetSubscriberId, {
+        is_dates_matched: isDatesMatched,
+        has_discrepancy: hasDiscrepancy,
+        discrepancy_reason: discrepancyReason
+      });
+
+      // 6. Update Agreement Payout Status
+      // If no receipt is found, do NOT set to 'pending_review'
+      const hasReceipt = !!agreement.payment_receipt && agreement.payment_receipt !== '[]';
+      if (hasReceipt) {
+        await supabase
+          .from('agreements')
+          .update({ payout_status: 'pending_review' })
+          .eq('id', agreementId)
+          .eq('subscriber_id', targetSubscriberId);
       }
     });
   }

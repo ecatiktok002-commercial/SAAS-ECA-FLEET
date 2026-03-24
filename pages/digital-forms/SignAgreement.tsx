@@ -86,6 +86,16 @@ export default function SignAgreement() {
         signature_data: signatureData,
       });
 
+      // TRIGGER MATCHY IF COMPLETED
+      if (finalStatus === 'completed') {
+        try {
+          await apiService.runAgreementAudit(id!, agreement.subscriber_id);
+        } catch (auditErr) {
+          console.error('Matchy Audit Failed:', auditErr);
+          // We don't block the user if audit fails, but we log it
+        }
+      }
+
       setAgreement((prev: any) => ({ ...prev, signed_at: signedAt, signature_data: signatureData, status: finalStatus }));
       setSuccess(true);
     } catch (err: any) {

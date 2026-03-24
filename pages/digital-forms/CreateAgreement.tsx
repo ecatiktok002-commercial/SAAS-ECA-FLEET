@@ -325,46 +325,6 @@ export default function CreateAgreement() {
         booking_id: formData.booking_id || null
       };
 
-      // 2. Auto-Audit Background Check
-      if (formData.booking_id) {
-        try {
-          const booking = await apiService.getBookingById(formData.booking_id, subscriberId);
-          if (booking) {
-            const bookingStartDate = booking.start_date;
-            const bookingDuration = booking.duration_days;
-            const bookingEndDate = format(addDays(parseISO(bookingStartDate), bookingDuration), 'yyyy-MM-dd');
-            const bookingTotalPrice = booking.total_price || 0;
-
-            const formStartDate = formData.start_date;
-            const formEndDate = formData.end_date;
-            const formTotalPrice = parseFloat(formData.total_price);
-
-            const isDatesMatched = (bookingStartDate === formStartDate) && (bookingEndDate === formEndDate);
-            const isPriceMatched = bookingTotalPrice === formTotalPrice;
-            
-            let hasDiscrepancy = false;
-            let discrepancyReason = '';
-
-            if (!isDatesMatched || !isPriceMatched) {
-              hasDiscrepancy = true;
-              const reasons = [];
-              if (!isDatesMatched) reasons.push('Date mismatch');
-              if (!isPriceMatched) reasons.push('Price mismatch');
-              discrepancyReason = reasons.join(' & ');
-            }
-
-            await apiService.updateBookingAuditStatus(formData.booking_id, subscriberId, {
-              is_dates_matched: isDatesMatched,
-              has_discrepancy: hasDiscrepancy,
-              discrepancy_reason: discrepancyReason
-            });
-          }
-        } catch (auditErr) {
-          console.error('Audit check failed:', auditErr);
-          // We don't block the agreement creation if audit fails, but we log it
-        }
-      }
-
       const newAgreement = await apiService.createAgreement(agreementData, subscriberId);
       
       alert(`Agreement created! ID: ${newAgreement.id}`);

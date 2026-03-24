@@ -143,6 +143,19 @@ const AuditPayoutManagement: React.FC = () => {
     }
   };
 
+  const handleRerunMatchy = async (record: AuditRecord) => {
+    try {
+      setProcessing(record.form_id);
+      await apiService.runAgreementAudit(record.form_id, subscriberId!);
+      await refreshData();
+      toast.success('Matchy scan re-run successfully!');
+    } catch (err) {
+      toast.error('Failed to re-run Matchy scan');
+    } finally {
+      setProcessing(null);
+    }
+  };
+
   const handleApproveSelected = async () => {
     if (selectedIds.length === 0) return;
     if (!window.confirm(`Approve ${selectedIds.length} selected payouts?`)) return;
@@ -235,7 +248,7 @@ const AuditPayoutManagement: React.FC = () => {
   );
 
   const readyForReview = useMemo(() => 
-    currentMonthRecords.filter(r => r.booking_id != null && r.payout_status !== 'approved'), 
+    currentMonthRecords.filter(r => r.booking_id != null && r.payout_status === 'pending_review'), 
     [currentMonthRecords]
   );
 
@@ -571,7 +584,15 @@ const AuditPayoutManagement: React.FC = () => {
                             </div>
                           </td>
                           <td className="py-4 px-6 text-right">
-                            {record.payout_status === 'pending' && (
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleRerunMatchy(record)}
+                                disabled={!!processing}
+                                title="Re-run Matchy Scan"
+                                className="p-2 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-all disabled:opacity-50"
+                              >
+                                {processing === record.form_id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                              </button>
                               <button
                                 onClick={() => handleOverride(record)}
                                 disabled={!!processing}
@@ -579,7 +600,7 @@ const AuditPayoutManagement: React.FC = () => {
                               >
                                 {processing === record.form_id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Approve'}
                               </button>
-                            )}
+                            </div>
                           </td>
                         </tr>
                       ))}
