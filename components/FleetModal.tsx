@@ -384,7 +384,7 @@ const FleetModal: React.FC<FleetModalProps> = ({
                                 {car?.plate} <span className="text-slate-400 font-normal">| {expense.category}</span>
                               </div>
                               <div className="text-xs text-slate-500">
-                                {format(new Date(expense.date), 'dd/MM/yyyy')} — <span className="font-semibold text-slate-700">RM {Number(expense.amount || 0).toFixed(2)}</span>
+                                {formatInMYT(new Date(expense.date).getTime(), 'dd/MM/yyyy')} — <span className="font-semibold text-slate-700">RM {Number(expense.amount || 0).toFixed(2)}</span>
                               </div>
                             </div>
                           </div>

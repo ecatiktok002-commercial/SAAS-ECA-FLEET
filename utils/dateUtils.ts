@@ -1,4 +1,4 @@
-import { format, toDate, fromZonedTime, toZonedTime } from 'date-fns-tz';
+import { formatInTimeZone, fromZonedTime, toZonedTime } from 'date-fns-tz';
 
 const TIMEZONE = 'Asia/Kuala_Lumpur';
 
@@ -6,7 +6,7 @@ const TIMEZONE = 'Asia/Kuala_Lumpur';
  * Gets the current date/time in Malaysia timezone
  */
 export const getNowMYT = (): Date => {
-  return toZonedTime(new Date(), TIMEZONE);
+  return new Date();
 };
 
 /**
@@ -14,15 +14,14 @@ export const getNowMYT = (): Date => {
  */
 export const formatInMYT = (date: Date | string | number, formatStr: string): string => {
   const d = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
-  return format(toZonedTime(d, TIMEZONE), formatStr, { timeZone: TIMEZONE });
+  return formatInTimeZone(d, TIMEZONE, formatStr);
 };
 
 /**
  * Converts a Malaysia local time string (e.g. from an input) to a UTC Date object for storage
  */
-export const mytToUtc = (dateStr: string): Date => {
-  // If dateStr is "2026-03-20T10:30", fromZonedTime treats it as being in TIMEZONE
-  return fromZonedTime(dateStr, TIMEZONE);
+export const mytToUtc = (date: Date | string): Date => {
+  return fromZonedTime(date, TIMEZONE);
 };
 
 /**

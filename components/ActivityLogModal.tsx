@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
+import { formatInMYT } from '../utils/dateUtils';
 import { LogEntry } from '../types';
 import { apiService } from '../services/apiService';
 import { supabase } from '../services/supabase';
@@ -101,7 +102,7 @@ const ActivityLogModal: React.FC<ActivityLogModalProps> = ({ isOpen, onClose, su
                       {log.action}
                     </span>
                     <span className="text-[10px] font-mono text-slate-400">
-                      {format(new Date(log.timestamp), 'dd/MM/yyyy HH:mm')}
+                      {formatInMYT(new Date(log.timestamp).getTime(), 'dd/MM/yyyy HH:mm')}
                     </span>
                   </div>
                   <p className="text-xs text-slate-600 leading-relaxed font-medium">

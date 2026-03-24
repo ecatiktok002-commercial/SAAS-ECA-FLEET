@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Link as LinkIcon, Trash2, FileText, Calendar, AlertCircle, RefreshCw, X, CheckCircle2 } from 'lucide-react';
 import { format, isValid, parseISO } from 'date-fns';
+import { formatInMYT } from '../utils/dateUtils';
 import { runMatchyScan } from '../services/auditService';
 import { supabase } from '../services/supabase';
 import { apiService } from '../services/apiService';
@@ -37,10 +38,10 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
     if (!dateStr) return 'N/A';
     try {
       const d = parseISO(dateStr);
-      if (isValid(d)) return format(d, formatStr);
+      if (isValid(d)) return formatInMYT(d, formatStr);
       
       const d2 = new Date(dateStr);
-      if (isValid(d2)) return format(d2, formatStr);
+      if (isValid(d2)) return formatInMYT(d2, formatStr);
       
       return 'Invalid Date';
     } catch (e) {

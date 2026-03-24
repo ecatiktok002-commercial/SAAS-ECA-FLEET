@@ -189,11 +189,8 @@ const mapCarToDB = (car: any) => {
   let startDate = dbBooking.start_date;
   let pickupTime = dbBooking.pickup_time;
   
-  if (!startDate && dbBooking.pickup_datetime) {
+  if (dbBooking.pickup_datetime) {
     startDate = formatInMYT(dbBooking.pickup_datetime, 'yyyy-MM-dd');
-  }
-  
-  if (!pickupTime && dbBooking.pickup_datetime) {
     pickupTime = formatInMYT(dbBooking.pickup_datetime, 'HH:mm');
   }
   

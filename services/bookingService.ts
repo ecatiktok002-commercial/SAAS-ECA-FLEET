@@ -1,6 +1,6 @@
 
 import { Booking, Car } from '../types';
-import { mytToUtc, getNowMYT } from '../utils/dateUtils';
+import { mytToUtc, getMYTDateString, getNowMYT } from '../utils/dateUtils';
 
 export const parseBookingDate = (dateStr: string, timeStr?: string): number => {
   if (!dateStr) return 0;
@@ -272,21 +272,29 @@ export const assignTracks = (bookings: Booking[]): Booking[] => {
 };
 
 export const isBookingOnDate = (booking: Booking, date: Date): boolean => {
-  const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  // FIX: Use your utility to get the correct YYYY-MM-DD for Malaysia
+  const dateStr = getMYTDateString(date); 
+  const startOfDay = mytToUtc(`${dateStr}T00:00:00`).getTime();
   const endOfDay = startOfDay + (24 * 60 * 60 * 1000);
   
   const bookingStart = parseBookingDate(booking.start_date, booking.pickup_time);
-  const bookingEnd = booking.end_time ? new Date(booking.end_time).getTime() : bookingStart + (booking.duration_days * 24 * 60 * 60 * 1000);
+  const bookingEnd = booking.end_time 
+    ? new Date(booking.end_time).getTime() 
+    : bookingStart + (booking.duration_days * 24 * 60 * 60 * 1000);
   
   return bookingStart < endOfDay && bookingEnd > startOfDay;
 };
 
 export const getBookingSegmentData = (booking: Booking, date: Date) => {
-  const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  // FIX: Force dayStart to be 00:00 Malaysia Time, converted to UTC correctly
+  const dateStr = getMYTDateString(date); 
+  const dayStart = mytToUtc(`${dateStr}T00:00:00`).getTime();
   const dayEnd = dayStart + (24 * 60 * 60 * 1000);
   
   const bStart = parseBookingDate(booking.start_date, booking.pickup_time);
-  const bEnd = booking.end_time ? new Date(booking.end_time).getTime() : bStart + (booking.duration_days * 24 * 60 * 60 * 1000);
+  const bEnd = booking.end_time 
+    ? new Date(booking.end_time).getTime() 
+    : bStart + (booking.duration_days * 24 * 60 * 60 * 1000);
 
   const intersectionStart = Math.max(dayStart, bStart);
   const intersectionEnd = Math.min(dayEnd, bEnd);

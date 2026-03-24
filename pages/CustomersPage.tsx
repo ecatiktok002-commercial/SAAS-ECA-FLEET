@@ -71,7 +71,7 @@ const CustomersPage: React.FC = () => {
       'Total Bookings': c.total_bookings,
       'Agent': c.acquired_by_agent || 'N/A',
       'Status': c.status,
-      'Last Rental Date': c.last_rental_date ? format(new Date(c.last_rental_date), 'dd/MM/yyyy') : 'N/A'
+      'Last Rental Date': c.last_rental_date ? formatInMYT(new Date(c.last_rental_date).getTime(), 'dd/MM/yyyy') : 'N/A'
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
@@ -231,7 +231,7 @@ const CustomersPage: React.FC = () => {
                         {customer.full_name ? getStatusBadge(customer.status) : '-'}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-500">
-                        {customer.last_rental_date ? format(new Date(customer.last_rental_date), 'dd/MM/yyyy') : '-'}
+                        {customer.last_rental_date ? formatInMYT(new Date(customer.last_rental_date).getTime(), 'dd/MM/yyyy') : '-'}
                       </td>
                     </tr>
                   ))

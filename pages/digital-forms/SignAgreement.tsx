@@ -541,7 +541,7 @@ export default function SignAgreement() {
                 </div>
                 {agreement?.signed_at && isValid(new Date(agreement.signed_at)) && (
                   <p className="mt-2 text-xs text-slate-500 font-medium italic">
-                    Digitally Signed on {format(new Date(agreement.signed_at), 'dd/MM/yyyy HH:mm')}
+                    Digitally Signed on {formatInMYT(new Date(agreement.signed_at).getTime(), 'dd/MM/yyyy HH:mm')}
                   </p>
                 )}
               </div>

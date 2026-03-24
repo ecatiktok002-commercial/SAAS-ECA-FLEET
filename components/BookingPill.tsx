@@ -1,6 +1,8 @@
-
 import React from 'react';
 import { Booking, Car, Member } from '../types';
+// Added this import to handle the MYT conversion
+import { getMYTTimeString } from '../utils/dateUtils';
+import { parseBookingDate } from '../services/bookingService';
 
 interface BookingPillProps {
   booking: Booking;
@@ -25,6 +27,9 @@ const BookingPill: React.FC<BookingPillProps> = ({ booking, car, member, segment
     end: 'rounded-r-lg z-[20] mr-0.5'
   }[segment];
 
+  /** * FIX: Treat the stored pickup_time as UTC by adding 'Z', 
+   * then use getMYTTimeString to convert it to GMT+8 for display.
+   */
   const startTime = booking.pickup_time || '00:00';
 
   const showLabel = segment === 'start' || segment === 'single';
@@ -34,7 +39,6 @@ const BookingPill: React.FC<BookingPillProps> = ({ booking, car, member, segment
   const pillWidth = isContinuingRight ? `calc(${width}% + 1px)` : `${width}%`;
 
   const isMobile = window.innerWidth < 768;
-  // REDUCED: Desktop 20px (was 32), Mobile 16px (was 26)
   const trackSpacing = isMobile ? 16 : 20; 
   const topOffset = (booking.track || 0) * trackSpacing;
 
@@ -55,7 +59,6 @@ const BookingPill: React.FC<BookingPillProps> = ({ booking, car, member, segment
         left: `${left}%`, 
         width: pillWidth,
         top: `${topOffset}px`,
-        // Remove right margin if continuing to avoid gap
         marginRight: isContinuingRight ? '-1px' : undefined,
         overflow: 'visible'
       }}
@@ -70,7 +73,7 @@ const BookingPill: React.FC<BookingPillProps> = ({ booking, car, member, segment
               {car?.plate}
             </span>
             
-            {/* Replaced Name with Start Time (24h) or Agent Name if inactive */}
+            {/* Display converted MYT time */}
             <span className={`opacity-100 font-bold uppercase tracking-tight text-[8px] md:text-[9px] drop-shadow-sm truncate max-w-[60px] md:max-w-none`}>
               {member ? startTime : (booking.agent_name || 'Inactive Agent')}
             </span>

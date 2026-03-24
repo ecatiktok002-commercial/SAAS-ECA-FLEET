@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/apiService';
 import { parseBookingDate } from '../services/bookingService';
-import { getNowMYT, utcToMyt } from '../utils/dateUtils';
+import { getNowMYT, utcToMyt, formatInMYT } from '../utils/dateUtils';
 import { 
   Car, DollarSign, AlertTriangle, 
   TrendingUp, Clock, ArrowRight, CheckCircle2,
@@ -92,16 +92,17 @@ const AgentDashboard: React.FC = () => {
       }
 
       const now = getNowMYT();
-      const todayStr = format(now, 'yyyy-MM-dd');
+      const mytDate = utcToMyt(now);
+      const todayStr = format(mytDate, 'yyyy-MM-dd');
       
-      const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - now.getDay());
+      const startOfWeek = new Date(mytDate);
+      startOfWeek.setDate(mytDate.getDate() - mytDate.getDay());
       const startOfWeekStr = format(startOfWeek, 'yyyy-MM-dd');
       
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const startOfMonth = new Date(mytDate.getFullYear(), mytDate.getMonth(), 1);
       const startOfMonthStr = format(startOfMonth, 'yyyy-MM-dd');
 
-      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastMonth = new Date(mytDate.getFullYear(), mytDate.getMonth() - 1, 1);
       const lastMonthKey = format(lastMonth, 'yyyy-MM');
       let lastMonthEarnings = 0;
 
@@ -150,26 +151,26 @@ const AgentDashboard: React.FC = () => {
       filteredBookings.forEach(b => {
         if (b.status === 'cancelled') return;
         
-        const start = utcToMyt(parseBookingDate(b.start_date, b.pickup_time));
-        const end = b.end_time ? utcToMyt(b.end_time) : new Date(start.getTime() + b.duration_days * 24 * 60 * 60 * 1000);
+        const startMs = parseBookingDate(b.start_date, b.pickup_time);
+        const endMs = b.end_time ? new Date(b.end_time).getTime() : startMs + b.duration_days * 24 * 60 * 60 * 1000;
         const car = cars.find(c => c.id === b.car_id);
         const member = members.find(m => m.id === b.member_id);
         
-        if (format(start, 'yyyy-MM-dd') === todayStr && start > now) {
+        if (formatInMYT(startMs, 'yyyy-MM-dd') === todayStr && startMs > now.getTime()) {
           pending.push({
             id: b.id,
             carPlate: car?.plate || 'Unknown',
             customerName: member?.name || 'Unknown',
-            pickupTime: start
+            pickupTime: new Date(startMs)
           });
         }
         
-        if (now > end && b.status !== 'completed') {
+        if (now.getTime() > endMs && b.status !== 'completed') {
           overdue.push({
             id: b.id,
             carPlate: car?.plate || 'Unknown',
             customerName: member?.name || 'Unknown',
-            returnTime: end
+            returnTime: new Date(endMs)
           });
         }
       });
@@ -551,7 +552,7 @@ const AgentDashboard: React.FC = () => {
                 {recentAgreements.length > 0 ? recentAgreements.map((agreement) => (
                   <tr key={agreement.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 text-sm text-slate-600">
-                      {format(new Date(agreement.created_at), 'dd/MM/yyyy')}
+                      {formatInMYT(new Date(agreement.created_at).getTime(), 'dd/MM/yyyy')}
                     </td>
                     <td className="px-6 py-4 text-sm font-bold text-slate-900">
                       {agreement.customer_name}

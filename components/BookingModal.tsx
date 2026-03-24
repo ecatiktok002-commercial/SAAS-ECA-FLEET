@@ -12,7 +12,7 @@ import { Car, Booking, Member, StaffMember } from '../types';
 import { getAvailableCars, validateBooking, findAvailableCarByModel, suggestUpgrade } from '../services/bookingService';
 import { apiService } from '../services/apiService';
 import { parseBookingDate } from '../services/bookingService';
-import { getNowMYT, getMYTInputString, getMYTDateString, getMYTTimeString, mytToUtc } from '../utils/dateUtils';
+import { getNowMYT, getMYTInputString, getMYTDateString, getMYTTimeString, mytToUtc, formatInMYT } from '../utils/dateUtils';
 import HandoverForm from './HandoverForm';
 import PinModal from './PinModal';
 
@@ -137,10 +137,11 @@ const BookingModal: React.FC<BookingModalProps> = ({
     uniqueModels.forEach(model => {
       const modelCars = cars.filter(c => c.name === model);
       const available = modelCars.filter(car => {
+         const [startDate, pickupTime] = selectedDateTimeStr.split('T');
          const bookingData = { 
            car_id: car.id, 
-           start_date: getMYTDateString(selectedDateTimeStr), 
-           pickup_time: getMYTTimeString(selectedDateTimeStr),
+           start_date: startDate, 
+           pickup_time: pickupTime,
            duration_days: Number(duration),
            member_id: '', // Dummy for validation
            ...(isEarlyReturn && actualEndTime ? { end_time: mytToUtc(actualEndTime).toISOString() } : { end_time: null })
@@ -320,11 +321,13 @@ const BookingModal: React.FC<BookingModalProps> = ({
     
     const finalStaffName = selectedMember.name;
 
+    const [startDate, pickupTime] = selectedDateTimeStr.split('T');
+
     const bookingData = {
       car_id: finalCarId,
       member_id,
-      start_date: getMYTDateString(selectedDateTimeStr),
-      pickup_time: getMYTTimeString(selectedDateTimeStr),
+      start_date: startDate,
+      pickup_time: pickupTime,
       duration_days: Number(duration),
       ...(isEarlyReturn && actualEndTime ? { end_time: mytToUtc(actualEndTime).toISOString() } : { end_time: null })
     };
@@ -711,7 +714,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   >
                     <div>
                       <div className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors">{record.handover_type}</div>
-                      <div className="text-[10px] text-slate-500">{format(new Date(record.created_at), 'dd/MM/yyyy HH:mm')}</div>
+                      <div className="text-[10px] text-slate-500">{formatInMYT(new Date(record.created_at).getTime(), 'dd/MM/yyyy HH:mm')}</div>
                     </div>
                     <div className="text-[10px] font-bold text-slate-400 group-hover:text-blue-600 uppercase tracking-wider flex items-center gap-1 transition-colors">
                       View Photos
@@ -765,7 +768,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
           <div className="flex justify-between items-center text-white mb-6 shrink-0">
             <div>
               <h3 className="font-bold text-lg">{viewingRecord.handover_type} Record</h3>
-              <p className="text-xs text-slate-400">{format(new Date(viewingRecord.created_at), 'dd/MM/yyyy HH:mm')}</p>
+              <p className="text-xs text-slate-400">{formatInMYT(new Date(viewingRecord.created_at).getTime(), 'dd/MM/yyyy HH:mm')}</p>
             </div>
             <button 
               onClick={() => setViewingRecord(null)} 

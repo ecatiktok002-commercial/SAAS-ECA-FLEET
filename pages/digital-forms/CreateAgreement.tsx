@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Save, Upload, CheckCircle2, X, Trash2 } from 'lucide-react';
 import { addDays, differenceInDays, parseISO, format, isValid } from 'date-fns';
-import { getNowMYT, formatInMYT, utcToMyt } from '../../utils/dateUtils';
+import { getNowMYT, formatInMYT, utcToMyt, getMYTTimeString } from '../../utils/dateUtils';
 import { apiService } from '../../services/apiService';
 import { parseBookingDate } from '../../services/bookingService';
 import { useAuth } from '../../context/AuthContext';
@@ -48,7 +48,7 @@ export default function CreateAgreement() {
       const duration = parseInt(durationStr, 10);
       if (isValid(startDate) && !isNaN(duration)) {
         const endDate = addDays(startDate, duration);
-        const formattedEndDate = format(endDate, 'yyyy-MM-dd');
+        const formattedEndDate = formatInMYT(endDate, 'yyyy-MM-dd');
         if (formData.end_date !== formattedEndDate) {
           setFormData(prev => ({ ...prev, end_date: formattedEndDate }));
           triggerHighlight('date');
@@ -74,13 +74,13 @@ export default function CreateAgreement() {
               cars.find(c => c.id === booking.car_id)
             );
 
-            if (member && car) {
-              const d = utcToMyt(parseBookingDate(booking.start_date, booking.pickup_time));
-              if (isValid(d)) {
+          if (member && car) {
+              if (booking.start_date && booking.pickup_time) {
                 const startDate = booking.start_date;
-                const time = booking.pickup_time || '00:00';
+                const time = booking.pickup_time; 
+
                 const duration = booking.duration_days || 0;
-                const endDate = format(addDays(parseISO(startDate), duration), 'yyyy-MM-dd');
+                const endDate = formatInMYT(addDays(parseISO(startDate), duration), 'yyyy-MM-dd');
 
                 const modelName = (car.make && car.model) 
                   ? `${car.make} ${car.model}`.trim() 
@@ -100,8 +100,8 @@ export default function CreateAgreement() {
                   end_date: endDate,
                   duration_days: duration.toString(),
                   total_price: booking.total_price?.toString() || '',
-                  pickup_time: time,
-                  return_time: time,
+                  pickup_time: time,    // Now shows 17:30
+                  return_time: time,    // Now shows 17:30
                 }));
               }
               setCustomerFound(true);
@@ -184,7 +184,7 @@ export default function CreateAgreement() {
         const startDate = parseISO(value);
         const duration = parseInt(newFormData.duration_days, 10);
         if (isValid(startDate) && !isNaN(duration)) {
-          newFormData.end_date = format(addDays(startDate, duration), 'yyyy-MM-dd');
+          newFormData.end_date = formatInMYT(addDays(startDate, duration), 'yyyy-MM-dd');
           triggerHighlight('date');
           // Ensure 24-hour rule: return_time matches pickup_time
           if (newFormData.pickup_time) {
@@ -204,7 +204,7 @@ export default function CreateAgreement() {
         const startDate = parseISO(newFormData.start_date);
         const duration = parseInt(value, 10);
         if (isValid(startDate) && !isNaN(duration)) {
-          newFormData.end_date = format(addDays(startDate, duration), 'yyyy-MM-dd');
+          newFormData.end_date = formatInMYT(addDays(startDate, duration), 'yyyy-MM-dd');
           triggerHighlight('date');
           // Ensure 24-hour rule: return_time matches pickup_time
           if (newFormData.pickup_time) {

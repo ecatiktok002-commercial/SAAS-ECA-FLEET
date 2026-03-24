@@ -1,6 +1,7 @@
 
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
+import { formatInMYT } from '../utils/dateUtils';
 import { Booking, Car, Member } from '../types';
 import { parseBookingDate } from './bookingService';
 
@@ -54,8 +55,8 @@ export const exportBookingsToExcel = (
       'Plate Number': car?.plate || 'Unknown',
       'Vehicle Model': car?.name || 'Unknown',
       'Fleet Member': member?.name || 'Unknown',
-      'Start Date': format(new Date(bStart), 'dd/MM/yyyy'),
-      'End Date': format(endDate, 'dd/MM/yyyy'),
+      'Start Date': formatInMYT(new Date(bStart).getTime(), 'dd/MM/yyyy'),
+      'End Date': formatInMYT(endDate.getTime(), 'dd/MM/yyyy'),
       'Duration (Days)': b.duration_days,
       'Booking ID': b.id
     };

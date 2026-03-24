@@ -13,7 +13,7 @@ import { optimizeBookings } from '../services/bookingService';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { AlertTriangle } from 'lucide-react';
-import { getNowMYT, utcToMyt } from '../utils/dateUtils';
+import { getNowMYT, utcToMyt, formatInMYT, mytToUtc } from '../utils/dateUtils';
 
 const CalendarPage: React.FC = () => {
   const { subscriberId: currentSubscriberId, userId: currentUserId, userUid, staffRole } = useAuth();
@@ -59,7 +59,7 @@ const CalendarPage: React.FC = () => {
       const [fetchedCars, fetchedMembers, fetchedBookings, fetchedExpenses, fetchedStaff] = await Promise.all([
         apiService.getCars(currentSubscriberId),
         apiService.getMembers(currentSubscriberId),
-        apiService.getBookings(currentSubscriberId, start.toISOString(), end.toISOString()),
+        apiService.getBookings(currentSubscriberId, mytToUtc(start).toISOString(), mytToUtc(end).toISOString()),
         apiService.getExpenses(currentSubscriberId),
         apiService.getStaffMembers(currentSubscriberId)
       ]);
@@ -246,7 +246,7 @@ const CalendarPage: React.FC = () => {
       if (currentUserId) {
         const car = cars.find(c => c.id === bookingData.car_id);
         const action = editingBooking ? 'Updated' : 'Created';
-        const startDate = format(new Date(parseBookingDate(bookingData.start_date, bookingData.pickup_time)), 'dd/MM/yyyy HH:mm');
+        const startDate = formatInMYT(parseBookingDate(bookingData.start_date, bookingData.pickup_time), 'dd/MM/yyyy HH:mm');
         
         await apiService.addLog({
           userId: currentUserId,
@@ -276,7 +276,7 @@ const CalendarPage: React.FC = () => {
 
       if (currentUserId && booking) {
         const car = cars.find(c => c.id === booking.car_id);
-        const startDate = format(new Date(parseBookingDate(booking.start_date, booking.pickup_time)), 'dd/MM/yyyy HH:mm');
+        const startDate = formatInMYT(parseBookingDate(booking.start_date, booking.pickup_time), 'dd/MM/yyyy HH:mm');
         
         await apiService.addLog({
           userId: currentUserId,
@@ -459,7 +459,7 @@ const CalendarPage: React.FC = () => {
     exportBookingsToExcel(currentMonth, bookings, cars, members);
   };
 
-  const monthName = format(currentMonth, 'MMMM yyyy');
+  const monthName = formatInMYT(currentMonth, 'MMMM yyyy');
 
   if (error && bookings.length === 0 && cars.length === 0) {
     return (

@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/apiService';
 import { parseBookingDate } from '../services/bookingService';
-import { getNowMYT, utcToMyt } from '../utils/dateUtils';
+import { getNowMYT, utcToMyt, formatInMYT } from '../utils/dateUtils';
 import { 
   Users, Car, CalendarCheck, DollarSign, FileText, AlertTriangle, 
   TrendingUp, Clock, ArrowRight, Plus, Zap, AlertCircle, CheckCircle2,
@@ -102,13 +102,14 @@ const AdminDashboard: React.FC = () => {
       ]);
 
       const now = getNowMYT();
-      const todayStr = format(now, 'yyyy-MM-dd');
+      const mytDate = utcToMyt(now);
+      const todayStr = format(mytDate, 'yyyy-MM-dd');
       
-      const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - now.getDay());
+      const startOfWeek = new Date(mytDate);
+      startOfWeek.setDate(mytDate.getDate() - mytDate.getDay());
       const startOfWeekStr = format(startOfWeek, 'yyyy-MM-dd');
       
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const startOfMonth = new Date(mytDate.getFullYear(), mytDate.getMonth(), 1);
       const startOfMonthStr = format(startOfMonth, 'yyyy-MM-dd');
 
       // 1. Sales Metrics (Completed/Signed Agreements)
@@ -156,30 +157,36 @@ const AdminDashboard: React.FC = () => {
       filteredBookings.forEach(b => {
         if (b.status === 'cancelled') return;
         
-        const start = utcToMyt(parseBookingDate(b.start_date, b.pickup_time));
-        const end = b.end_time ? utcToMyt(b.end_time) : new Date(start.getTime() + b.duration_days * 24 * 60 * 60 * 1000);
-        const car = cars.find(c => c.id === b.car_id);
-        const member = members.find(m => m.id === b.member_id);
-        
-        // Pending Deliveries
-        if (format(start, 'yyyy-MM-dd') === todayStr && start > now) {
-          pending.push({
-            id: b.id,
-            carPlate: car?.plate || 'Unknown',
-            customerName: member?.name || 'Unknown',
-            pickupTime: start
-          });
-        }
-        
-        // Overdue Returns
-        if (now > end && b.status !== 'completed') {
-          overdue.push({
-            id: b.id,
-            carPlate: car?.plate || 'Unknown',
-            customerName: member?.name || 'Unknown',
-            returnTime: end
-          });
-        }
+       // The booking timestamps are saved in UTC.
+       // We can compare them directly with `now.getTime()` (which is also UTC).
+       const startMs = parseBookingDate(b.start_date, b.pickup_time);
+       const endMs = b.end_time 
+         ? new Date(b.end_time).getTime() 
+         : startMs + (b.duration_days || 0) * 24 * 60 * 60 * 1000;
+
+       const car = cars.find(c => c.id === b.car_id);
+       const member = members.find(m => m.id === b.member_id);
+       
+       // Pending Deliveries Logic
+       // We use formatInMYT to get the MYT date string from the UTC timestamp
+       if (formatInMYT(startMs, 'yyyy-MM-dd') === todayStr && startMs > now.getTime()) {
+         pending.push({
+           id: b.id,
+           carPlate: car?.plate || 'Unknown',
+           customerName: member?.name || 'Unknown',
+           pickupTime: new Date(startMs)
+         });
+       }
+       
+       // Overdue Returns
+       if (now.getTime() > endMs && b.status !== 'completed') {
+         overdue.push({
+           id: b.id,
+           carPlate: car?.plate || 'Unknown',
+           customerName: member?.name || 'Unknown',
+           returnTime: new Date(endMs)
+         });
+       }
       });
 
       pending.sort((a, b) => a.pickupTime.getTime() - b.pickupTime.getTime());
@@ -363,7 +370,7 @@ const AdminDashboard: React.FC = () => {
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-medium text-slate-900">
-                      {delivery.pickupTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {formatInMYT(delivery.pickupTime, 'HH:mm')}
                     </p>
                     <p className="text-xs text-blue-600 font-medium mt-1">
                       In {formatTimeDiff(delivery.pickupTime)}
@@ -431,7 +438,7 @@ const AdminDashboard: React.FC = () => {
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-medium text-slate-900">
-                          {format(returnItem.returnTime, 'dd/MM/yyyy HH:mm')}
+                          {formatInMYT(returnItem.returnTime, 'dd/MM/yyyy HH:mm')}
                         </p>
                         <p className="text-xs text-rose-600 font-medium mt-1">
                           Late by {formatTimeDiff(returnItem.returnTime)}
@@ -475,7 +482,7 @@ const AdminDashboard: React.FC = () => {
                 {recentAgreements.length > 0 ? recentAgreements.map((agreement) => (
                   <tr key={agreement.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 text-sm text-slate-600">
-                      {format(new Date(agreement.created_at), 'dd/MM/yyyy')}
+                      {formatInMYT(new Date(agreement.created_at).getTime(), 'dd/MM/yyyy')}
                     </td>
                     <td className="px-6 py-4 text-sm font-bold text-slate-900">
                       {agreement.customer_name}
@@ -555,7 +562,7 @@ const AdminDashboard: React.FC = () => {
                         </div>
                       </div>
                       <p className={`text-xs mt-4 ${isActive ? 'text-indigo-200' : 'text-slate-400'}`}>
-                        {format(new Date(event.start_date), 'dd/MM/yyyy')} - {format(new Date(event.end_date), 'dd/MM/yyyy')}
+                        {formatInMYT(new Date(event.start_date).getTime(), 'dd/MM/yyyy')} - {formatInMYT(new Date(event.end_date).getTime(), 'dd/MM/yyyy')}
                       </p>
                     </div>
                   );

@@ -52,9 +52,9 @@ const safeFormat = (dateStr: string | Date | null | undefined, formatStr: string
       // Fallback for non-ISO strings
       const d2 = new Date(dateStr);
       if (!isValid(d2)) return 'Invalid Date';
-      return format(d2, formatStr);
+      return formatInMYT(d2, formatStr);
     }
-    return format(d, formatStr);
+    return formatInMYT(d, formatStr);
   } catch (e) {
     return 'Invalid Date';
   }
@@ -75,7 +75,7 @@ const AuditPayoutManagement: React.FC = () => {
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
   const [scanTrigger, setScanTrigger] = useState(0);
   const [isScanning, setIsScanning] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [selectedMonth, setSelectedMonth] = useState(getNowMYT());
 
   useEffect(() => {
     setSelectedIds([]);
@@ -194,7 +194,7 @@ const AuditPayoutManagement: React.FC = () => {
       return;
     }
 
-    const selectedMonthString = format(selectedMonth, 'MMMM yyyy');
+    const selectedMonthString = formatInMYT(selectedMonth, 'MMMM yyyy');
     if (!window.confirm(`Process monthly payout for ${selectedMonthString}? This will reconcile ${approvedRecordsForMonth.length} records.`)) return;
 
     try {
@@ -325,8 +325,9 @@ const AuditPayoutManagement: React.FC = () => {
   };
 
   const now = getNowMYT();
-  const currentMonthStart = format(startOfMonth(now), 'yyyy-MM-dd');
-  const currentMonthEnd = format(endOfMonth(now), 'yyyy-MM-dd');
+  const mytDate = utcToMyt(now);
+  const currentMonthStart = format(startOfMonth(mytDate), 'yyyy-MM-dd');
+  const currentMonthEnd = format(endOfMonth(mytDate), 'yyyy-MM-dd');
 
   const handleRunScan = () => {
     setIsScanning(true);
@@ -362,7 +363,7 @@ const AuditPayoutManagement: React.FC = () => {
               <ChevronLeft className="w-5 h-5" />
             </button>
             <div className="font-bold text-slate-800 min-w-[140px] text-center">
-              {format(selectedMonth, 'MMMM yyyy')}
+              {formatInMYT(selectedMonth, 'MMMM yyyy')}
             </div>
             <button 
               onClick={() => setSelectedMonth(prev => addMonths(prev, 1))}

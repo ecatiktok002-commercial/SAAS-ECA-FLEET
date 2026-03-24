@@ -181,7 +181,7 @@ export default function EditAgreement() {
         const startDate = parseISO(value);
         const duration = parseInt(newFormData.duration_days, 10);
         if (isValid(startDate) && !isNaN(duration)) {
-          newFormData.end_date = format(addDays(startDate, duration), 'yyyy-MM-dd');
+          newFormData.end_date = formatInMYT(addDays(startDate, duration), 'yyyy-MM-dd');
           triggerHighlight('date');
           // Ensure 24-hour rule: return_time matches pickup_time
           if (newFormData.pickup_time) {
@@ -201,7 +201,7 @@ export default function EditAgreement() {
         const startDate = parseISO(newFormData.start_date);
         const duration = parseInt(value, 10);
         if (isValid(startDate) && !isNaN(duration)) {
-          newFormData.end_date = format(addDays(startDate, duration), 'yyyy-MM-dd');
+          newFormData.end_date = formatInMYT(addDays(startDate, duration), 'yyyy-MM-dd');
           triggerHighlight('date');
           // Ensure 24-hour rule: return_time matches pickup_time
           if (newFormData.pickup_time) {
