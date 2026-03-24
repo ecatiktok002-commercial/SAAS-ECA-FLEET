@@ -168,7 +168,7 @@ export default function CreateAgreement() {
 
     const excludedFields = ['email', 'password'];
     let processedValue = value;
-    if ((type === 'text' || e.target.tagName === 'TEXTAREA') && !excludedFields.includes(name)) {
+    if (typeof value === 'string' && !excludedFields.includes(name)) {
       processedValue = value.toUpperCase();
     }
 
