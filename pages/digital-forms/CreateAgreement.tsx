@@ -166,10 +166,16 @@ export default function CreateAgreement() {
     const { name, value, type } = e.target;
     let newFormData = { ...formData };
 
+    const excludedFields = ['email', 'password'];
+    let processedValue = value;
+    if ((type === 'text' || e.target.tagName === 'TEXTAREA') && !excludedFields.includes(name)) {
+      processedValue = value.toUpperCase();
+    }
+
     if (type === 'checkbox') {
       (newFormData as any)[name] = (e.target as HTMLInputElement).checked;
     } else {
-      (newFormData as any)[name] = value;
+      (newFormData as any)[name] = processedValue;
     }
 
     // Auto-calculation logic
@@ -420,7 +426,7 @@ export default function CreateAgreement() {
                   value={formData.identity_number}
                   onChange={handleChange}
                   onBlur={handleICBlur}
-                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm uppercase"
                   placeholder="Enter IC to auto-fill details"
                 />
               </div>
@@ -433,7 +439,7 @@ export default function CreateAgreement() {
                   required
                   value={formData.customer_name}
                   onChange={handleChange}
-                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm uppercase"
                 />
               </div>
 
@@ -445,7 +451,7 @@ export default function CreateAgreement() {
                   required
                   value={formData.customer_phone}
                   onChange={handleChange}
-                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm uppercase"
                 />
               </div>
 
@@ -457,7 +463,7 @@ export default function CreateAgreement() {
                   required
                   value={formData.billing_address}
                   onChange={handleChange}
-                  className="block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm uppercase"
                 />
               </div>
 
@@ -469,7 +475,7 @@ export default function CreateAgreement() {
                   required
                   value={formData.emergency_contact_name}
                   onChange={handleChange}
-                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm uppercase"
                 />
               </div>
 
@@ -481,7 +487,7 @@ export default function CreateAgreement() {
                   required
                   value={formData.emergency_contact_relation}
                   onChange={handleChange}
-                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm uppercase"
                 />
               </div>
 
@@ -536,7 +542,7 @@ export default function CreateAgreement() {
                   required
                   value={formData.car_model}
                   onChange={handleChange}
-                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm uppercase"
                 />
               </div>
 

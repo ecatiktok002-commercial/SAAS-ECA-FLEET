@@ -287,9 +287,9 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
 
             <textarea 
               value={conditionDetails}
-              onChange={(e) => setConditionDetails(e.target.value)}
+              onChange={(e) => setConditionDetails(e.target.value.toUpperCase())}
               placeholder="Describe the damages here (optional)..."
-              className="w-full px-4 py-3 bg-white border border-orange-200 rounded-xl focus:ring-2 focus:ring-orange-400 focus:border-transparent outline-none transition-all font-medium text-slate-700 text-sm min-h-[80px]"
+              className="w-full px-4 py-3 bg-white border border-orange-200 rounded-xl focus:ring-2 focus:ring-orange-400 focus:border-transparent outline-none transition-all font-medium text-slate-700 text-sm min-h-[80px] uppercase"
             />
           </div>
 
