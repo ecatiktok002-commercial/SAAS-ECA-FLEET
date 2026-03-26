@@ -69,39 +69,38 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         return;
       }
 
-      // 1. The Parallel Check
-      // Check A (Staff): Search the staff table for a record where staff_uid matches the input and is_active is true.
-      // Check B (Subscriber): Attempt a standard supabase.auth.signInWithPassword using {input}@ecafleet.com and the password {input}.
-      const [staffCheck, authCheck] = await Promise.all([
-        supabase.from('staff').select('*').eq('access_id', uid).eq('is_active', true).maybeSingle(),
-        supabase.auth.signInWithPassword({
-          email: `${uid}@ecafleet.com`,
-          password: uid,
-        }).catch(err => ({ data: { user: null, session: null }, error: err }))
-      ]);
+      // 1. Check Identity using RPC
+      const { data: subData, error: rpcError } = await supabase.rpc('verify_login_uid', { p_uid: uid });
+      
+      if (rpcError || !subData || subData.role === 'unknown') {
+        throw new Error('Invalid UID or Credentials');
+      }
 
-      const staffData = staffCheck.data;
-      const authData = authCheck.data;
-      const authError = authCheck.error;
+      if (subData.role === 'disabled_staff') {
+        throw new Error('This staff account has been disabled.');
+      }
+
+      if (subData.role === 'orphaned_staff') {
+        throw new Error(subData.message || 'Company record not found for this staff member.');
+      }
 
       // 2. Execution Flow
-      // If a Staff record is found: Halt the Auth login attempt. Show a PIN Input Overlay.
-      if (staffData) {
-        // We need the subscriber metadata (tier, id)
-        const { data: subData } = await supabase.rpc('verify_login_uid', { p_uid: uid });
+      // If a Staff record is found: Show a PIN Input Overlay.
+      if (subData.role === 'staff') {
         setDetectedRole(subData);
         setStep(2); // Show the PIN Input Overlay
         setLoading(false);
         return;
       }
 
-      // If the Auth Login (Subscriber) succeeds first: Redirect immediately to the Admin Dashboard.
-      if (authData?.user && !authError) {
-        // This is a Subscriber.
-        // We need the subscriber metadata (tier, id)
-        const { data: subData } = await supabase.rpc('verify_login_uid', { p_uid: uid });
+      // If it's a Subscriber: Attempt Auth Login
+      if (subData.role === 'subscriber') {
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email: `${uid}@ecafleet.com`,
+          password: uid,
+        });
 
-        if (subData && subData.role === 'subscriber') {
+        if (authData?.user && !authError) {
           localStorage.setItem('current_subscriber_id', subData.id);
           // Parameters: id, role, tier, uId, uName, uUid, cName
           login(subData.id, 'admin', subData.tier, subData.id, subData.company_code, authData.user.id, subData.company_code);
@@ -115,12 +114,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           }
           return;
         }
-      }
 
-      // Special case for subscribers who might have a different password (legacy)
-      const { data: legacySubData } = await supabase.rpc('verify_login_uid', { p_uid: uid });
-      if (legacySubData && legacySubData.role === 'subscriber') {
-        const sharedUid = legacySubData.company_code.toLowerCase();
+        // Special case for subscribers who might have a different password (legacy)
+        const sharedUid = subData.company_code.toLowerCase();
         const email = `${sharedUid}@ecafleet.com`;
         const subscriberPassword = `${sharedUid}Eca123!`;
         const fallback = await supabase.auth.signInWithPassword({
@@ -128,24 +124,23 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           password: subscriberPassword,
         });
         
-        if (!fallback.error) {
-          localStorage.setItem('current_subscriber_id', legacySubData.id);
+        if (!fallback.error && fallback.data?.user) {
+          localStorage.setItem('current_subscriber_id', subData.id);
           // Parameters: id, role, tier, uId, uName, uUid, cName
-          login(legacySubData.id, 'admin', legacySubData.tier, legacySubData.id, legacySubData.company_code, fallback.data.user.id, legacySubData.company_code);
-          if (onLogin) onLogin(legacySubData.id);
+          login(subData.id, 'admin', subData.tier, subData.id, subData.company_code, fallback.data.user.id, subData.company_code);
+          if (onLogin) onLogin(subData.id);
           
-          const tier = fallback.data.user.user_metadata?.subscription_tier || `tier_${legacySubData.tier}`;
-          if (tier === 'tier_1' || tier === 'tier_2' || legacySubData.tier === 1 || legacySubData.tier === 2) {
+          const tier = fallback.data.user.user_metadata?.subscription_tier || `tier_${subData.tier}`;
+          if (tier === 'tier_1' || tier === 'tier_2' || subData.tier === 1 || subData.tier === 2) {
             navigate('/upgrade');
           } else {
             navigate('/dashboard');
           }
           return;
         }
-      }
 
-      // If both fail: Show 'Invalid UID or Credentials'
-      throw new Error('Invalid UID or Credentials');
+        throw new Error('Invalid UID or Credentials');
+      }
 
     } catch (err: any) {
       setError(err.message || 'Verification failed.');
@@ -213,7 +208,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         detectedRole.tier || 'tier_1', 
         detectedRole.staff_id, 
         detectedRole.staff_name, 
-        detectedRole.staff_uid
+        detectedRole.access_id,
+        detectedRole.subscriber_slug
       );
       
       if (onLogin) {

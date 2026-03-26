@@ -935,6 +935,7 @@ RETURNS JSON AS $$
 DECLARE
   v_company subscribers%ROWTYPE;
   v_staff public.staff%ROWTYPE;
+  v_legacy_staff public.staff_members%ROWTYPE;
 BEGIN
   IF p_uid = 'superadmin' THEN
     RETURN json_build_object('role', 'superadmin');
@@ -963,6 +964,29 @@ BEGIN
       'staff_name', v_staff.name, 
       'access_id', v_staff.access_id,
       'pin_code', v_staff.pin_code,
+      'tier', v_company.tier
+    );
+  END IF;
+
+  -- Step 2: The Identity Lookup (Legacy Table)
+  SELECT * INTO v_legacy_staff FROM public.staff_members WHERE access_id = p_uid LIMIT 1;
+  
+  IF FOUND THEN
+    -- We also need the real subscriber UUID for the app's internal filtering
+    SELECT * INTO v_company FROM subscribers WHERE id = v_legacy_staff.subscriber_id LIMIT 1;
+    
+    IF NOT FOUND THEN
+      RETURN json_build_object('role', 'orphaned_staff', 'message', 'Company record not found for this staff member.');
+    END IF;
+
+    RETURN json_build_object(
+      'role', 'staff', 
+      'subscriber_id', v_company.id, 
+      'subscriber_slug', v_company.name, 
+      'staff_id', v_legacy_staff.id, 
+      'staff_name', v_legacy_staff.name, 
+      'access_id', v_legacy_staff.access_id,
+      'pin_hash', v_legacy_staff.pin_hash,
       'tier', v_company.tier
     );
   END IF;

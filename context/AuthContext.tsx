@@ -144,7 +144,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               const { data: staffData } = await supabase
                 .from('staff')
                 .select('role')
-                .eq('staff_uid', storedUserUid)
+                .eq('access_id', storedUserUid)
                 .eq('subscriber_id', storedCompanyName)
                 .single();
               
@@ -243,13 +243,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // Fallback: Fetch staff_uid if missing from storage
             const { data: staffData } = await supabase
               .from('staff_members')
-              .select('staff_uid')
+              .select('access_id')
               .eq('id', storedUserId)
               .single();
             
-            if (staffData?.staff_uid) {
-              setUserUid(staffData.staff_uid);
-              localStorage.setItem('userUid', staffData.staff_uid);
+            if (staffData?.access_id) {
+              setUserUid(staffData.access_id);
+              localStorage.setItem('userUid', staffData.access_id);
             }
           }
         } else if (isSuperAdmin) {
