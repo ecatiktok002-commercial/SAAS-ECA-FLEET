@@ -434,7 +434,13 @@ const CalendarPage: React.FC = () => {
         ...newExpense,
         created_by: userUid || currentUserId || ''
       };
-      await apiService.addExpense(expenseWithUser, currentSubscriberId);
+      const addedExpense = await apiService.addExpense(expenseWithUser, currentSubscriberId);
+      
+      // Update local state immediately for instant feedback
+      setExpenses(prev => {
+        if (prev.some(e => e.id === addedExpense.id)) return prev;
+        return [addedExpense, ...prev].slice(0, 30);
+      });
     } catch (err: any) {
       if (err.message === 'DATABASE_TABLES_MISSING') setIsTablesMissing(true);
       else alert(`Error adding expense: ${err.message}`);
@@ -448,6 +454,9 @@ const CalendarPage: React.FC = () => {
     try {
       setIsLoading(true);
       await apiService.deleteExpense(id, currentSubscriberId);
+      
+      // Update local state immediately for instant feedback
+      setExpenses(prev => prev.filter(e => e.id !== id));
     } catch (err: any) {
       alert(`Error deleting expense: ${err.message}`);
     } finally {
