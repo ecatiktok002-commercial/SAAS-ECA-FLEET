@@ -45,7 +45,7 @@ export const findAvailableCarByModel = (
   end_time?: string
 ): string | null => {
   // 1. Get all cars of this model
-  const modelCars = cars.filter(c => c.name === modelName);
+  const modelCars = cars.filter(c => c.name.trim() === modelName.trim());
   
   // 2. Iterate through each car to find one that is free
   for (const car of modelCars) {
@@ -83,7 +83,7 @@ export const suggestUpgrade = (
   end_time?: string
 ): Car | null => {
   const tiers = ['Economy', 'SUV', 'Luxury', 'Electric'];
-  const currentCar = cars.find(c => c.name === currentModel);
+  const currentCar = cars.find(c => c.name.trim() === currentModel.trim());
   if (!currentCar) return null;
 
   const currentTierIndex = tiers.indexOf(currentCar.type);

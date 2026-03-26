@@ -125,7 +125,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
   // Derive unique models from cars
   const uniqueModels = useMemo(() => {
-    return Array.from(new Set(cars.map(c => c.name))).sort();
+    return Array.from(new Set(cars.map(c => c.name.trim()))).sort();
   }, [cars]);
 
   // Calculate availability for each model based on selected date/duration
@@ -135,7 +135,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
     const map: Record<string, number> = {};
 
     uniqueModels.forEach(model => {
-      const modelCars = cars.filter(c => c.name === model);
+      const modelCars = cars.filter(c => c.name.trim() === model);
       const available = modelCars.filter(car => {
          const [startDate, pickupTime] = selectedDateTimeStr.split('T');
          const bookingData = { 
