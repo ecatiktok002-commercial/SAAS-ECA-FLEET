@@ -119,8 +119,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           login(subData.id, 'admin', subData.tier, subData.id, subData.company_code, authData.user.id, subData.brand_name || subData.company_code);
           if (onLogin) onLogin(subData.id);
           
-          const tier = authData.user.user_metadata?.subscription_tier || `tier_${subData.tier}`;
-          if (tier === 'tier_1' || tier === 'tier_2' || subData.tier === 1 || subData.tier === 2) {
+          const normalizedTier = String(subData.tier).toLowerCase();
+          if (normalizedTier.includes('tier 1') || normalizedTier.includes('tier_1') || normalizedTier === '1' ||
+              normalizedTier.includes('tier 2') || normalizedTier.includes('tier_2') || normalizedTier === '2') {
             navigate('/upgrade');
           } else {
             navigate('/dashboard');
@@ -147,8 +148,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           login(subData.id, 'admin', subData.tier, subData.id, subData.company_code, fallback.data.user.id, subData.brand_name || subData.company_code);
           if (onLogin) onLogin(subData.id);
           
-          const tier = fallback.data.user.user_metadata?.subscription_tier || `tier_${subData.tier}`;
-          if (tier === 'tier_1' || tier === 'tier_2' || subData.tier === 1 || subData.tier === 2) {
+          const normalizedTier = String(subData.tier).toLowerCase();
+          if (normalizedTier.includes('tier 1') || normalizedTier.includes('tier_1') || normalizedTier === '1' ||
+              normalizedTier.includes('tier 2') || normalizedTier.includes('tier_2') || normalizedTier === '2') {
             navigate('/upgrade');
           } else {
             navigate('/dashboard');

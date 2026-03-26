@@ -71,15 +71,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Retrieve subscriber_id from metadata
         let sId = session.user.user_metadata?.subscriber_id;
         
+        // Fallback to current_subscriber_id from localStorage if set during login
+        const currentSubId = localStorage.getItem('current_subscriber_id');
+        
         // Fallback to user.id if still missing, but we'll validate if they are the owner
-        let finalSubscriberId = isSuperAdmin ? 'superadmin' : sId;
+        let finalSubscriberId = isSuperAdmin ? 'superadmin' : (sId || currentSubId);
 
         if (!isSuperAdmin && !finalSubscriberId) {
           // Check if user is a subscriber (owner)
+          const emailPrefix = session.user.email?.split('@')[0] || '';
+          
           const { data: subData } = await supabase
             .from('subscribers')
             .select('id')
-            .eq('id', session.user.id)
+            .or(`id.eq.${session.user.id},name.ilike.${emailPrefix}`)
+            .order('tier', { ascending: false })
+            .limit(1)
             .maybeSingle();
           
           if (subData) {
@@ -186,17 +193,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Fetch latest tier and company name from DB for non-superadmins
         if (!isSuperAdmin) {
-          const { data: companyData } = await supabase
-            .from('subscribers')
-            .select('tier, name, brand_name')
-            .eq('id', finalSubscriberId)
-            .single();
+          let activeTier = 'tier_1';
+          let displayName = '';
           
-          const activeTier = companyData?.tier ? normalizeTier(companyData.tier) : 'tier_1';
-          setSubscriptionTier(activeTier);
+          // Always use verify_login_uid (SECURITY DEFINER) to fetch the correct tier and subscriber ID.
+          // This bypasses RLS issues and handles duplicate records (e.g. self-provisioned vs Superadmin-created).
+          const emailPrefix = session.user.email?.split('@')[0] || '';
+          if (emailPrefix) {
+            const { data: rpcData } = await supabase.rpc('verify_login_uid', { p_uid: emailPrefix });
+            if (rpcData) {
+              activeTier = rpcData.tier ? normalizeTier(rpcData.tier) : 'tier_1';
+              displayName = rpcData.brand_name || rpcData.company_code || rpcData.staff_name;
+              
+              // Update finalSubscriberId to the correct one from RPC
+              if (rpcData.id || rpcData.subscriber_id) {
+                finalSubscriberId = rpcData.subscriber_id || rpcData.id;
+                setSubscriberId(finalSubscriberId);
+                localStorage.setItem('subscriberId', finalSubscriberId);
+              }
+            }
+          }
+          
+          // If RPC fails or returns nothing, fallback to direct query
+          if (!displayName) {
+            const { data: companyData } = await supabase
+              .from('subscribers')
+              .select('tier, name, brand_name')
+              .eq('id', finalSubscriberId)
+              .single();
+            
+            if (companyData) {
+              activeTier = companyData.tier ? normalizeTier(companyData.tier) : 'tier_1';
+              displayName = companyData.brand_name || companyData.name;
+            }
+          }
+          
+          setSubscriptionTier(activeTier as SubscriptionTier);
           localStorage.setItem('subscriptionTier', activeTier);
           
-          const displayName = companyData?.brand_name || companyData?.name;
           if (displayName) {
             setCompanyName(displayName);
             localStorage.setItem('companyName', displayName);
@@ -327,6 +361,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSubscriptionTier(null);
     setCompanyName(null);
     localStorage.removeItem('subscriberId');
+    localStorage.removeItem('current_subscriber_id');
     localStorage.removeItem('staffRole');
     localStorage.removeItem('subscriptionTier');
     localStorage.removeItem('userName');

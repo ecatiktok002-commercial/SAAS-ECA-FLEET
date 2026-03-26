@@ -476,8 +476,12 @@ CREATE OR REPLACE FUNCTION current_subscriber_id()
 RETURNS UUID AS $$
 BEGIN
   RETURN (
-    -- 1. Check if user is a subscriber
-    SELECT id FROM public.subscribers WHERE id = auth.uid()
+    -- 1. Check if user is a subscriber (by ID or by matching email prefix to name)
+    (SELECT id FROM public.subscribers 
+     WHERE id = auth.uid() 
+        OR name ILIKE (SELECT SPLIT_PART(email, '@', 1) FROM auth.users WHERE id = auth.uid())
+     ORDER BY CASE WHEN tier != 'Tier 1' THEN 0 ELSE 1 END
+     LIMIT 1)
     UNION ALL
     -- 2. Check if user is an agent in staff_members
     SELECT subscriber_id FROM public.staff_members 
@@ -995,7 +999,7 @@ BEGIN
   END IF;
 
   -- Fallback for direct subscriber login (Master Login)
-  SELECT * INTO v_company FROM subscribers WHERE name ILIKE p_uid LIMIT 1;
+  SELECT * INTO v_company FROM subscribers WHERE name ILIKE p_uid ORDER BY CASE WHEN tier != 'Tier 1' THEN 0 ELSE 1 END LIMIT 1;
   IF FOUND THEN
     RETURN json_build_object(
       'role', 'subscriber', 
