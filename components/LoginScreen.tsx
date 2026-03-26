@@ -116,7 +116,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         if (authData?.user && !authError) {
           localStorage.setItem('current_subscriber_id', subData.id);
           // Parameters: id, role, tier, uId, uName, uUid, cName
-          login(subData.id, 'admin', subData.tier, subData.id, subData.company_code, authData.user.id, subData.brand_name || subData.company_code);
+          login(subData.id, 'admin', subData.tier, subData.id, subData.company_code, authData.user.id, subData.company_code);
           if (onLogin) onLogin(subData.id);
           
           const normalizedTier = String(subData.tier).toLowerCase();
@@ -145,7 +145,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         if (!fallback.error && fallback.data?.user) {
           localStorage.setItem('current_subscriber_id', subData.id);
           // Parameters: id, role, tier, uId, uName, uUid, cName
-          login(subData.id, 'admin', subData.tier, subData.id, subData.company_code, fallback.data.user.id, subData.brand_name || subData.company_code);
+          login(subData.id, 'admin', subData.tier, subData.id, subData.company_code, fallback.data.user.id, subData.company_code);
           if (onLogin) onLogin(subData.id);
           
           const normalizedTier = String(subData.tier).toLowerCase();
@@ -229,7 +229,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         detectedRole.staff_id, 
         detectedRole.staff_name, 
         detectedRole.access_id,
-        detectedRole.brand_name || detectedRole.subscriber_slug
+        detectedRole.subscriber_slug
       );
       
       if (onLogin) {

@@ -969,8 +969,7 @@ BEGIN
       'staff_name', v_staff.name, 
       'access_id', v_staff.access_id,
       'pin_code', v_staff.pin_code,
-      'tier', v_company.tier,
-      'brand_name', v_company.brand_name
+      'tier', v_company.tier
     );
   END IF;
 
@@ -993,8 +992,7 @@ BEGIN
       'staff_name', v_legacy_staff.name, 
       'access_id', v_legacy_staff.access_id,
       'pin_hash', v_legacy_staff.pin_hash,
-      'tier', v_company.tier,
-      'brand_name', v_company.brand_name
+      'tier', v_company.tier
     );
   END IF;
 
@@ -1005,8 +1003,7 @@ BEGIN
       'role', 'subscriber', 
       'id', v_company.id, 
       'tier', v_company.tier, 
-      'company_code', v_company.name,
-      'brand_name', v_company.brand_name
+      'company_code', v_company.name
     );
   END IF;
 

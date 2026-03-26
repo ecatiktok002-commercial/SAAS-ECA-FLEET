@@ -129,7 +129,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUserId(session.user.id);
         setUserName(isSuperAdmin ? 'Super Admin' : (session.user.user_metadata?.full_name || getDisplayId(session.user)));
         
-        // Determine role: prioritize owner/superadmin logic, then stored role
+        // Determine role: prioritize stored role, then owner/superadmin logic
         const storedRole = localStorage.getItem('staffRole') as StaffRole;
         // A user is the subscriber owner only if their ID matches the resolved finalSubscriberId
         // AND they are not a superadmin.
@@ -138,11 +138,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (isSuperAdmin) {
           setStaffRole('admin');
           localStorage.setItem('staffRole', 'admin');
+        } else if (storedRole) {
+          setStaffRole(storedRole);
         } else if (isSubscriberOwner) {
           setStaffRole('admin');
           localStorage.setItem('staffRole', 'admin');
-        } else if (storedRole) {
-          setStaffRole(storedRole);
         } else {
           // Try to fetch role from staff table if we have a userUid
           const storedUserUid = localStorage.getItem('userUid');
@@ -203,7 +203,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const { data: rpcData } = await supabase.rpc('verify_login_uid', { p_uid: emailPrefix });
             if (rpcData) {
               activeTier = rpcData.tier ? normalizeTier(rpcData.tier) : 'tier_1';
-              displayName = rpcData.brand_name || rpcData.company_code || rpcData.staff_name;
+              displayName = rpcData.company_code || rpcData.staff_name;
               
               // Update finalSubscriberId to the correct one from RPC
               if (rpcData.id || rpcData.subscriber_id) {
@@ -218,13 +218,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (!displayName) {
             const { data: companyData } = await supabase
               .from('subscribers')
-              .select('tier, name, brand_name')
+              .select('tier, name')
               .eq('id', finalSubscriberId)
               .single();
             
             if (companyData) {
               activeTier = companyData.tier ? normalizeTier(companyData.tier) : 'tier_1';
-              displayName = companyData.brand_name || companyData.name;
+              displayName = companyData.name;
             }
           }
           
