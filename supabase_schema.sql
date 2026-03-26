@@ -168,12 +168,18 @@ CREATE TABLE IF NOT EXISTS public.staff (
 ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS commission_tier_override TEXT DEFAULT 'auto';
 ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS commission_rate NUMERIC;
+ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'staff';
 
--- Sync existing commission_tier_override from staff_members to staff
+-- Sync existing commission_tier_override and role from staff_members to staff
 UPDATE public.staff s
 SET commission_tier_override = sm.commission_tier_override
 FROM staff_members sm
-WHERE s.id = sm.id AND s.commission_tier_override = 'auto' AND sm.commission_tier_override != 'auto';
+WHERE s.access_id = sm.access_id AND s.commission_tier_override = 'auto' AND sm.commission_tier_override != 'auto';
+
+UPDATE public.staff s
+SET role = sm.role
+FROM staff_members sm
+WHERE s.access_id = sm.access_id AND s.role = 'staff' AND sm.role != 'staff';
 
 CREATE INDEX IF NOT EXISTS idx_staff_lookup ON public.staff(access_id, subscriber_id);
 
@@ -511,6 +517,21 @@ CREATE POLICY "Staff members access" ON staff_members
     access_id = auth.uid()::text -- Agent (can see/update self)
     OR
     (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
+  );
+
+-- 2b. Staff (Virtual Login)
+ALTER TABLE public.staff ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Virtual staff access" ON public.staff;
+CREATE POLICY "Virtual staff access" ON public.staff 
+  FOR ALL USING (
+    -- Subscriber can access their staff
+    subscriber_id IN (SELECT name FROM subscribers WHERE id = auth.uid())
+    OR 
+    -- Agent can see themselves
+    access_id = auth.uid()::text
+    OR
+    -- Superadmin can see all
+    (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com')
   );
 
 -- 3. Cars

@@ -1217,22 +1217,54 @@ export const apiService = {
       const { data: subData } = await supabase.from('subscribers').select('name').eq('id', subscriberId).single();
       const slug = subData?.name;
 
-      let query = supabase.from('staff').select('*');
+      // 1. Get from new 'staff' table (all staff, to check active status)
+      let staffQuery = supabase.from('staff').select('*');
       if (slug) {
-        query = query.eq('subscriber_id', slug);
+        staffQuery = staffQuery.eq('subscriber_id', slug);
       } else {
         // Fallback to UUID if slug not found (though unlikely)
-        query = query.eq('subscriber_id', subscriberId);
+        staffQuery = staffQuery.eq('subscriber_id', subscriberId);
+      }
+      const { data: virtualStaff, error: virtualError } = await staffQuery;
+      
+      if (virtualError) {
+        logSupabaseError('getStaffMembers (virtual)', virtualError);
+      }
+
+      // 2. Get from old 'staff_members' table (Legacy)
+      const { data: legacyStaff, error: legacyError } = await supabase
+        .from('staff_members')
+        .select('*')
+        .eq('subscriber_id', subscriberId);
+
+      if (legacyError) {
+        logSupabaseError('getStaffMembers (legacy)', legacyError);
+      }
+
+      // Merge results, prioritizing virtual staff
+      const allStaffMap = new Map<string, any>();
+      
+      // Add legacy staff first (assume active if no is_active column)
+      if (legacyStaff) {
+        legacyStaff.forEach(s => {
+          if (s.access_id) {
+            s.is_active = s.is_active !== undefined ? s.is_active : true;
+            allStaffMap.set(s.access_id, s);
+          }
+        });
       }
       
-      // Try to filter by is_active
-      const { data, error } = await query.eq('is_active', true);
-      
-      if (error) {
-        logSupabaseError('getStaffMembers', error);
-        return [];
+      // Override with new staff
+      if (virtualStaff) {
+        virtualStaff.forEach(s => {
+          if (s.access_id) allStaffMap.set(s.access_id, s);
+        });
       }
-      return (data || []).map(mapStaffFromDB);
+      
+      // Filter by is_active and map
+      return Array.from(allStaffMap.values())
+        .filter(s => s.is_active !== false)
+        .map(mapStaffFromDB);
     });
   },
 
@@ -1345,6 +1377,7 @@ export const apiService = {
         access_id: uid,
         staff_uid: uid,
         pin_code: pin || '1234', 
+        role,
         is_active: true,
         commission_tier_override: commissionTierOverride,
         commission_rate: commissionRate
@@ -1413,6 +1446,7 @@ export const apiService = {
       if (updates.name !== undefined) dbUpdates.name = updates.name;
       if (updates.staff_uid !== undefined) dbUpdates.access_id = updates.staff_uid;
       if (updates.pin_code !== undefined) dbUpdates.pin_code = updates.pin_code;
+      if (updates.role !== undefined) dbUpdates.role = updates.role;
       if (updates.is_active !== undefined) dbUpdates.is_active = updates.is_active;
       if (updates.commission_tier_override !== undefined) dbUpdates.commission_tier_override = updates.commission_tier_override;
       if (updates.commission_rate !== undefined) dbUpdates.commission_rate = updates.commission_rate;

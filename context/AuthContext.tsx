@@ -121,7 +121,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUserId(session.user.id);
         setUserName(isSuperAdmin ? 'Super Admin' : (session.user.user_metadata?.full_name || getDisplayId(session.user)));
         
-        // Determine role: prioritize stored role, fallback to owner/superadmin logic
+        // Determine role: prioritize owner/superadmin logic, then stored role
         const storedRole = localStorage.getItem('staffRole') as StaffRole;
         // A user is the subscriber owner only if their ID matches the resolved finalSubscriberId
         // AND they are not a superadmin.
@@ -130,11 +130,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (isSuperAdmin) {
           setStaffRole('admin');
           localStorage.setItem('staffRole', 'admin');
-        } else if (storedRole) {
-          setStaffRole(storedRole);
         } else if (isSubscriberOwner) {
           setStaffRole('admin');
           localStorage.setItem('staffRole', 'admin');
+        } else if (storedRole) {
+          setStaffRole(storedRole);
         } else {
           // Try to fetch role from staff table if we have a userUid
           const storedUserUid = localStorage.getItem('userUid');
