@@ -4,6 +4,7 @@ import { Users, Search, Phone, CreditCard, Download, MessageCircle, ExternalLink
 import { useAuth } from '../context/AuthContext';
 import { formatInMYT, getNowMYT } from '../utils/dateUtils';
 import { apiService } from '../services/apiService';
+import { supabase } from '../services/supabase';
 import * as XLSX from 'xlsx';
 
 interface CustomerCRM {
@@ -26,20 +27,46 @@ const CustomersPage: React.FC = () => {
   const itemsPerPage = 15;
 
   useEffect(() => {
-    const fetchData = async () => {
+    let isMounted = true;
+
+    const fetchData = async (showLoading = true) => {
       if (!subscriberId) return;
-      setIsLoading(true);
+      if (showLoading) setIsLoading(true);
       try {
         const data = await apiService.getCustomersCRM(subscriberId);
-        setCustomersData(data);
+        if (isMounted) {
+          setCustomersData(data);
+        }
       } catch (error) {
         console.error('Error fetching customer CRM data:', error);
       } finally {
-        setIsLoading(false);
+        if (isMounted && showLoading) {
+          setIsLoading(false);
+        }
       }
     };
 
     fetchData();
+
+    if (!subscriberId) return;
+
+    // Set up real-time subscriptions for the underlying tables
+    const channel = supabase.channel('customers-crm-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'customers', filter: `subscriber_id=eq.${subscriberId}` }, () => {
+        fetchData(false);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agreements', filter: `subscriber_id=eq.${subscriberId}` }, () => {
+        fetchData(false);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'digital_forms', filter: `subscriber_id=eq.${subscriberId}` }, () => {
+        fetchData(false);
+      })
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
   }, [subscriberId]);
 
   const filteredCustomers = useMemo(() => {
