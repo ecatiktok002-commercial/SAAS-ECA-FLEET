@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
-import { Users, Search, Phone, CreditCard, Download, MessageCircle, ExternalLink } from 'lucide-react';
+import { Users, Search, Phone, CreditCard, Download, MessageCircle, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { formatInMYT, getNowMYT } from '../utils/dateUtils';
 import { apiService } from '../services/apiService';
@@ -22,6 +22,8 @@ const CustomersPage: React.FC = () => {
   const [customersData, setCustomersData] = useState<CustomerCRM[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -63,6 +65,17 @@ const CustomersPage: React.FC = () => {
     return result;
   }, [customersData, searchTerm]);
 
+  // Reset to page 1 when search query changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
+  const currentCustomers = filteredCustomers.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
   const exportToExcel = () => {
     const dataToExport = filteredCustomers.map(c => ({
       'Name': c.full_name,
@@ -86,20 +99,20 @@ const CustomersPage: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'Active':
-        return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">Active</span>;
+        return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">Active</span>;
       case 'Repeat':
-        return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">Repeat</span>;
+        return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">Repeat</span>;
       case 'New':
-        return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">New</span>;
+        return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">New</span>;
       case 'Lead':
-        return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">Lead</span>;
+        return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">Lead</span>;
       default:
-        return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">{status}</span>;
+        return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">{status}</span>;
     }
   };
 
   // Ensure 5 rows minimum
-  const displayRows = [...filteredCustomers];
+  const displayRows = [...currentCustomers];
   while (displayRows.length < 5 && !isLoading) {
     displayRows.push({
       id: `placeholder-${displayRows.length}`,
@@ -127,19 +140,6 @@ const CustomersPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3 w-full md:w-auto">
-            <div className="relative flex-1 md:w-80 group">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-4 w-4 text-slate-400 group-focus-within:text-blue-400 transition-colors" />
-              </div>
-              <input
-                type="text"
-                placeholder="Search Name or Phone..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2 border border-slate-700 rounded-lg leading-5 bg-slate-800 text-slate-300 placeholder-slate-500 focus:outline-none focus:bg-slate-900 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-all"
-              />
-            </div>
-            
             <button 
               onClick={exportToExcel}
               disabled={isLoading || filteredCustomers.length === 0}
@@ -154,17 +154,30 @@ const CustomersPage: React.FC = () => {
 
       <main className="max-w-7xl mx-auto px-4 py-8">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto max-h-[600px] scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+          <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input 
+                type="text"
+                placeholder="Search by Name or Phone..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+              />
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
-              <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">IC / Passport</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Phone Number</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Total Bookings</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Agent</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Last Rental</th>
+              <thead>
+                <tr className="bg-slate-50/50 text-slate-500 text-xs font-bold uppercase tracking-wider">
+                  <th className="px-6 py-4">Name</th>
+                  <th className="px-6 py-4">IC / Passport</th>
+                  <th className="px-6 py-4">Phone Number</th>
+                  <th className="px-6 py-4 text-center">Total Bookings</th>
+                  <th className="px-6 py-4">Agent</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4">Last Rental</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -183,27 +196,20 @@ const CustomersPage: React.FC = () => {
                   displayRows.map((customer, idx) => (
                     <tr 
                       key={customer.id} 
-                      className={`hover:bg-slate-50 transition-colors ${customer.full_name ? '' : 'opacity-30'}`}
+                      className={`hover:bg-slate-50 transition-colors group ${customer.full_name ? '' : 'opacity-30'}`}
                     >
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          {customer.full_name && (
-                            <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 font-bold text-xs">
-                              {customer.full_name.charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                          <span className="font-bold text-slate-900">{customer.full_name || '-'}</span>
-                        </div>
+                        <div className="font-bold text-slate-900">{customer.full_name || '-'}</div>
                       </td>
-                      <td className="px-6 py-4 font-mono text-sm text-slate-600">
-                        {customer.ic_passport || '-'}
+                      <td className="px-6 py-4">
+                        <div className="font-mono text-sm text-slate-700">{customer.ic_passport || '-'}</div>
                       </td>
                       <td className="px-6 py-4">
                         {customer.phone_number ? (
                           <div className="flex items-center gap-2">
                             <a 
                               href={`tel:${customer.phone_number}`}
-                              className="text-blue-600 hover:underline font-medium"
+                              className="font-mono text-sm text-slate-700 hover:text-blue-600 hover:underline"
                             >
                               {customer.phone_number}
                             </a>
@@ -217,21 +223,23 @@ const CustomersPage: React.FC = () => {
                               <MessageCircle className="w-4 h-4" />
                             </a>
                           </div>
-                        ) : '-'}
+                        ) : (
+                          <div className="font-mono text-sm text-slate-700">-</div>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg font-bold ${customer.total_bookings > 0 ? 'bg-blue-50 text-blue-700' : 'text-slate-300'}`}>
-                          {customer.total_bookings || 0}
-                        </span>
+                        <div className="font-bold text-slate-900">{customer.total_bookings || 0}</div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-600 font-medium">
-                        {customer.acquired_by_agent || '-'}
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-slate-600 font-medium uppercase">{customer.acquired_by_agent || '-'}</div>
                       </td>
                       <td className="px-6 py-4">
                         {customer.full_name ? getStatusBadge(customer.status) : '-'}
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-500">
-                        {customer.last_rental_date ? formatInMYT(new Date(customer.last_rental_date).getTime(), 'dd/MM/yyyy') : '-'}
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-slate-500">
+                          {customer.last_rental_date ? formatInMYT(new Date(customer.last_rental_date).getTime(), 'dd/MM/yyyy') : '-'}
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -240,9 +248,63 @@ const CustomersPage: React.FC = () => {
             </table>
           </div>
           
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="text-sm text-slate-500">
+                Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium">{Math.min(currentPage * itemsPerPage, filteredCustomers.length)}</span> of <span className="font-medium">{filteredCustomers.length}</span> results
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="p-1 rounded-md text-slate-500 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
+                  if (
+                    page === 1 ||
+                    page === totalPages ||
+                    (page >= currentPage - 1 && page <= currentPage + 1)
+                  ) {
+                    return (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`w-8 h-8 rounded-md text-sm font-medium flex items-center justify-center transition-colors ${
+                          currentPage === page
+                            ? 'bg-emerald-600 text-white'
+                            : 'text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    );
+                  } else if (
+                    page === currentPage - 2 ||
+                    page === currentPage + 2
+                  ) {
+                    return <span key={page} className="px-1 text-slate-400">...</span>;
+                  }
+                  return null;
+                })}
+
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="p-1 rounded-md text-slate-500 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="bg-slate-50 px-6 py-3 border-t border-slate-200 flex justify-between items-center">
             <p className="text-xs text-slate-500 font-medium">
-              Showing {filteredCustomers.length} of {customersData.length} customers
+              Total {customersData.length} customers
             </p>
             <p className="text-xs text-slate-400 italic">
               * Data isolated by Subscriber ID
