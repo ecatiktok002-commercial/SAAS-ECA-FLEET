@@ -322,14 +322,17 @@ const mapExpenseFromDB = (dbExpense: any): Expense => ({
   created_by: dbExpense.created_by
 });
 
-const mapExpenseToDB = (expense: any) => ({
-  car_id: expense.car_id,
-  category: expense.category,
-  amount: expense.amount,
-  date: expense.date,
-  notes: expense.notes,
-  created_by: expense.created_by
-});
+const mapExpenseToDB = (expense: any) => {
+  const payload: any = {
+    car_id: expense.car_id,
+    category: expense.category,
+    amount: expense.amount,
+    date: expense.date,
+    notes: expense.notes
+  };
+  
+  return payload;
+};
 
 const mapStaffFromDB = (dbStaff: any): StaffMember => ({
   id: dbStaff.id,
@@ -1084,6 +1087,22 @@ export const apiService = {
         logSupabaseError('addExpense', error);
         throw new Error(error.message || 'Failed to add expense');
       }
+
+      // Enforce limit of 30 expenses per subscriber
+      const { data: allExpenses } = await supabase
+        .from('expenses')
+        .select('id')
+        .eq('subscriber_id', targetSubscriberId)
+        .order('created_at', { ascending: false });
+
+      if (allExpenses && allExpenses.length > 30) {
+        const toDelete = allExpenses.slice(30);
+        await supabase
+          .from('expenses')
+          .delete()
+          .in('id', toDelete.map(e => e.id));
+      }
+
       return mapExpenseFromDB(data?.[0]);
     });
   },

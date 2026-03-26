@@ -89,7 +89,7 @@ const FleetModal: React.FC<FleetModalProps> = ({
 
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!expenseCarId || !expenseAmount || !expenseDate) return;
+    if (!expenseCarId || expenseAmount === '' || !expenseDate) return;
     
     onAddExpense({
       car_id: expenseCarId,
