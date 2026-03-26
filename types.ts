@@ -228,12 +228,15 @@ export interface AuditRecord {
 export interface Company {
   id: string;
   name: string;
+  brand_name?: string;
   tier: 'Tier 1' | 'Tier 2' | 'Tier 3';
   is_active: boolean;
   status: string;
   is_trial: boolean;
   expiry_date: string | null;
   logo_url?: string;
+  ssm_logo_url?: string;
+  spdp_logo_url?: string;
   address?: string;
   contact?: string;
   created_at: string;

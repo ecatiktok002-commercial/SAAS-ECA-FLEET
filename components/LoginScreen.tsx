@@ -72,8 +72,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       // 1. Check Identity using RPC
       const { data: subData, error: rpcError } = await supabase.rpc('verify_login_uid', { p_uid: uid });
       
-      if (rpcError || !subData || subData.role === 'unknown') {
-        throw new Error('Invalid UID or Credentials');
+      if (rpcError) {
+        console.error('RPC Error verifying UID:', rpcError);
+        setError(`System Error: ${rpcError.message}`);
+        setLoading(false);
+        return;
+      }
+
+      if (!subData || subData.role === 'unknown') {
+        console.warn('UID not found or unknown role:', uid, subData);
+        const msg = subData?.message || 'Invalid UID or Credentials';
+        throw new Error(msg);
       }
 
       if (subData.role === 'disabled_staff') {
@@ -99,11 +108,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           email: `${uid}@ecafleet.com`,
           password: uid,
         });
+        
+        if (authError) {
+          console.warn('Subscriber Auth Error (Primary):', authError.message);
+        }
 
         if (authData?.user && !authError) {
           localStorage.setItem('current_subscriber_id', subData.id);
           // Parameters: id, role, tier, uId, uName, uUid, cName
-          login(subData.id, 'admin', subData.tier, subData.id, subData.company_code, authData.user.id, subData.company_code);
+          login(subData.id, 'admin', subData.tier, subData.id, subData.company_code, authData.user.id, subData.brand_name || subData.company_code);
           if (onLogin) onLogin(subData.id);
           
           const tier = authData.user.user_metadata?.subscription_tier || `tier_${subData.tier}`;
@@ -124,10 +137,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           password: subscriberPassword,
         });
         
+        if (fallback.error) {
+          console.warn('Subscriber Auth Error (Fallback):', fallback.error.message);
+        }
+
         if (!fallback.error && fallback.data?.user) {
           localStorage.setItem('current_subscriber_id', subData.id);
           // Parameters: id, role, tier, uId, uName, uUid, cName
-          login(subData.id, 'admin', subData.tier, subData.id, subData.company_code, fallback.data.user.id, subData.company_code);
+          login(subData.id, 'admin', subData.tier, subData.id, subData.company_code, fallback.data.user.id, subData.brand_name || subData.company_code);
           if (onLogin) onLogin(subData.id);
           
           const tier = fallback.data.user.user_metadata?.subscription_tier || `tier_${subData.tier}`;
@@ -194,6 +211,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       });
 
       if (authError) {
+        console.error('Staff Master Auth Error:', authError.message);
         throw new Error('Company access failed. Please contact your Master Admin.');
       }
 
@@ -209,7 +227,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         detectedRole.staff_id, 
         detectedRole.staff_name, 
         detectedRole.access_id,
-        detectedRole.subscriber_slug
+        detectedRole.brand_name || detectedRole.subscriber_slug
       );
       
       if (onLogin) {

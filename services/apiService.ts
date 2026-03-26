@@ -1603,7 +1603,7 @@ export const apiService = {
     return withRetry(async () => {
       const { data, error } = await supabase
         .from('subscribers')
-        .select('name, address, logo_url, ssm_logo_url, spdp_logo_url')
+        .select('name, brand_name, address, logo_url, ssm_logo_url, spdp_logo_url')
         .eq('id', subscriberId)
         .single();
       
@@ -1621,7 +1621,7 @@ export const apiService = {
       const { error } = await supabase
         .from('subscribers')
         .update({
-          name: settings.company_name,
+          brand_name: settings.company_name,
           address: settings.company_address,
           logo_url: settings.company_logo_url,
           ssm_logo_url: settings.ssm_logo_url,

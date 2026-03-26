@@ -4,7 +4,7 @@ import { apiService } from '../services/apiService';
 import { useAuth } from '../context/AuthContext';
 
 export default function BrandingSettings() {
-  const { subscriberId } = useAuth();
+  const { subscriberId, updateCompanyName } = useAuth();
   const [settings, setSettings] = useState({
     company_logo_url: '',
     ssm_logo_url: '',
@@ -30,7 +30,7 @@ export default function BrandingSettings() {
           company_logo_url: data.logo_url || '',
           ssm_logo_url: data.ssm_logo_url || '',
           spdp_logo_url: data.spdp_logo_url || '',
-          company_name: data.name || 'ECA GROUP TRAVEL & TOURS SDN BHD',
+          company_name: data.brand_name || data.name || 'ECA GROUP TRAVEL & TOURS SDN BHD',
           company_address: data.address || '011-55582106 | NO 21-B, JALAN SUARASA 8/3, BANDAR TUN HUSSEIN ONN, 43200 CHERAS, SELANGOR'
         });
       }
@@ -63,6 +63,7 @@ export default function BrandingSettings() {
     setMessage('');
     try {
       await apiService.updateCompanySettings(subscriberId, settings);
+      updateCompanyName(settings.company_name);
       setMessage('Branding settings saved successfully!');
       setTimeout(() => setMessage(''), 3000);
     } catch (error: any) {

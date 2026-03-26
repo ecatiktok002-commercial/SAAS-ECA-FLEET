@@ -18,6 +18,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (subscriberId: string, staffRole: StaffRole, subscriptionTier: SubscriptionTier, userId?: string, userName?: string, userUid?: string, companyName?: string) => void;
   logout: () => void;
+  updateCompanyName: (name: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -187,7 +188,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!isSuperAdmin) {
           const { data: companyData } = await supabase
             .from('subscribers')
-            .select('tier, name')
+            .select('tier, name, brand_name')
             .eq('id', finalSubscriberId)
             .single();
           
@@ -195,9 +196,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSubscriptionTier(activeTier);
           localStorage.setItem('subscriptionTier', activeTier);
           
-          if (companyData?.name) {
-            setCompanyName(companyData.name);
-            localStorage.setItem('companyName', companyData.name);
+          const displayName = companyData?.brand_name || companyData?.name;
+          if (displayName) {
+            setCompanyName(displayName);
+            localStorage.setItem('companyName', displayName);
           } else if (finalSubscriberId === session.user.id) {
             // Self-Provisioning: Only if record is missing and it's their own ID
             try {
@@ -339,6 +341,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return 1;
   };
 
+  const updateCompanyName = (name: string) => {
+    setCompanyName(name);
+    localStorage.setItem('companyName', name);
+  };
+
   return (
     <AuthContext.Provider value={{ 
       subscriberId,
@@ -353,7 +360,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       companyName,
       isLoading, 
       login, 
-      logout 
+      logout,
+      updateCompanyName
     }}>
       {children}
     </AuthContext.Provider>

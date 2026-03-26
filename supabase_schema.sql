@@ -146,6 +146,7 @@ ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS tier TEXT DEFAULT 'Tier 1';
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'ACTIVE';
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS is_trial BOOLEAN DEFAULT FALSE;
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS brand_name TEXT;
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS logo_url TEXT;
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS ssm_logo_url TEXT;
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS spdp_logo_url TEXT;
@@ -942,7 +943,7 @@ BEGIN
   END IF;
 
   -- Step 1: The Identity Lookup
-  SELECT * INTO v_staff FROM public.staff WHERE access_id = p_uid LIMIT 1;
+  SELECT * INTO v_staff FROM public.staff WHERE access_id ILIKE p_uid LIMIT 1;
   
   IF FOUND THEN
     IF v_staff.is_active = false THEN
@@ -964,12 +965,13 @@ BEGIN
       'staff_name', v_staff.name, 
       'access_id', v_staff.access_id,
       'pin_code', v_staff.pin_code,
-      'tier', v_company.tier
+      'tier', v_company.tier,
+      'brand_name', v_company.brand_name
     );
   END IF;
 
   -- Step 2: The Identity Lookup (Legacy Table)
-  SELECT * INTO v_legacy_staff FROM public.staff_members WHERE access_id = p_uid LIMIT 1;
+  SELECT * INTO v_legacy_staff FROM public.staff_members WHERE access_id ILIKE p_uid LIMIT 1;
   
   IF FOUND THEN
     -- We also need the real subscriber UUID for the app's internal filtering
@@ -987,7 +989,8 @@ BEGIN
       'staff_name', v_legacy_staff.name, 
       'access_id', v_legacy_staff.access_id,
       'pin_hash', v_legacy_staff.pin_hash,
-      'tier', v_company.tier
+      'tier', v_company.tier,
+      'brand_name', v_company.brand_name
     );
   END IF;
 
@@ -998,13 +1001,21 @@ BEGIN
       'role', 'subscriber', 
       'id', v_company.id, 
       'tier', v_company.tier, 
-      'company_code', v_company.name
+      'company_code', v_company.name,
+      'brand_name', v_company.brand_name
     );
   END IF;
 
-  RETURN json_build_object('role', 'unknown');
+  RETURN json_build_object(
+    'role', 'unknown',
+    'message', 'UID ' || p_uid || ' not found in staff, legacy staff, or subscribers.',
+    'debug_info', json_build_object(
+      'p_uid', p_uid,
+      'timestamp', now()
+    )
+  );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
 
 -- 11. Subscriber Payments (for Cash-Basis Revenue Tracking)
 CREATE TABLE IF NOT EXISTS subscriber_payments (

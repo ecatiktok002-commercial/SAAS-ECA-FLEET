@@ -257,7 +257,7 @@ export default function SignAgreement() {
               logoUrl: company?.logo_url,
               ssmLogoUrl: company?.ssm_logo_url,
               spdpLogoUrl: company?.spdp_logo_url,
-              companyName: company?.name,
+              companyName: company?.brand_name || company?.name,
               address: company?.address,
               contact: company?.contact
             }}
@@ -297,7 +297,7 @@ export default function SignAgreement() {
           <div className="flex flex-col w-full sm:w-auto mb-4 sm:mb-0 print:mb-0">
             {/* Company Name & Details */}
             <div className="text-center sm:text-left">
-              <h1 className="text-xl sm:text-2xl print:text-lg font-bold tracking-tight text-slate-900 mb-0.5 print:mb-0 uppercase">{company?.name || 'ECA GROUP TRAVEL & TOURS SDN BHD'}</h1>
+              <h1 className="text-xl sm:text-2xl print:text-lg font-bold tracking-tight text-slate-900 mb-0.5 print:mb-0 uppercase">{company?.brand_name || company?.name || 'ECA GROUP TRAVEL & TOURS SDN BHD'}</h1>
               <p className="text-slate-500 text-xs print:text-[8pt] font-medium print:leading-tight">
                 {company?.address || '011-55582106 | NO 21-B, JALAN SUARASA 8/3, BANDAR TUN HUSSEIN ONN, 43200 CHERAS, SELANGOR'}
               </p>

@@ -487,7 +487,7 @@ const SubscriberManager: React.FC = () => {
                         <td className="px-6 py-4">
                           <div className="relative">
                             <select 
-                              value={sub.tier}
+                              value={sub.tier ? (String(sub.tier).toLowerCase().includes('3') ? 'Tier 3' : String(sub.tier).toLowerCase().includes('2') ? 'Tier 2' : 'Tier 1') : 'Tier 1'}
                               onChange={(e) => handleUpdateField(sub.id, 'tier', e.target.value)}
                               className="appearance-none bg-white border border-slate-200 rounded-lg px-3 py-2 pr-8 text-sm text-slate-900 focus:ring-2 focus:ring-[#0F172A] outline-none w-full transition-all cursor-pointer"
                             >
