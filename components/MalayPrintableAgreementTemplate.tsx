@@ -16,7 +16,9 @@ interface MalayPrintableAgreementTemplateProps {
     model?: string;
     plate?: string;
     pickupDate?: string;
+    pickupTime?: string;
     returnDate?: string;
+    returnTime?: string;
     duration?: number;
   };
   payment?: {
@@ -48,10 +50,14 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
 }) => {
   
   // Format dates nicely
-  const formatDate = (dateString?: string) => {
+  const formatDate = (dateString?: string, timeString?: string) => {
     if (!dateString) return "-";
     try {
-      return formatInMYT(dateString, 'dd/MM/yyyy HH:mm');
+      const formattedDate = formatInMYT(dateString, 'dd/MM/yyyy');
+      if (timeString) {
+        return `${formattedDate} ${timeString}`;
+      }
+      return formattedDate;
     } catch (e) {
       return dateString;
     }
@@ -122,9 +128,9 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
                   </tr>
                   <tr>
                     <td className="border border-black p-2 font-semibold">Tarikh & Masa Ambil</td>
-                    <td className="border border-black p-2 break-words">{formatDate(vehicle.pickupDate)}</td>
+                    <td className="border border-black p-2 break-words">{formatDate(vehicle.pickupDate, vehicle.pickupTime)}</td>
                     <td className="border border-black p-2 font-semibold">Tarikh & Masa Pulang</td>
-                    <td className="border border-black p-2 break-words">{formatDate(vehicle.returnDate)}</td>
+                    <td className="border border-black p-2 break-words">{formatDate(vehicle.returnDate, vehicle.returnTime)}</td>
                   </tr>
                   <tr>
                     <td className="border border-black p-2 font-semibold">Tempoh Sewaan</td>

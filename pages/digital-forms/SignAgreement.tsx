@@ -246,7 +246,9 @@ export default function SignAgreement() {
               model: agreement.car_model || agreement.vehicle_name,
               plate: agreement.car_plate_number || agreement.registration_no,
               pickupDate: agreement.start_date,
+              pickupTime: agreement.pickup_time,
               returnDate: agreement.end_date,
+              returnTime: agreement.return_time,
               duration: agreement.duration_days
             }}
             payment={{
