@@ -157,7 +157,10 @@ const mapCarFromDB = (dbCar: any): Car => ({
   model: dbCar.model,
   roadtaxExpiry: dbCar.roadtax_expiry,
   insuranceExpiry: dbCar.insurance_expiry,
-  inspectionExpiry: dbCar.inspection_expiry
+  inspectionExpiry: dbCar.inspection_expiry,
+  current_mileage: dbCar.current_mileage,
+  next_service_mileage: dbCar.next_service_mileage,
+  service_interval: dbCar.service_interval
 });
 
 const mapCarToDB = (car: any) => {
@@ -171,7 +174,10 @@ const mapCarToDB = (car: any) => {
     model: car.model,
     roadtax_expiry: car.roadtaxExpiry || car.roadtax_expiry,
     insurance_expiry: car.insuranceExpiry || car.insurance_expiry,
-    inspection_expiry: car.inspectionExpiry || car.inspection_expiry
+    inspection_expiry: car.inspectionExpiry || car.inspection_expiry,
+    current_mileage: car.current_mileage,
+    next_service_mileage: car.next_service_mileage,
+    service_interval: car.service_interval
   };
   
   // Remove undefined values to prevent PostgREST from trying to insert into missing columns
