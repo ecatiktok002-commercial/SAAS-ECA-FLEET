@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { formatInMYT } from '../../utils/dateUtils';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -31,8 +31,16 @@ const AgreementDashboard: React.FC = () => {
   const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'pending' | 'requests' | 'completed'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const tableRef = useRef<HTMLDivElement>(null);
+
+  const handleFilterClick = (type: 'all' | 'pending' | 'requests' | 'completed') => {
+    setFilterType(type);
+    setCurrentPage(1);
+    tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   useEffect(() => {
     if (subscriberId) {
@@ -89,11 +97,25 @@ const AgreementDashboard: React.FC = () => {
 
   const filteredForms = agreements.filter(a => {
     const query = searchQuery.toLowerCase();
-    return (
+    const matchesSearch = (
       a.reference_number?.toLowerCase().includes(query) ||
       a.customer_name?.toLowerCase().includes(query) ||
       a.car_plate_number?.toLowerCase().includes(query)
     );
+
+    if (!matchesSearch) return false;
+
+    if (filterType === 'pending') {
+      return a.status?.toLowerCase().trim() === 'pending';
+    }
+    if (filterType === 'requests') {
+      return a.has_pending_changes;
+    }
+    if (filterType === 'completed') {
+      const s = a.status?.toLowerCase().trim();
+      return s === 'signed' || s === 'completed';
+    }
+    return true;
   });
 
   // Reset to page 1 when search query changes
@@ -136,7 +158,10 @@ const AgreementDashboard: React.FC = () => {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        <div 
+          onClick={() => handleFilterClick('all')}
+          className={`bg-white p-6 rounded-2xl border shadow-sm cursor-pointer hover:shadow-md transition-all ${filterType === 'all' ? 'border-blue-500 ring-1 ring-blue-500' : 'border-slate-200'}`}
+        >
           <div className="flex items-center gap-3 mb-2">
             <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
               <FileText className="w-5 h-5" />
@@ -145,7 +170,10 @@ const AgreementDashboard: React.FC = () => {
           </div>
           <div className="text-2xl font-bold text-slate-900">{agreements.length}</div>
         </div>
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        <div 
+          onClick={() => handleFilterClick('completed')}
+          className={`bg-white p-6 rounded-2xl border shadow-sm cursor-pointer hover:shadow-md transition-all ${filterType === 'completed' ? 'border-emerald-500 ring-1 ring-emerald-500' : 'border-slate-200'}`}
+        >
           <div className="flex items-center gap-3 mb-2">
             <div className="bg-emerald-50 p-2 rounded-lg text-emerald-600">
               <CheckCircle2 className="w-5 h-5" />
@@ -159,7 +187,10 @@ const AgreementDashboard: React.FC = () => {
             }).length}
           </div>
         </div>
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        <div 
+          onClick={() => handleFilterClick('pending')}
+          className={`bg-white p-6 rounded-2xl border shadow-sm cursor-pointer hover:shadow-md transition-all ${filterType === 'pending' ? 'border-amber-500 ring-1 ring-amber-500' : 'border-slate-200'}`}
+        >
           <div className="flex items-center gap-3 mb-2">
             <div className="bg-amber-50 p-2 rounded-lg text-amber-600">
               <Clock className="w-5 h-5" />
@@ -171,7 +202,10 @@ const AgreementDashboard: React.FC = () => {
           </div>
         </div>
         {staffRole === 'admin' && (
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+          <div 
+            onClick={() => handleFilterClick('requests')}
+            className={`bg-white p-6 rounded-2xl border shadow-sm cursor-pointer hover:shadow-md transition-all ${filterType === 'requests' ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-200'}`}
+          >
             <div className="flex items-center gap-3 mb-2">
               <div className="bg-red-50 p-2 rounded-lg text-red-600">
                 <AlertCircle className="w-5 h-5" />
@@ -186,7 +220,7 @@ const AgreementDashboard: React.FC = () => {
       </div>
 
       {/* Search and List */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div ref={tableRef} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden scroll-mt-6">
         <div className="p-4 border-b border-slate-100 bg-slate-50/50">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
