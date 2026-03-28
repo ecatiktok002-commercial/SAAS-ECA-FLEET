@@ -65,7 +65,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
   // PIN Modal State
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
-  const [pendingAction, setPendingAction] = useState<{ type: 'save' | 'delete', data?: any } | null>(null);
+  const [pendingAction, setPendingAction] = useState<{ type: 'save' | 'delete' | 'delete_handover', data?: any } | null>(null);
   const [selectedStaffMember, setSelectedStaffMember] = useState<StaffMember | null>(null);
 
   // Fetch signed URLs when viewing a record
@@ -403,11 +403,53 @@ const BookingModal: React.FC<BookingModalProps> = ({
         onClose();
       } else if (pendingAction.type === 'delete') {
         if (onDelete) onDelete(pendingAction.data, selectedStaffMember.name);
+      } else if (pendingAction.type === 'delete_handover') {
+        deleteHandover(pendingAction.data);
       }
     }
     setIsPinModalOpen(false);
     setPendingAction(null);
     setSelectedStaffMember(null);
+  };
+
+  const handleDeleteHandoverClick = async (record: any) => {
+    const selectedMember = members.find(m => m.id === member_id);
+    if (!selectedMember) {
+      setError('Please select a fleet member to perform this action');
+      return;
+    }
+    const finalStaffName = selectedMember.name;
+    
+    if (subscriberId) {
+      if (!selectedMember.is_subscriber) {
+        try {
+          const staff = await apiService.getStaffMemberByName(finalStaffName, subscriberId);
+          if (staff && staff.pin_hash) {
+            setSelectedStaffMember(staff);
+            setPendingAction({ type: 'delete_handover', data: record.id });
+            setIsPinModalOpen(true);
+            return;
+          }
+        } catch (err) {
+          console.error('Failed to verify staff PIN status', err);
+        }
+      }
+      
+      // If no PIN required or is subscriber, delete directly
+      deleteHandover(record.id);
+    }
+  };
+
+  const deleteHandover = async (recordId: string) => {
+    try {
+      if (!subscriberId) return;
+      await apiService.deleteHandoverRecord(recordId, subscriberId);
+      toast.success('Handover record deleted successfully');
+      setViewingRecord(null);
+      setHandoverRecords(prev => prev.filter(r => r.id !== recordId));
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete handover record');
+    }
   };
 
   const acceptUpgrade = () => {
@@ -770,12 +812,23 @@ const BookingModal: React.FC<BookingModalProps> = ({
               <h3 className="font-bold text-lg">{viewingRecord.handover_type} Record</h3>
               <p className="text-xs text-slate-400">{formatInMYT(new Date(viewingRecord.created_at).getTime(), 'dd/MM/yyyy HH:mm')}</p>
             </div>
-            <button 
-              onClick={() => setViewingRecord(null)} 
-              className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
-            </button>
+            <div className="flex items-center gap-2">
+              {isEditable && (
+                <button
+                  onClick={() => handleDeleteHandoverClick(viewingRecord)}
+                  className="p-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-full transition-colors"
+                  title="Delete Handover Record"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+              )}
+              <button 
+                onClick={() => setViewingRecord(null)} 
+                className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
           </div>
           
             <div className="flex-1 overflow-y-auto">
@@ -858,7 +911,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
         setSelectedStaffMember(null);
       }}
       onSuccess={handlePinSuccess}
-      title={pendingAction?.type === 'delete' ? 'Confirm Deletion' : 'Confirm Update'}
+      title={pendingAction?.type === 'delete' || pendingAction?.type === 'delete_handover' ? 'Confirm Deletion' : 'Confirm Update'}
       staffName={selectedStaffMember?.name || ''}
       expectedPinHash={selectedStaffMember?.pin_hash}
     />

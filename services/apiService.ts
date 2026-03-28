@@ -1215,6 +1215,50 @@ export const apiService = {
   },
 
   // Handover Records
+  async deleteHandoverRecord(recordId: string, subscriberId: string): Promise<void> {
+    validateSubscriber(subscriberId);
+    return withRetry(async () => {
+      // 1. Get the record to find the photos
+      let query = supabase.from('handover_records').select('photos_url');
+      query = applySubscriberFilter(query, subscriberId);
+      const { data: recordData, error: fetchError } = await query.eq('id', recordId).single();
+
+      if (fetchError) {
+        logSupabaseError('deleteHandoverRecord (fetch)', fetchError);
+        throw new Error('Failed to fetch handover record for deletion');
+      }
+
+      // 2. Delete photos from storage
+      if (recordData && recordData.photos_url && recordData.photos_url.length > 0) {
+        const paths = recordData.photos_url.map((url: string) => {
+          const parts = url.split('/handover_images/');
+          return parts.length > 1 ? parts[1] : url;
+        });
+
+        if (paths.length > 0) {
+          const { error: storageError } = await supabase.storage
+            .from('handover_images')
+            .remove(paths);
+          
+          if (storageError) {
+            console.error('Failed to delete some photos from storage:', storageError);
+            // We continue even if storage deletion fails, to ensure DB is cleaned up
+          }
+        }
+      }
+
+      // 3. Delete the record from DB
+      let deleteQuery = supabase.from('handover_records').delete();
+      deleteQuery = applySubscriberFilter(deleteQuery, subscriberId);
+      const { error: deleteError } = await deleteQuery.eq('id', recordId);
+
+      if (deleteError) {
+        logSupabaseError('deleteHandoverRecord (delete)', deleteError);
+        throw new Error('Failed to delete handover record');
+      }
+    });
+  },
+
   async getHandoverRecords(bookingId: string, subscriberId: string): Promise<any[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
