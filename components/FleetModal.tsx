@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { format } from 'date-fns';
+import { RefreshCcw } from 'lucide-react';
 import { formatInMYT, getNowMYT } from '../utils/dateUtils';
 import { Car, Member, Expense, StaffMember } from '../types';
 
@@ -13,6 +13,7 @@ interface FleetModalProps {
   expenses: Expense[];
   onAddCar: (car: Omit<Car, 'id'>) => Promise<void> | void;
   onDeleteCar: (id: string) => Promise<void> | void;
+  onUpdateCarStatus?: (id: string, status: 'active' | 'inactive') => Promise<void> | void;
   onUpdateMember: (id: string, updates: Partial<Member>) => Promise<void> | void;
   onAddExpense: (expense: Omit<Expense, 'id'>) => Promise<void> | void;
   onDeleteExpense: (id: string) => Promise<void> | void;
@@ -47,7 +48,7 @@ const COLORS = [
 const EXPENSE_CATEGORIES = ['Car Wash', 'Service', 'Fuel', 'Maintenance', 'Insurance', 'Other'];
 
 const FleetModal: React.FC<FleetModalProps> = ({ 
-  isOpen, onClose, cars, members, expenses, onAddCar, onDeleteCar, onUpdateMember, onAddExpense, onDeleteExpense, currentStaff
+  isOpen, onClose, cars, members, expenses, onAddCar, onDeleteCar, onUpdateCarStatus, onUpdateMember, onAddExpense, onDeleteExpense, currentStaff
 }) => {
   const [activeTab, setActiveTab] = useState<'vehicles' | 'members' | 'expenses'>('vehicles');
   
@@ -66,6 +67,12 @@ const FleetModal: React.FC<FleetModalProps> = ({
   const [expenseNotes, setExpenseNotes] = useState('');
 
   const [isAdding, setIsAdding] = useState(false);
+
+  const handleToggle = (id: string, currentlyActive: boolean) => {
+    if (onUpdateCarStatus) {
+      onUpdateCarStatus(id, currentlyActive ? 'inactive' : 'active');
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -185,22 +192,41 @@ const FleetModal: React.FC<FleetModalProps> = ({
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Current Fleet ({cars.length})</h3>
                 <div className="space-y-2">
                   {cars.map(car => (
-                    <div key={car.id} className="flex items-center justify-between p-3 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-slate-200 flex items-center justify-center text-slate-500">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 012-2h5a2 2 0 012 2"/></svg>
+                    <div key={car.id} className="flex flex-col gap-2 p-3 border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-slate-200 flex items-center justify-center text-slate-500">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 012-2h5a2 2 0 012 2"/></svg>
+                          </div>
+                          <div>
+                            <div className="text-sm font-bold text-slate-800 uppercase leading-none">{car.plate}</div>
+                            <div className="text-xs text-slate-500">{car.name}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="text-sm font-bold text-slate-800 uppercase leading-none">{car.plate}</div>
-                          <div className="text-xs text-slate-500">{car.name}</div>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-3">
+                            <span className={`text-[10px] font-bold ${car.status === 'active' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              {car.status === 'active' ? 'ONLINE' : 'OFFLINE'}
+                            </span>
+                            <button
+                              onClick={() => handleToggle(car.id, car.status === 'active')}
+                              className={`w-10 h-5 rounded-full relative transition-colors ${
+                                car.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'
+                              }`}
+                            >
+                              <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${
+                                car.status === 'active' ? 'left-6' : 'left-1'
+                              }`} />
+                            </button>
+                          </div>
+                          <button 
+                            onClick={() => onDeleteCar(car.id)}
+                            className="text-slate-300 hover:text-red-500 transition-colors p-1"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                          </button>
                         </div>
                       </div>
-                      <button 
-                        onClick={() => onDeleteCar(car.id)}
-                        className="text-slate-300 hover:text-red-500 transition-colors p-1"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                      </button>
                     </div>
                   ))}
                   {cars.length === 0 && <div className="text-center py-4 text-slate-400 text-sm">No vehicles in fleet.</div>}

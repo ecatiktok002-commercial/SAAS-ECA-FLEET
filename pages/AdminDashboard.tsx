@@ -49,6 +49,7 @@ const AdminDashboard: React.FC = () => {
     salesThisWeek: 0,
     salesThisMonth: 0,
     idleVehicles: 0,
+    serviceAlerts: [] as { plate: string, dueIn: number }[],
   });
   
   const [pendingDeliveries, setPendingDeliveries] = useState<PendingDelivery[]>([]);
@@ -141,11 +142,22 @@ const AdminDashboard: React.FC = () => {
       const uniqueCarsOnRent = new Set(carsOnRentToday);
       const idleVehicles = activeCars.length - uniqueCarsOnRent.size;
 
+      // Calculate service alerts
+      const serviceAlerts = cars
+        .filter(c => c.next_service_mileage && c.next_service_mileage > 0)
+        .map(c => ({
+          plate: c.plateNumber || c.plate,
+          dueIn: (c.next_service_mileage || 0) - (c.current_mileage || 0)
+        }))
+        .filter(alert => alert.dueIn <= 500) // Show if within 500km or overdue
+        .sort((a, b) => a.dueIn - b.dueIn);
+
       setStats({
         salesToday,
         salesThisWeek,
         salesThisMonth,
-        idleVehicles: Math.max(0, idleVehicles)
+        idleVehicles: Math.max(0, idleVehicles),
+        serviceAlerts
       });
 
       // 3. Pending Deliveries (Today, Current Time < Pickup Time)
@@ -339,12 +351,31 @@ const AdminDashboard: React.FC = () => {
             <h3 className="text-slate-500 text-sm font-medium mb-2">Sales This Month</h3>
             <p className="text-3xl font-bold text-slate-900">{currencyFormatter.format(stats.salesThisMonth)}</p>
           </div>
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-slate-500 text-sm font-medium">Idle Vehicles</h3>
-              <Car className="w-5 h-5 text-slate-400" />
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-slate-500 text-sm font-medium">Idle Vehicles</h3>
+                <Car className="w-5 h-5 text-slate-400" />
+              </div>
+              <div className="flex items-baseline gap-2">
+                <p className="text-3xl font-bold text-slate-900">{stats.idleVehicles}</p>
+              </div>
             </div>
-            <p className="text-3xl font-bold text-slate-900">{stats.idleVehicles}</p>
+            {stats.serviceAlerts.length > 0 && (
+              <div className="mt-4 space-y-1">
+                {stats.serviceAlerts.slice(0, 3).map((alert, idx) => (
+                  <div key={idx} className="bg-rose-50 text-rose-700 px-2.5 py-1.5 rounded-lg text-xs font-bold animate-pulse flex justify-between items-center">
+                    <span>{alert.plate}</span>
+                    <span>{alert.dueIn <= 0 ? 'OVERDUE' : `due in ${alert.dueIn} km`}</span>
+                  </div>
+                ))}
+                {stats.serviceAlerts.length > 3 && (
+                  <div className="text-[10px] text-slate-400 text-center font-medium mt-1">
+                    +{stats.serviceAlerts.length - 3} more alerts
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

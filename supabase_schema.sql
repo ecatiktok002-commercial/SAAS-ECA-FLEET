@@ -217,6 +217,11 @@ CREATE TABLE IF NOT EXISTS cars (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Add maintenance tracking columns
+ALTER TABLE cars ADD COLUMN IF NOT EXISTS current_mileage INTEGER DEFAULT 0;
+ALTER TABLE cars ADD COLUMN IF NOT EXISTS next_service_mileage INTEGER;
+ALTER TABLE cars ADD COLUMN IF NOT EXISTS service_interval INTEGER DEFAULT 10000;
+
 -- 4. Members (Customers)
 CREATE TABLE IF NOT EXISTS members (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,

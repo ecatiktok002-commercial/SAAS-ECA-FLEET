@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Plus, Search, Car as CarIcon, 
-  ShieldCheck, AlertTriangle, Edit, MoreHorizontal 
+  ShieldCheck, AlertTriangle, Edit, MoreHorizontal, CheckCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Car, CarStatus, ExpiryStatus } from '../types';
@@ -15,7 +15,7 @@ interface UsageHistory {
 }
 
 const FleetGuardianPage: React.FC = () => {
-  const { subscriberId } = useAuth();
+  const { subscriberId, userId } = useAuth();
   
   // --- 1. PLACEMENT: STATE DECLARATIONS ---
   const [cars, setCars] = useState<Car[]>([]);
@@ -89,6 +89,35 @@ const FleetGuardianPage: React.FC = () => {
     if (diff < 0) return 'expired';
     if (diff <= 30) return 'warning';
     return 'active';
+  };
+
+  const handleReset = async (car: Car) => {
+    if (!subscriberId) return;
+    try {
+      setIsLoading(true);
+      const { apiService } = await import('../services/apiService');
+      await apiService.completeVehicleService(
+        car.id, 
+        car.next_service_mileage || 0, 
+        car.service_interval || 10000
+      );
+      
+      // Log the action
+      if (userId) {
+        await apiService.addLog({
+          userId: userId,
+          action: 'Updated',
+          details: `Completed service for car ${car.plateNumber || car.plate}. Next service at ${(car.next_service_mileage || 0) + (car.service_interval || 10000)} km`
+        }, subscriberId);
+      }
+      
+      await loadFleet();
+    } catch (error) {
+      console.error('Error resetting service:', error);
+      alert('Failed to reset service. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const filteredCars = useMemo(() => {
@@ -179,6 +208,47 @@ const FleetGuardianPage: React.FC = () => {
                     </div>
                   ))}
                 </div>
+
+                {/* Maintenance Section - Only show if baseline is set */}
+                {car.next_service_mileage && car.next_service_mileage > 0 ? (
+                  <div className="mt-4 pt-4 border-t border-slate-100">
+                    <div className="flex justify-between items-end mb-2">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 block mb-1 uppercase">Current Mileage Snapshot</span>
+                        <span className="text-lg font-bold text-slate-900">{car.current_mileage || 0} <span className="text-[10px] text-slate-400">KM</span></span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] font-bold text-slate-400 block mb-1 uppercase">Next Service</span>
+                        <span className="text-sm font-bold text-slate-600">{car.next_service_mileage} <span className="text-[10px] text-slate-400">KM</span></span>
+                      </div>
+                    </div>
+                    
+                    {/* Progress Bar */}
+                    <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mb-3">
+                      <div 
+                        className={`h-full transition-all ${
+                          ((car.current_mileage || 0) / car.next_service_mileage) > 1 ? 'bg-rose-500' : 'bg-blue-500'
+                        }`}
+                        style={{ width: `${Math.min(((car.current_mileage || 0) / car.next_service_mileage) * 100, 100)}%` }}
+                      />
+                    </div>
+
+                    {/* Only show the Reset button if service is needed or already in maintenance */}
+                    {(car.current_mileage || 0) >= (car.next_service_mileage - 500) && (
+                      <button
+                        onClick={() => handleReset(car)}
+                        className="w-full py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-xs font-bold shadow-sm hover:bg-rose-100 flex items-center justify-center gap-2 animate-pulse ring-2 ring-rose-500/20"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        CONFIRM SERVICE COMPLETED
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-4 pt-4 border-t border-slate-100 text-center">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Maintenance Baseline Not Set</span>
+                  </div>
+                )}
               </div>
             );
           })}

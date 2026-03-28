@@ -4,7 +4,10 @@ export interface Car {
   name: string;
   type: 'Economy' | 'Luxury' | 'SUV' | 'Electric';
   plate: string;
-  status?: 'active' | 'maintenance' | 'inactive';
+  status?: 'active' | 'maintenance' | 'inactive'; // 'active' = ON, others = OFF
+  current_mileage?: number;      // Actual odometer reading
+  next_service_mileage?: number; // Target for next service
+  service_interval?: number;     // Standard cycle (e.g., 10000)
   // Fleet Guardian properties
   plateNumber?: string;
   make?: string;

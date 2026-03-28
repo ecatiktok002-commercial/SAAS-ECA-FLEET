@@ -594,7 +594,7 @@ export default function EditAgreement() {
               </div>
 
               <div>
-                {renderLabel('Total Price (RM)', 'total_price')}
+                {renderLabel('Rental Price (RM)', 'total_price')}
                 <input
                   type="number"
                   step="0.01"

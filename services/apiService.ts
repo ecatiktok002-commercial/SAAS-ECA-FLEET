@@ -432,6 +432,29 @@ const resolveAgentId = async (agentId: string | undefined): Promise<string | und
 
 export const apiService = {
   // Cars
+  
+  /** Reset service mileage by adding the interval (Rinse & Repeat) */
+  async completeVehicleService(carId: string, nextTarget: number, interval: number) {
+    const { data, error } = await supabase
+      .from('cars')
+      .update({ 
+        next_service_mileage: nextTarget + interval,
+        status: 'active' 
+      })
+      .eq('id', carId);
+    if (error) throw error;
+    return data;
+  },
+
+  /** Toggle car availability status (ON/OFF) */
+  async updateCarStatus(carId: string, status: 'active' | 'maintenance' | 'inactive') {
+    const { error } = await supabase
+      .from('cars')
+      .update({ status })
+      .eq('id', carId);
+    if (error) throw error;
+  },
+
   // Helper to ensure we have a UUID for subscriber_id
   async resolveSubscriberId(id: string): Promise<string> {
     if (!id || id === 'superadmin') {

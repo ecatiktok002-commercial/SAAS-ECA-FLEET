@@ -44,8 +44,8 @@ export const findAvailableCarByModel = (
   cars: Car[],
   end_time?: string
 ): string | null => {
-  // 1. Get all cars of this model
-  const modelCars = cars.filter(c => c.name.trim() === modelName.trim());
+  // FIX: Filter only for 'active' cars so toggled-off units are skipped
+  const modelCars = cars.filter(c => c.name.trim() === modelName.trim() && c.status === 'active');
   
   // 2. Iterate through each car to find one that is free
   for (const car of modelCars) {

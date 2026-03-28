@@ -507,7 +507,7 @@ export default function CreateAgreement() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Total Price (RM)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Rental Price (RM)</label>
                 <input
                   type="number"
                   step="0.01"

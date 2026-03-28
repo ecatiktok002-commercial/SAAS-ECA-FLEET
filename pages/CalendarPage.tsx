@@ -350,6 +350,30 @@ const CalendarPage: React.FC = () => {
     }
   };
 
+  const handleUpdateCarStatus = async (id: string, status: 'active' | 'inactive') => {
+    try {
+      setIsLoading(true);
+      await apiService.updateCarStatus(id, status);
+      
+      // Update local state
+      setCars(prev => prev.map(car => car.id === id ? { ...car, status } : car));
+      
+      if (currentUserId && currentSubscriberId) {
+        const car = cars.find(c => c.id === id);
+        await apiService.addLog({
+          userId: currentUserId,
+          action: 'Updated',
+          details: `Changed status of car ${car?.plate} to ${status}`
+        }, currentSubscriberId);
+      }
+    } catch (error) {
+      console.error('Error updating car status:', error);
+      alert('Failed to update car status. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleAddCar = async (newCar: Omit<Car, 'id'>) => {
     if (!currentSubscriberId) return;
     try {
@@ -663,6 +687,7 @@ const CalendarPage: React.FC = () => {
         expenses={expenses}
         onAddCar={handleAddCar}
         onDeleteCar={handleDeleteCar}
+        onUpdateCarStatus={handleUpdateCarStatus}
         onUpdateMember={handleUpdateMember}
         onAddExpense={handleAddExpense}
         onDeleteExpense={handleDeleteExpense}

@@ -142,6 +142,7 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
       }
 
       // 4. Save to Database
+      const newMileage = parseInt(mileage, 10);
       const { error: dbError } = await supabase
         .from('handover_records')
         .insert([{
@@ -149,13 +150,32 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
           car_id: car_id,
           subscriber_id: subscriberId,
           handover_type: handoverType,
-          mileage: parseInt(mileage, 10),
+          mileage: newMileage,
           fuel_level: fuelLevel,
           condition_details: conditionDetails,
           photos_url: allUploadedUrls // Array of all strings
         }]);
 
       if (dbError) throw dbError;
+
+      // 5. Update Car's Current Mileage if higher
+      if (!isNaN(newMileage) && newMileage > 0) {
+        // Fetch current car mileage
+        const { data: carData } = await supabase
+          .from('cars')
+          .select('current_mileage')
+          .eq('id', car_id)
+          .eq('subscriber_id', subscriberId)
+          .single();
+          
+        if (carData && newMileage > (carData.current_mileage || 0)) {
+          await supabase
+            .from('cars')
+            .update({ current_mileage: newMileage })
+            .eq('id', car_id)
+            .eq('subscriber_id', subscriberId);
+        }
+      }
 
       if (onSuccess) onSuccess();
       onClose();

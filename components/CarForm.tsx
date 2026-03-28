@@ -18,7 +18,10 @@ const CarForm: React.FC<CarFormProps> = ({ initialData, onSave, onCancel }) => {
       insuranceExpiry: '',
       inspectionExpiry: '',
       type: 'Economy',
-      status: 'active'
+      status: 'active',
+      current_mileage: 0,
+      next_service_mileage: 10000,
+      service_interval: 10000
     }
   );
 
@@ -30,7 +33,10 @@ const CarForm: React.FC<CarFormProps> = ({ initialData, onSave, onCancel }) => {
       name: `${formData.make} ${formData.model}`.trim(),
       plate: formData.plateNumber || '',
       type: formData.type || 'Economy',
-      status: formData.status || 'active'
+      status: formData.status || 'active',
+      current_mileage: formData.current_mileage || 0,
+      next_service_mileage: formData.next_service_mileage || 0,
+      service_interval: formData.service_interval || 10000
     };
 
     // Only add optional fields if they have values
@@ -122,6 +128,30 @@ const CarForm: React.FC<CarFormProps> = ({ initialData, onSave, onCancel }) => {
                 value={formData.inspectionExpiry}
                 onChange={e => setFormData({ ...formData, inspectionExpiry: e.target.value })}
                 className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+            <div className="sm:col-span-2 text-sm font-bold text-slate-900 uppercase">
+              Maintenance Baseline
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700">Current Odometer (km)</label>
+              <input
+                type="number"
+                value={formData.current_mileage}
+                onChange={(e) => setFormData({ ...formData, current_mileage: parseInt(e.target.value) || 0 })}
+                className="mt-1 block w-full rounded-md border-slate-300 shadow-sm text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700">Next Service Target (km)</label>
+              <input
+                type="number"
+                value={formData.next_service_mileage}
+                onChange={(e) => setFormData({ ...formData, next_service_mileage: parseInt(e.target.value) || 0 })}
+                className="mt-1 block w-full rounded-md border-slate-300 shadow-sm text-sm font-bold text-blue-600"
               />
             </div>
           </div>
