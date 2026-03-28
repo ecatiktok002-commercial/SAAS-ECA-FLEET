@@ -762,14 +762,19 @@ export const apiService = {
   async searchMemberByIdentity(identityNumber: string, subscriberId: string): Promise<Member | null> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
+      const unformatted = identityNumber.replace(/\D/g, '');
+      const formatted = unformatted.length === 12 
+        ? `${unformatted.slice(0, 6)}-${unformatted.slice(6, 8)}-${unformatted.slice(8, 12)}`
+        : identityNumber;
+
       let query = supabase
         .from('members')
         .select('*')
-        .eq('identity_number', identityNumber);
+        .in('identity_number', [identityNumber, unformatted, formatted]);
       
       query = query.eq('subscriber_id', subscriberId);
 
-      const { data, error } = await query.maybeSingle();
+      const { data, error } = await query.limit(1).maybeSingle();
       
       if (error) {
         logSupabaseError('searchMemberByIdentity', error);
@@ -2100,14 +2105,19 @@ export const apiService = {
   async getCustomerByIC(subscriberId: string, ic: string): Promise<any | null> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
+      const unformatted = ic.replace(/\D/g, '');
+      const formatted = unformatted.length === 12 
+        ? `${unformatted.slice(0, 6)}-${unformatted.slice(6, 8)}-${unformatted.slice(8, 12)}`
+        : ic;
+
       let query = supabase
         .from('customers')
         .select('*')
-        .eq('ic_passport', ic);
+        .in('ic_passport', [ic, unformatted, formatted]);
       
       query = applySubscriberFilter(query, subscriberId);
 
-      const { data, error } = await query.maybeSingle();
+      const { data, error } = await query.limit(1).maybeSingle();
       
       if (error) {
         logSupabaseError('getCustomerByIC', error);

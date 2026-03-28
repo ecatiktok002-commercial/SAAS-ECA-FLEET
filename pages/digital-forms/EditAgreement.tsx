@@ -169,6 +169,21 @@ export default function EditAgreement() {
       processedValue = value.toUpperCase();
     }
 
+    if (name === 'identity_number' && typeof processedValue === 'string') {
+      if (!/^[A-Z]/.test(processedValue)) {
+        const digits = processedValue.replace(/\D/g, '');
+        if (digits.length > 0) {
+          if (digits.length <= 6) {
+            processedValue = digits;
+          } else if (digits.length <= 8) {
+            processedValue = `${digits.slice(0, 6)}-${digits.slice(6)}`;
+          } else {
+            processedValue = `${digits.slice(0, 6)}-${digits.slice(6, 8)}-${digits.slice(8, 12)}`;
+          }
+        }
+      }
+    }
+
     if (type === 'checkbox') {
       (newFormData as any)[name] = (e.target as HTMLInputElement).checked;
     } else {
