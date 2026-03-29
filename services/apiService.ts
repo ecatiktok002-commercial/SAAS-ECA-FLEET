@@ -1259,6 +1259,50 @@ export const apiService = {
     });
   },
 
+  async deleteHandoverPhoto(recordId: string, photoUrl: string, subscriberId: string): Promise<void> {
+    validateSubscriber(subscriberId);
+    return withRetry(async () => {
+      // 1. Get the record to find the photos
+      let query = supabase.from('handover_records').select('photos_url');
+      query = applySubscriberFilter(query, subscriberId);
+      const { data: recordData, error: fetchError } = await query.eq('id', recordId).single();
+
+      if (fetchError) {
+        logSupabaseError('deleteHandoverPhoto (fetch)', fetchError);
+        throw new Error('Failed to fetch handover record');
+      }
+
+      if (!recordData || !recordData.photos_url || !recordData.photos_url.includes(photoUrl)) {
+        throw new Error('Photo not found in handover record');
+      }
+
+      // 2. Delete photo from storage
+      const parts = photoUrl.split('/handover_images/');
+      const path = parts.length > 1 ? parts[1] : photoUrl;
+
+      const { error: storageError } = await supabase.storage
+        .from('handover_images')
+        .remove([path]);
+      
+      if (storageError) {
+        console.error('Failed to delete photo from storage:', storageError);
+        // We continue even if storage deletion fails, to ensure DB is cleaned up
+      }
+
+      // 3. Update the record in DB
+      const newPhotosUrl = recordData.photos_url.filter((url: string) => url !== photoUrl);
+      
+      let updateQuery = supabase.from('handover_records').update({ photos_url: newPhotosUrl });
+      updateQuery = applySubscriberFilter(updateQuery, subscriberId);
+      const { error: updateError } = await updateQuery.eq('id', recordId);
+
+      if (updateError) {
+        logSupabaseError('deleteHandoverPhoto (update)', updateError);
+        throw new Error('Failed to update handover record');
+      }
+    });
+  },
+
   async getHandoverRecords(bookingId: string, subscriberId: string): Promise<any[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
@@ -1271,6 +1315,25 @@ export const apiService = {
         
       if (error) {
         logSupabaseError('getHandoverRecords', error);
+        return [];
+      }
+      return data || [];
+    });
+  },
+
+  async getLogisticCredits(staffId: string, subscriberId: string): Promise<any[]> {
+    validateSubscriber(subscriberId);
+    return withRetry(async () => {
+      let query = supabase.from('handover_records').select('*, cars(plate)');
+      query = applySubscriberFilter(query, subscriberId);
+
+      const { data, error } = await query
+        .eq('staff_id', staffId)
+        .gt('logistic_credit', 0)
+        .order('created_at', { ascending: false });
+        
+      if (error) {
+        logSupabaseError('getLogisticCredits', error);
         return [];
       }
       return data || [];

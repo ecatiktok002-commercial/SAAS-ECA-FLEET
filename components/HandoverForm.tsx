@@ -10,6 +10,8 @@ interface HandoverFormProps {
   onSuccess?: () => void;
   subscriberId: string;
   initialType?: 'Pickup' | 'Return';
+  currentStaffId?: string;
+  bookingStaffId?: string;
 }
 
 type HandoverType = 'Pickup' | 'Return';
@@ -29,7 +31,9 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
   onClose, 
   onSuccess, 
   subscriberId,
-  initialType
+  initialType,
+  currentStaffId,
+  bookingStaffId
 }) => {
   const [handoverType, setHandoverType] = useState<HandoverType>(initialType || 'Pickup');
   const [mileage, setMileage] = useState('');
@@ -141,7 +145,16 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
         allUploadedUrls.push(url);
       }
 
-      // 4. Save to Database
+      // 4. Calculate Logistic Credit
+      let logisticCredit = 0;
+      const currentHour = new Date().getHours();
+      
+      // If time is < 10:00 or >= 18:00 AND the handover agent is different from the booking agent
+      if ((currentHour < 10 || currentHour >= 18) && currentStaffId && currentStaffId !== bookingStaffId) {
+        logisticCredit = 5;
+      }
+
+      // 5. Save to Database
       const newMileage = parseInt(mileage, 10);
       const { error: dbError } = await supabase
         .from('handover_records')
@@ -153,12 +166,14 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
           mileage: newMileage,
           fuel_level: fuelLevel,
           condition_details: conditionDetails,
-          photos_url: allUploadedUrls // Array of all strings
+          photos_url: allUploadedUrls, // Array of all strings
+          staff_id: currentStaffId || null,
+          logistic_credit: logisticCredit
         }]);
 
       if (dbError) throw dbError;
 
-      // 5. Update Car's Current Mileage if higher
+      // 6. Update Car's Current Mileage if higher
       if (!isNaN(newMileage) && newMileage > 0) {
         // Fetch current car mileage
         const { data: carData } = await supabase

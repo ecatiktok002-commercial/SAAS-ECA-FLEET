@@ -51,6 +51,7 @@ const AgentDashboard: React.FC = () => {
   const [lastMonthEarnings, setLastMonthEarnings] = useState(0);
   const [lifetimeEarnings, setLifetimeEarnings] = useState(0);
   const [recentAgreements, setRecentAgreements] = useState<Agreement[]>([]);
+  const [logisticCredits, setLogisticCredits] = useState<any[]>([]);
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +90,11 @@ const AgentDashboard: React.FC = () => {
       if (userUid) {
         const staff = staffMembers.find(s => s.staff_uid === userUid);
         setCurrentStaff(staff || null);
+        
+        if (staff) {
+          const credits = await apiService.getLogisticCredits(staff.id, subscriberId!);
+          setLogisticCredits(credits);
+        }
       }
 
       const now = getNowMYT();
@@ -519,12 +525,46 @@ const AgentDashboard: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-slate-500 text-sm font-medium">Idle Vehicles</h3>
-              <Car className="w-5 h-5 text-slate-400" />
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-slate-500 text-sm font-medium">Idle Vehicles</h3>
+                <Car className="w-5 h-5 text-slate-400" />
+              </div>
+              <p className="text-3xl font-bold text-slate-900">{stats.idleVehicles}</p>
             </div>
-            <p className="text-3xl font-bold text-slate-900">{stats.idleVehicles}</p>
+
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col h-[400px]">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-blue-50 rounded-lg">
+                    <Car className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <h3 className="font-bold text-slate-900 uppercase tracking-tight text-sm">Logistic Credits</h3>
+                </div>
+                <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-bold">
+                  {currencyFormatter.format(logisticCredits.reduce((sum, r) => sum + (r.logistic_credit || 0), 0))}
+                </span>
+              </div>
+              <div className="flex-1 overflow-y-auto pr-2 space-y-2">
+                {logisticCredits.length > 0 ? logisticCredits.map(record => (
+                  <div key={record.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-slate-900">{record.cars?.plate || 'Vehicle'}</div>
+                      <div className="text-[10px] text-slate-500">{formatInMYT(new Date(record.created_at).getTime(), 'dd/MM/yyyy HH:mm')}</div>
+                    </div>
+                    <div className="text-xs font-black text-blue-600">
+                      +{currencyFormatter.format(record.logistic_credit)}
+                    </div>
+                  </div>
+                )) : (
+                  <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                    <Car className="w-8 h-8 text-slate-300 mb-2" />
+                    <p className="text-slate-500 text-xs">No logistic credits yet</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 

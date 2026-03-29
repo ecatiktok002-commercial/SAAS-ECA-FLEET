@@ -65,7 +65,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
   // PIN Modal State
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
-  const [pendingAction, setPendingAction] = useState<{ type: 'save' | 'delete' | 'delete_handover', data?: any } | null>(null);
+  const [pendingAction, setPendingAction] = useState<{ type: 'save' | 'delete' | 'delete_handover' | 'delete_handover_photo', data?: any } | null>(null);
   const [selectedStaffMember, setSelectedStaffMember] = useState<StaffMember | null>(null);
 
   // Fetch signed URLs when viewing a record
@@ -405,11 +405,69 @@ const BookingModal: React.FC<BookingModalProps> = ({
         if (onDelete) onDelete(pendingAction.data, selectedStaffMember.name);
       } else if (pendingAction.type === 'delete_handover') {
         deleteHandover(pendingAction.data);
+      } else if (pendingAction.type === 'delete_handover_photo') {
+        deleteHandoverPhoto(pendingAction.data.recordId, pendingAction.data.photoIndex);
       }
     }
     setIsPinModalOpen(false);
     setPendingAction(null);
     setSelectedStaffMember(null);
+  };
+
+  const handleDeletePhotoClick = async (index: number) => {
+    if (!viewingRecord) return;
+    
+    const selectedMember = members.find(m => m.id === member_id);
+    if (!selectedMember) {
+      setError('Please select a fleet member to perform this action');
+      return;
+    }
+    const finalStaffName = selectedMember.name;
+    
+    if (subscriberId) {
+      if (!selectedMember.is_subscriber) {
+        try {
+          const staff = await apiService.getStaffMemberByName(finalStaffName, subscriberId);
+          if (staff && staff.pin_hash) {
+            setSelectedStaffMember(staff);
+            setPendingAction({ type: 'delete_handover_photo', data: { recordId: viewingRecord.id, photoIndex: index } });
+            setIsPinModalOpen(true);
+            return;
+          }
+        } catch (err) {
+          console.error('Failed to verify staff PIN status', err);
+        }
+      }
+      
+      // If no PIN required or is subscriber, delete directly
+      deleteHandoverPhoto(viewingRecord.id, index);
+    }
+  };
+
+  const deleteHandoverPhoto = async (recordId: string, photoIndex: number) => {
+    try {
+      if (!subscriberId || !viewingRecord) return;
+      
+      const originalUrl = viewingRecord.photos_url[photoIndex];
+      if (!originalUrl) return;
+
+      await apiService.deleteHandoverPhoto(recordId, originalUrl, subscriberId);
+      toast.success('Photo deleted successfully');
+      
+      // Update local state
+      const updatedPhotos = viewingRecord.photos_url.filter((_: any, i: number) => i !== photoIndex);
+      const updatedRecord = { ...viewingRecord, photos_url: updatedPhotos };
+      
+      setViewingRecord(updatedRecord);
+      setHandoverRecords(prev => prev.map(r => r.id === recordId ? updatedRecord : r));
+      
+      // Also update signedUrls
+      setSignedUrls(prev => prev.filter((_, i) => i !== photoIndex));
+      
+    } catch (err: any) {
+      console.error('Error deleting photo:', err);
+      toast.error(err.message || 'Failed to delete photo');
+    }
   };
 
   const handleDeleteHandoverClick = async (record: any) => {
@@ -527,7 +585,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
           </div>
 
           {/* Customer Handover Links */}
-          {editingBooking && (
+          {editingBooking && isEditable && (
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
               <div className="flex items-center gap-2 mb-1">
                 <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
@@ -708,7 +766,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
           )}
 
           <div className="flex flex-col gap-3 pt-4">
-            {editingBooking && (
+            {editingBooking && isEditable && (
               subscriptionTier === 'tier_2' ? (
                 <button 
                   type="button" 
@@ -732,7 +790,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
               )
             )}
 
-            {editingBooking && isEditable && (
+            {editingBooking && (
               <button 
                 type="button" 
                 onClick={() => setIsHandoverOpen(true)}
@@ -747,7 +805,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
             {handoverRecords.length > 0 && (
               <div className="space-y-2 pt-2 border-t border-slate-100 mt-2">
                 <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Handover Records</h3>
-                {handoverRecords.map(record => (
+                {handoverRecords.map(record => {
+                  const handoverAgent = members.find(m => m.staff_id === record.staff_id);
+                  return (
                   <button
                     key={record.id}
                     type="button"
@@ -755,15 +815,26 @@ const BookingModal: React.FC<BookingModalProps> = ({
                     className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-100 transition-colors text-left group"
                   >
                     <div>
-                      <div className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors">{record.handover_type}</div>
-                      <div className="text-[10px] text-slate-500">{formatInMYT(new Date(record.created_at).getTime(), 'dd/MM/yyyy HH:mm')}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors">{record.handover_type}</div>
+                        {record.staff_id ? (
+                          <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[8px] font-bold uppercase tracking-wider">
+                            {handoverAgent ? handoverAgent.name : 'Unknown Agent'}
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[8px] font-bold uppercase tracking-wider">
+                            CUSTOMER
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">{formatInMYT(new Date(record.created_at).getTime(), 'dd/MM/yyyy HH:mm')}</div>
                     </div>
                     <div className="text-[10px] font-bold text-slate-400 group-hover:text-blue-600 uppercase tracking-wider flex items-center gap-1 transition-colors">
                       View Photos
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg>
                     </div>
                   </button>
-                ))}
+                )})}
               </div>
             )}
 
@@ -801,6 +872,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
             alert('Handover record saved successfully!');
           }}
           subscriberId={subscriberId}
+          currentStaffId={currentStaff?.id}
+          bookingStaffId={members.find(m => m.id === editingBooking.member_id)?.staff_id}
         />
       )}
 
@@ -809,8 +882,19 @@ const BookingModal: React.FC<BookingModalProps> = ({
         <div className="fixed inset-0 z-[200] bg-black/95 flex flex-col p-4 animate-in fade-in duration-200">
           <div className="flex justify-between items-center text-white mb-6 shrink-0">
             <div>
-              <h3 className="font-bold text-lg">{viewingRecord.handover_type} Record</h3>
-              <p className="text-xs text-slate-400">{formatInMYT(new Date(viewingRecord.created_at).getTime(), 'dd/MM/yyyy HH:mm')}</p>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-lg">{viewingRecord.handover_type} Record</h3>
+                {viewingRecord.staff_id ? (
+                  <span className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded text-[10px] font-bold uppercase tracking-wider border border-blue-500/30">
+                    {members.find(m => m.staff_id === viewingRecord.staff_id)?.name || 'Unknown Agent'}
+                  </span>
+                ) : (
+                  <span className="px-2 py-1 bg-emerald-500/20 text-emerald-300 rounded text-[10px] font-bold uppercase tracking-wider border border-emerald-500/30">
+                    CUSTOMER
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-400 mt-1">{formatInMYT(new Date(viewingRecord.created_at).getTime(), 'dd/MM/yyyy HH:mm')}</p>
             </div>
             <div className="flex items-center gap-2">
               {isEditable && (
@@ -849,7 +933,22 @@ const BookingModal: React.FC<BookingModalProps> = ({
                         <img src={url} alt={`Photo ${index + 1}`} className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
                         <p className="absolute bottom-2 left-2 text-white text-[10px] font-bold uppercase tracking-wider">Photo {index + 1}</p>
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        
+                        {/* Delete Button */}
+                        {isEditable && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeletePhotoClick(index);
+                            }}
+                            className="absolute top-2 right-2 p-1.5 bg-red-500/80 hover:bg-red-600 text-white rounded-full transition-colors opacity-0 group-hover:opacity-100 z-10"
+                            title="Delete Photo"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                          </button>
+                        )}
+
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                           <svg className="w-8 h-8 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
                         </div>
                       </div>
@@ -911,7 +1010,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
         setSelectedStaffMember(null);
       }}
       onSuccess={handlePinSuccess}
-      title={pendingAction?.type === 'delete' || pendingAction?.type === 'delete_handover' ? 'Confirm Deletion' : 'Confirm Update'}
+      title={pendingAction?.type === 'delete' || pendingAction?.type === 'delete_handover' || pendingAction?.type === 'delete_handover_photo' ? 'Confirm Deletion' : 'Confirm Update'}
       staffName={selectedStaffMember?.name || ''}
       expectedPinHash={selectedStaffMember?.pin_hash}
     />
