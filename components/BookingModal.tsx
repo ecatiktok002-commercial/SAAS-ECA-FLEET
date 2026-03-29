@@ -808,13 +808,11 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 {handoverRecords.map(record => {
                   const handoverAgent = members.find(m => m.staff_id === record.staff_id);
                   return (
-                  <button
+                  <div
                     key={record.id}
-                    type="button"
-                    onClick={() => setViewingRecord(record)}
                     className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-100 transition-colors text-left group"
                   >
-                    <div>
+                    <div className="flex-1 cursor-pointer" onClick={() => setViewingRecord(record)}>
                       <div className="flex items-center gap-2">
                         <div className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors">{record.handover_type}</div>
                         {record.staff_id ? (
@@ -829,11 +827,30 @@ const BookingModal: React.FC<BookingModalProps> = ({
                       </div>
                       <div className="text-[10px] text-slate-500 mt-0.5">{formatInMYT(new Date(record.created_at).getTime(), 'dd/MM/yyyy HH:mm')}</div>
                     </div>
-                    <div className="text-[10px] font-bold text-slate-400 group-hover:text-blue-600 uppercase tracking-wider flex items-center gap-1 transition-colors">
-                      View Photos
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setViewingRecord(record)}
+                        className="text-[10px] font-bold text-slate-400 group-hover:text-blue-600 uppercase tracking-wider flex items-center gap-1 transition-colors"
+                      >
+                        View Photos
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg>
+                      </button>
+                      {isEditable && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteHandoverClick(record);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete Record"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                      )}
                     </div>
-                  </button>
+                  </div>
                 )})}
               </div>
             )}
