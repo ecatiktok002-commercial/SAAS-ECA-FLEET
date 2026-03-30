@@ -2,6 +2,7 @@
 ALTER TABLE public.subscribers ADD COLUMN IF NOT EXISTS brand_name TEXT;
 ALTER TABLE public.subscribers ADD COLUMN IF NOT EXISTS tier TEXT DEFAULT 'Tier 1';
 ALTER TABLE public.subscribers ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE public.subscribers ADD COLUMN IF NOT EXISTS logistic_credits_enabled BOOLEAN DEFAULT TRUE;
 ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS pin_hash TEXT;
 
 -- 1. Restore and fix verify_login_uid

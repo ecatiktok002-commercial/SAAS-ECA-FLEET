@@ -236,6 +236,7 @@ export interface Company {
   is_active: boolean;
   status: string;
   is_trial: boolean;
+  logistic_credits_enabled?: boolean;
   expiry_date: string | null;
   logo_url?: string;
   ssm_logo_url?: string;

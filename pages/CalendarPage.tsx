@@ -34,6 +34,7 @@ const CalendarPage: React.FC = () => {
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isFleetModalOpen, setIsFleetModalOpen] = useState(false);
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const [logisticCreditsEnabled, setLogisticCreditsEnabled] = useState(true);
   
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
@@ -56,13 +57,18 @@ const CalendarPage: React.FC = () => {
       end.setDate(0);
       end.setHours(23, 59, 59, 999);
 
-      const [fetchedCars, fetchedMembers, fetchedBookings, fetchedExpenses, fetchedStaff] = await Promise.all([
+      const [fetchedCars, fetchedMembers, fetchedBookings, fetchedExpenses, fetchedStaff, companyProfile] = await Promise.all([
         apiService.getCars(currentSubscriberId),
         apiService.getMembers(currentSubscriberId),
         apiService.getBookings(currentSubscriberId, mytToUtc(start).toISOString(), mytToUtc(end).toISOString()),
         apiService.getExpenses(currentSubscriberId),
-        apiService.getStaffMembers(currentSubscriberId)
+        apiService.getStaffMembers(currentSubscriberId),
+        apiService.getCompanyById(currentSubscriberId)
       ]);
+      
+      if (companyProfile && companyProfile.logistic_credits_enabled !== undefined) {
+        setLogisticCreditsEnabled(companyProfile.logistic_credits_enabled);
+      }
       
       // --- START BULLETPROOF ROSTER LOGIC V3 ---
       
@@ -570,6 +576,33 @@ const CalendarPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 md:gap-4">
+          {staffRole === 'admin' && (
+            <button 
+              onClick={async () => {
+                if (!currentSubscriberId) return;
+                const newValue = !logisticCreditsEnabled;
+                setLogisticCreditsEnabled(newValue);
+                try {
+                  await apiService.updateCompany(currentSubscriberId, { logistic_credits_enabled: newValue });
+                } catch (err) {
+                  console.error("Failed to update logistic credits setting", err);
+                  setLogisticCreditsEnabled(!newValue); // revert on error
+                }
+              }}
+              className={`hidden md:flex items-center gap-2 text-xs font-bold uppercase tracking-wider transition-colors px-3 py-2 rounded-lg ${
+                logisticCreditsEnabled 
+                  ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100' 
+                  : 'text-rose-700 bg-rose-50 hover:bg-rose-100'
+              }`}
+              title={logisticCreditsEnabled ? "Logistic Credits: ON" : "Logistic Credits: OFF"}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Logistic Credits: {logisticCreditsEnabled ? 'ON' : 'OFF'}
+            </button>
+          )}
+
           <button 
              onClick={handleOptimizeCalendar}
              className="hidden md:flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-purple-600 hover:text-purple-800 transition-colors px-3 py-2 bg-purple-50 hover:bg-purple-100 rounded-lg"
@@ -631,17 +664,43 @@ const CalendarPage: React.FC = () => {
         </div>
 
         <div className="flex w-full md:w-auto gap-2">
+          {staffRole === 'admin' && (
+            <button 
+              onClick={async () => {
+                if (!currentSubscriberId) return;
+                const newValue = !logisticCreditsEnabled;
+                setLogisticCreditsEnabled(newValue);
+                try {
+                  await apiService.updateCompany(currentSubscriberId, { logistic_credits_enabled: newValue });
+                } catch (err) {
+                  console.error("Failed to update logistic credits setting", err);
+                  setLogisticCreditsEnabled(!newValue); // revert on error
+                }
+              }}
+              className={`md:hidden flex-1 border px-2 py-3 rounded-xl font-bold text-[10px] uppercase tracking-wide shadow-sm flex items-center justify-center gap-1 ${
+                logisticCreditsEnabled 
+                  ? 'text-emerald-700 bg-emerald-50 border-emerald-200' 
+                  : 'text-rose-700 bg-rose-50 border-rose-200'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              LC: {logisticCreditsEnabled ? 'ON' : 'OFF'}
+            </button>
+          )}
+
           <button 
             onClick={handleOptimizeCalendar}
-            className="md:hidden flex-1 bg-purple-50 border border-purple-200 text-purple-700 px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-wide shadow-sm flex items-center justify-center gap-2"
+            className="md:hidden flex-1 bg-purple-50 border border-purple-200 text-purple-700 px-2 py-3 rounded-xl font-bold text-[10px] uppercase tracking-wide shadow-sm flex items-center justify-center gap-1"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
-            Re-Optimize
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+            Optimize
           </button>
           
           <button 
             onClick={() => handleDateClick(getNowMYT())}
-            className="flex-1 md:flex-none bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg shadow-slate-900/10 active:scale-[0.98] transition-all"
+            className="flex-1 md:flex-none bg-slate-900 hover:bg-slate-800 text-white px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg shadow-slate-900/10 active:scale-[0.98] transition-all"
           >
             + Booking
           </button>

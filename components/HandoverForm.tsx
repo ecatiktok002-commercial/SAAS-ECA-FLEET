@@ -147,11 +147,30 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
 
       // 4. Calculate Logistic Credit
       let logisticCredit = 0;
-      const currentHour = new Date().getHours();
       
-      // If time is < 10:00 or >= 18:00 AND the handover agent is different from the booking agent
-      if ((currentHour < 10 || currentHour >= 18) && currentStaffId && currentStaffId !== bookingStaffId) {
-        logisticCredit = 5;
+      // Fetch subscriber settings to check if logistic credits are enabled
+      let isLogisticCreditsEnabled = true; // Default to true
+      try {
+        const { data: subscriberData, error: subError } = await supabase
+          .from('subscribers')
+          .select('logistic_credits_enabled')
+          .eq('id', subscriberId)
+          .single();
+          
+        if (!subError && subscriberData) {
+          isLogisticCreditsEnabled = subscriberData.logistic_credits_enabled !== false;
+        }
+      } catch (e) {
+        console.warn("Could not fetch logistic_credits_enabled, defaulting to true", e);
+      }
+
+      if (isLogisticCreditsEnabled) {
+        const currentHour = new Date().getHours();
+        
+        // If time is < 09:00 or >= 20:00 AND the handover agent is different from the booking agent
+        if ((currentHour < 9 || currentHour >= 20) && currentStaffId && currentStaffId !== bookingStaffId) {
+          logisticCredit = 5;
+        }
       }
 
       // 5. Save to Database
