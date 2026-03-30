@@ -366,6 +366,8 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
                     <option value="3 Bar">3 Bar</option>
                     <option value="4 Bar">4 Bar</option>
                     <option value="5 Bar">5 Bar</option>
+                    <option value="6 Bar">6 Bar</option>
+                    <option value="7 Bar">7 Bar</option>
                     <option value="Full Tank">Full Tank</option>
                   </select>
                 </div>
