@@ -34,7 +34,10 @@ const logSupabaseError = (context: string, error: any) => {
       console.error(`Supabase Schema Error: The column '${columnName}' is missing from table '${table}'.`);
       console.error(`FIX: Run the following SQL in your Supabase SQL Editor:`);
       
-      let sql = `ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${columnName} ${type};`;
+      let sql = `ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${columnName} ${type};
+      
+-- Force Supabase to reload its schema cache
+NOTIFY pgrst, 'reload schema';`;
       
       // If it's the cars table, suggest adding all Fleet Guardian columns at once to avoid multiple errors
       if (table === 'cars') {
@@ -44,7 +47,10 @@ ADD COLUMN IF NOT EXISTS make TEXT,
 ADD COLUMN IF NOT EXISTS model TEXT,
 ADD COLUMN IF NOT EXISTS roadtax_expiry DATE,
 ADD COLUMN IF NOT EXISTS insurance_expiry DATE,
-ADD COLUMN IF NOT EXISTS inspection_expiry DATE;`;
+ADD COLUMN IF NOT EXISTS inspection_expiry DATE;
+
+-- Force Supabase to reload its schema cache
+NOTIFY pgrst, 'reload schema';`;
       } else if (table === 'subscribers') {
         sql = `ALTER TABLE subscribers 
 ADD COLUMN IF NOT EXISTS name TEXT,
@@ -54,11 +60,17 @@ ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'ACTIVE',
 ADD COLUMN IF NOT EXISTS is_trial BOOLEAN DEFAULT FALSE,
 ADD COLUMN IF NOT EXISTS logistic_credits_enabled BOOLEAN DEFAULT TRUE,
 ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMP WITH TIME ZONE,
-ADD COLUMN IF NOT EXISTS subscription_start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW();`;
+ADD COLUMN IF NOT EXISTS subscription_start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+
+-- Force Supabase to reload its schema cache
+NOTIFY pgrst, 'reload schema';`;
       } else if (table === 'marketing_events') {
         sql = `ALTER TABLE marketing_events 
 ADD COLUMN IF NOT EXISTS goal_type TEXT DEFAULT 'Total Sales (RM)',
-ADD COLUMN IF NOT EXISTS reward_amount NUMERIC DEFAULT 0;`;
+ADD COLUMN IF NOT EXISTS reward_amount NUMERIC DEFAULT 0;
+
+-- Force Supabase to reload its schema cache
+NOTIFY pgrst, 'reload schema';`;
       }
       
       console.error(sql);
