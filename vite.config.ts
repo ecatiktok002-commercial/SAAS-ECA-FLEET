@@ -52,6 +52,10 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       outDir: 'dist',
-    }
+    },
+    // ADD THIS BLOCK to remove console logs in production
+    esbuild: {
+      drop: mode === 'production' ? ['console', 'debugger'] : [],
+    },
   };
 });
