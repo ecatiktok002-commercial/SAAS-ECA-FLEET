@@ -39,6 +39,7 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
   const [mileage, setMileage] = useState('');
   const [fuelLevel, setFuelLevel] = useState('');
   const [conditionDetails, setConditionDetails] = useState('');
+  const [isGoodCondition, setIsGoodCondition] = useState(false);
   
   // Required Photos State (Exterior + Dashboard)
   const [photos, setPhotos] = useState<Record<string, File | null>>({
@@ -105,7 +106,9 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
     setError('');
     
     // 1. Validation
-    const requiredLabels = [...EXTERIOR_PHOTOS, 'Dashboard'];
+    const isExteriorRequired = handoverType === 'Pickup' || (handoverType === 'Return' && !isGoodCondition);
+    const requiredLabels = isExteriorRequired ? [...EXTERIOR_PHOTOS, 'Dashboard'] : ['Dashboard'];
+    
     const missingPhotos = requiredLabels.filter(label => !photos[label]);
     if (missingPhotos.length > 0) {
       setError(`Missing required photos: ${missingPhotos.join(', ')}`);
@@ -125,8 +128,9 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
       const allUploadedUrls: string[] = [];
       const timestamp = Date.now();
       
-      // 2. Upload Required Photos
-      for (const label of requiredLabels) {
+      // 2. Upload Photos (Required + Optional Exterior if provided)
+      const labelsToUpload = [...EXTERIOR_PHOTOS, 'Dashboard'];
+      for (const label of labelsToUpload) {
         const file = photos[label];
         if (file) {
           const ext = file.name.split('.').pop();
@@ -175,6 +179,12 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
 
       // 5. Save to Database
       const newMileage = parseInt(mileage, 10);
+      
+      let finalConditionDetails = conditionDetails;
+      if (handoverType === 'Return' && isGoodCondition) {
+        finalConditionDetails = `[VEHICLE IN GOOD CONDITION AS PER BEFORE] ${conditionDetails}`.trim();
+      }
+
       const { error: dbError } = await supabase
         .from('handover_records')
         .insert([{
@@ -184,7 +194,7 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
           handover_type: handoverType,
           mileage: newMileage,
           fuel_level: fuelLevel,
-          condition_details: conditionDetails,
+          condition_details: finalConditionDetails,
           photos_url: allUploadedUrls, // Array of all strings
           staff_id: currentStaffId || null,
           logistic_credit: logisticCredit
@@ -297,8 +307,37 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
               <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">1. Exterior Integrity</h3>
               <p className="text-[10px] text-slate-400">Capture all 4 sides of the vehicle.</p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              {EXTERIOR_PHOTOS.map(label => <PhotoUploadBox key={label} label={label} isRequired />)}
+            
+            {handoverType === 'Return' && (
+              <label className="flex items-start gap-3 p-3 mb-4 bg-emerald-50 border border-emerald-100 rounded-xl cursor-pointer hover:bg-emerald-100/50 transition-colors">
+                <div className="relative flex items-center justify-center mt-0.5">
+                  <input 
+                    type="checkbox" 
+                    checked={isGoodCondition}
+                    onChange={(e) => setIsGoodCondition(e.target.checked)}
+                    className="w-5 h-5 appearance-none border-2 border-emerald-400 rounded-md checked:bg-emerald-500 checked:border-emerald-500 transition-colors cursor-pointer"
+                  />
+                  {isGoodCondition && (
+                    <svg className="absolute w-3 h-3 text-white pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+                <div>
+                  <span className="block text-sm font-bold text-emerald-900">Vehicle in Good condition as per before</span>
+                  <span className="block text-[10px] text-emerald-700 mt-0.5">Tick this to skip exterior photos if there are no new damages.</span>
+                </div>
+              </label>
+            )}
+
+            <div className={`grid grid-cols-2 gap-3 transition-opacity duration-300 ${handoverType === 'Return' && isGoodCondition ? 'opacity-50' : 'opacity-100'}`}>
+              {EXTERIOR_PHOTOS.map(label => (
+                <PhotoUploadBox 
+                  key={label} 
+                  label={label} 
+                  isRequired={handoverType === 'Pickup' || (handoverType === 'Return' && !isGoodCondition)} 
+                />
+              ))}
             </div>
           </div>
 
