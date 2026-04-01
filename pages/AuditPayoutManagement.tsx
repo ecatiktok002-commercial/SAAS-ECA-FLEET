@@ -94,6 +94,9 @@ const AuditPayoutManagement: React.FC = () => {
     const loadData = async () => {
       try {
         setLoading(true);
+        // Ensure commissions are up-to-date before fetching
+        await apiService.recalculateAllCommissions(subscriberId!);
+        
         const [auditData, historyData] = await Promise.all([
           apiService.getAuditRecords(subscriberId!),
           apiService.getPayoutHistory(subscriberId!)

@@ -986,6 +986,13 @@ export const apiService = {
             } else if (staffMember.commission_tier_override && staffMember.commission_tier_override !== 'auto') {
               const rate = staffMember.commission_tier_override === 'premium' ? 0.20 : staffMember.commission_tier_override === 'prestige' ? 0.25 : 0.30;
               finalBooking.commission_earned = finalBooking.total_price * rate;
+            } else {
+              // For 'auto' tier, trigger a background recalculation after the save completes
+              setTimeout(() => {
+                this.recalculateAllCommissions(targetSubscriberId).catch(err => 
+                  console.error('Background commission recalculation failed:', err)
+                );
+              }, 1000);
             }
           }
         } catch (err) {
@@ -1996,6 +2003,13 @@ export const apiService = {
             } else if (staffMember.commission_tier_override && staffMember.commission_tier_override !== 'auto') {
               const rate = staffMember.commission_tier_override === 'premium' ? 0.20 : staffMember.commission_tier_override === 'prestige' ? 0.25 : 0.30;
               finalAgreement.commission_earned = finalAgreement.total_price * rate;
+            } else {
+              // For 'auto' tier, trigger a background recalculation after the creation completes
+              setTimeout(() => {
+                this.recalculateAllCommissions(targetSubscriberId).catch(err => 
+                  console.error('Background commission recalculation failed:', err)
+                );
+              }, 1000);
             }
           }
         } catch (err) {
@@ -2089,6 +2103,14 @@ export const apiService = {
               } else if (staffMember.commission_tier_override && staffMember.commission_tier_override !== 'auto') {
                 const rate = staffMember.commission_tier_override === 'premium' ? 0.20 : staffMember.commission_tier_override === 'prestige' ? 0.25 : 0.30;
                 finalUpdates.commission_earned = totalPrice * rate;
+              } else {
+                // For 'auto' tier, we need to recalculate the running total for the whole month.
+                // We'll trigger a background recalculation after the update completes.
+                setTimeout(() => {
+                  this.recalculateAllCommissions(targetSubscriberId).catch(err => 
+                    console.error('Background commission recalculation failed:', err)
+                  );
+                }, 1000);
               }
             }
           }
@@ -2149,6 +2171,13 @@ export const apiService = {
         logSupabaseError('deleteAgreement', error);
         throw new Error('Failed to delete agreement');
       }
+
+      // Trigger a background recalculation after deletion to fix any running totals
+      setTimeout(() => {
+        this.recalculateAllCommissions(targetSubscriberId).catch(err => 
+          console.error('Background commission recalculation failed after delete:', err)
+        );
+      }, 1000);
     });
   },
 
@@ -2419,6 +2448,85 @@ export const apiService = {
         return [];
       }
       return data || [];
+    });
+  },
+
+  async recalculateAllCommissions(subscriberId: string): Promise<number> {
+    const targetSubscriberId = await getTenantId();
+    return withRetry(async () => {
+      let updatedCount = 0;
+
+      // 1. Fetch all agreements
+      const { data: agreements, error: agError } = await supabase
+        .from('agreements')
+        .select('*')
+        .eq('subscriber_id', targetSubscriberId)
+        .not('agent_id', 'is', null)
+        .order('created_at', { ascending: true }); // Important for running total
+      
+      if (agError) throw agError;
+      if (!agreements || agreements.length === 0) return 0;
+
+      // 2. Fetch all staff members to get their rates
+      const { data: staff, error: staffError } = await supabase
+        .from('staff')
+        .select('*')
+        .eq('subscriber_id', targetSubscriberId);
+
+      if (staffError) throw staffError;
+
+      const staffMap = new Map(staff.map(s => [s.id, s]));
+
+      // 3. Group agreements by agent and month for 'auto' tier running totals
+      const agentMonthTotals = new Map<string, number>();
+
+      const getTotalCommission = (total: number) => {
+        if (total <= 5000) return total * 0.20;
+        if (total <= 8000) return (5000 * 0.20) + ((total - 5000) * 0.25);
+        return (5000 * 0.20) + (3000 * 0.25) + ((total - 8000) * 0.30);
+      };
+
+      // 4. Iterate and update
+      for (const agreement of agreements) {
+        const agent = staffMap.get(agreement.agent_id);
+        if (!agent || agreement.total_price === undefined || agreement.total_price === null) continue;
+
+        let expectedCommission = 0;
+        const totalPrice = Number(agreement.total_price);
+
+        if (agent.commission_rate) {
+          expectedCommission = totalPrice * (Number(agent.commission_rate) / 100);
+        } else if (agent.commission_tier_override && agent.commission_tier_override !== 'auto') {
+          const rate = agent.commission_tier_override === 'premium' ? 0.20 : 
+                       agent.commission_tier_override === 'prestige' ? 0.25 : 0.30;
+          expectedCommission = totalPrice * rate;
+        } else {
+          // 'auto' tier logic
+          const monthKey = agreement.created_at ? agreement.created_at.substring(0, 7) : 'unknown';
+          const agentMonthKey = `${agent.id}_${monthKey}`;
+          
+          const runningTotal = agentMonthTotals.get(agentMonthKey) || 0;
+          const newTotal = runningTotal + totalPrice;
+          
+          expectedCommission = getTotalCommission(newTotal) - getTotalCommission(runningTotal);
+          
+          // Update running total for the next agreement
+          agentMonthTotals.set(agentMonthKey, newTotal);
+        }
+
+        // If there's a discrepancy, update it
+        if (agreement.commission_earned === null || agreement.commission_earned === undefined || Number(agreement.commission_earned) !== expectedCommission) {
+          const { error: updateError } = await supabase
+            .from('agreements')
+            .update({ commission_earned: expectedCommission })
+            .eq('id', agreement.id);
+          
+          if (!updateError) {
+            updatedCount++;
+          }
+        }
+      }
+      return updatedCount;
     });
   },
 
