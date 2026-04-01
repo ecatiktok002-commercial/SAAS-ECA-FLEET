@@ -481,10 +481,35 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Helper to get subscriber_id for the current authenticated user
 CREATE OR REPLACE FUNCTION current_subscriber_id()
-RETURNS uuid AS $$
-  -- Reads from token instantly instead of querying the database
-  SELECT (current_setting('request.jwt.claims', true)::json->'app_metadata'->>'subscriber_id')::uuid;
-$$ LANGUAGE sql STABLE;
+RETURNS UUID AS $$
+DECLARE
+  jwt_sub_id TEXT;
+BEGIN
+  -- 1. Try the ultra-fast JWT token first
+  jwt_sub_id := current_setting('request.jwt.claims', true)::json->'app_metadata'->>'subscriber_id';
+  
+  IF jwt_sub_id IS NOT NULL THEN
+    RETURN jwt_sub_id::uuid;
+  END IF;
+
+  -- 2. Safe Fallback if JWT is empty (Still STABLE for performance)
+  RETURN (
+    (SELECT id FROM public.subscribers 
+     WHERE id = auth.uid() 
+        OR name ILIKE (SELECT SPLIT_PART(email, '@', 1) FROM auth.users WHERE id = auth.uid())
+     ORDER BY CASE WHEN tier != 'Tier 1' THEN 0 ELSE 1 END
+     LIMIT 1)
+    UNION ALL
+    SELECT subscriber_id FROM public.staff_members 
+    WHERE id = auth.uid() OR access_id = auth.uid()::text 
+    UNION ALL
+    SELECT s.id FROM public.staff st
+    JOIN public.subscribers s ON s.name ILIKE st.subscriber_id
+    WHERE st.id = auth.uid() OR st.access_id = auth.uid()::text
+    LIMIT 1
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth STABLE;
 
 -- 1. Subscribers
 DROP POLICY IF EXISTS "Subscribers access" ON subscribers;
@@ -1345,8 +1370,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE FUNCTION protect_staff_security_fields()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- If the user making the change is NOT the owner of the company, block sensitive column changes
-  IF auth.uid() != OLD.subscriber_id THEN
+  -- FIX: Cast both to ::text to prevent UUID vs TEXT crash
+  IF auth.uid()::text != OLD.subscriber_id::text THEN
     NEW.role = OLD.role;
     NEW.subscriber_id = OLD.subscriber_id;
     NEW.commission_tier_override = OLD.commission_tier_override;
