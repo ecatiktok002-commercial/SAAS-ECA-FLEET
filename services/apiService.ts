@@ -1056,7 +1056,8 @@ export const apiService = {
               // Extract path from public URL: .../handover_images/PATH
               const parts = url.split('/handover_images/');
               if (parts.length > 1) {
-                allPaths.push(parts[1]);
+                const pathWithToken = parts[1];
+                allPaths.push(pathWithToken.split('?')[0]);
               }
             });
           }
@@ -1245,7 +1246,8 @@ export const apiService = {
       if (recordData && recordData.photos_url && recordData.photos_url.length > 0) {
         const paths = recordData.photos_url.map((url: string) => {
           const parts = url.split('/handover_images/');
-          return parts.length > 1 ? parts[1] : url;
+          const pathWithToken = parts.length > 1 ? parts[1] : url;
+          return pathWithToken.split('?')[0];
         });
 
         if (paths.length > 0) {
@@ -1291,7 +1293,8 @@ export const apiService = {
 
       // 2. Delete photo from storage
       const parts = photoUrl.split('/handover_images/');
-      const path = parts.length > 1 ? parts[1] : photoUrl;
+      const pathWithToken = parts.length > 1 ? parts[1] : photoUrl;
+      const path = pathWithToken.split('?')[0];
 
       const { error: storageError } = await supabase.storage
         .from('handover_images')
@@ -1357,7 +1360,7 @@ export const apiService = {
     return withRetry(async () => {
       const { data, error } = await supabase.storage
         .from(bucket)
-        .createSignedUrls(paths, 300); // 300 seconds = 5 minutes
+        .createSignedUrls(paths, 3600); // 3600 seconds = 1 hour
 
       if (error) {
         logSupabaseError('getSignedUrls', error);
@@ -1372,7 +1375,7 @@ export const apiService = {
     try {
       const { data, error } = await supabase.storage
         .from(bucket)
-        .createSignedUrl(path, 300); // 5 minutes
+        .createSignedUrl(path, 3600); // 1 hour
 
       if (error) throw error;
       return data.signedUrl;

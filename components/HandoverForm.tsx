@@ -95,11 +95,13 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
       
     if (error) throw error;
     
-    const { data: publicUrlData } = supabase.storage
+    // Replace getPublicUrl with createSignedUrl
+    const { data: signedData, error: signedError } = await supabase.storage
       .from('handover_images')
-      .getPublicUrl(data.path);
+      .createSignedUrl(data.path, 3600); // URL expires in 1 hour (3600 seconds)
       
-    return publicUrlData.publicUrl;
+    if (signedError) throw signedError;
+    return signedData.signedUrl;
   };
 
   const handleSubmit = async () => {

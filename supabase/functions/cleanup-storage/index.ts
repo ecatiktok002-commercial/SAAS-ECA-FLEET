@@ -81,5 +81,9 @@ async function processWipe(supabase: any, photos: any, table: string, id: string
 function extractPath(url: string): string | null {
   if (!url) return null;
   const parts = url.split('/handover_images/');
-  return parts.length > 1 ? decodeURIComponent(parts[1]) : null;
+  if (parts.length > 1) {
+    const pathWithToken = parts[1];
+    return decodeURIComponent(pathWithToken.split('?')[0]);
+  }
+  return null;
 }

@@ -35,3 +35,12 @@ export const getDigitalForms = async (subscriberId: string, agentId?: string) =>
 export const getAgreements = async (subscriberId: string, agentId?: string) => {
   return apiService.getAgreements(subscriberId, agentId);
 };
+
+export const getSecureUrl = async (bucket: string, path: string): Promise<string> => {
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, 3600); // URL expires in 1 hour (3600 seconds)
+
+  if (error) throw error;
+  return data.signedUrl;
+};

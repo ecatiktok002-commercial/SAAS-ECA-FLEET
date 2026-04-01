@@ -124,7 +124,8 @@ function extractPathFromUrl(url: string): string | null {
   if (!url) return null;
   const parts = url.split('/handover_images/');
   if (parts.length > 1) {
-    return decodeURIComponent(parts[1]);
+    const pathWithToken = parts[1];
+    return decodeURIComponent(pathWithToken.split('?')[0]);
   }
   return null;
 }

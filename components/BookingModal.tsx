@@ -95,7 +95,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
           // Assuming format: .../handover_images/PATH
           const paths = viewingRecord.photos_url.map((url: string) => {
             const parts = url.split('/handover_images/');
-            return parts.length > 1 ? parts[1] : url;
+            const pathWithToken = parts.length > 1 ? parts[1] : url;
+            return pathWithToken.split('?')[0];
           });
 
           // Batch fetch is better for performance than lazy single fetches for small counts
