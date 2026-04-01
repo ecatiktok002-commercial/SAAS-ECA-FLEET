@@ -481,29 +481,10 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Helper to get subscriber_id for the current authenticated user
 CREATE OR REPLACE FUNCTION current_subscriber_id()
-RETURNS UUID AS $$
-BEGIN
-  RETURN (
-    -- 1. Check if user is a subscriber (by ID or by matching email prefix to name)
-    (SELECT id FROM public.subscribers 
-     WHERE id = auth.uid() 
-        OR name ILIKE (SELECT SPLIT_PART(email, '@', 1) FROM auth.users WHERE id = auth.uid())
-     ORDER BY CASE WHEN tier != 'Tier 1' THEN 0 ELSE 1 END
-     LIMIT 1)
-    UNION ALL
-    -- 2. Check if user is an agent in staff_members
-    SELECT subscriber_id FROM public.staff_members 
-    WHERE id = auth.uid() OR access_id = auth.uid()::text 
-    UNION ALL
-    -- 3. Fallback: check staff table (slug-based)
-    SELECT s.id 
-    FROM public.staff st
-    JOIN public.subscribers s ON s.name ILIKE st.subscriber_id
-    WHERE st.id = auth.uid() OR st.access_id = auth.uid()::text
-    LIMIT 1
-  );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
+RETURNS uuid AS $$
+  -- Reads from token instantly instead of querying the database
+  SELECT (current_setting('request.jwt.claims', true)::json->'app_metadata'->>'subscriber_id')::uuid;
+$$ LANGUAGE sql STABLE;
 
 -- 1. Subscribers
 DROP POLICY IF EXISTS "Subscribers access" ON subscribers;
@@ -1356,3 +1337,82 @@ BEGIN
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================================
+-- SECURITY TRIGGERS FOR STAFF AND FORMS
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION protect_staff_security_fields()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- If the user making the change is NOT the owner of the company, block sensitive column changes
+  IF auth.uid() != OLD.subscriber_id THEN
+    NEW.role = OLD.role;
+    NEW.subscriber_id = OLD.subscriber_id;
+    NEW.commission_tier_override = OLD.commission_tier_override;
+    NEW.commission_rate = OLD.commission_rate;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Attach to both staff tables
+DROP TRIGGER IF EXISTS tr_protect_staff_members ON staff_members;
+CREATE TRIGGER tr_protect_staff_members
+BEFORE UPDATE ON staff_members
+FOR EACH ROW EXECUTE FUNCTION protect_staff_security_fields();
+
+DROP TRIGGER IF EXISTS tr_protect_staff ON public.staff;
+CREATE TRIGGER tr_protect_staff
+BEFORE UPDATE ON public.staff
+FOR EACH ROW EXECUTE FUNCTION protect_staff_security_fields();
+
+CREATE OR REPLACE FUNCTION protect_public_form_tampering()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- If the user is anonymous (customer signing the form)
+  IF auth.role() = 'anon' THEN
+    -- Force all core contract details to remain exactly as the agent created them
+    NEW.total_price = OLD.total_price;
+    NEW.deposit = OLD.deposit;
+    NEW.car_plate_number = OLD.car_plate_number;
+    NEW.start_date = OLD.start_date;
+    NEW.end_date = OLD.end_date;
+    NEW.subscriber_id = OLD.subscriber_id;
+    NEW.agent_id = OLD.agent_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS tr_protect_agreements_tampering ON agreements;
+CREATE TRIGGER tr_protect_agreements_tampering
+BEFORE UPDATE ON agreements
+FOR EACH ROW EXECUTE FUNCTION protect_public_form_tampering();
+
+DROP TRIGGER IF EXISTS tr_protect_digital_forms_tampering ON digital_forms;
+CREATE TRIGGER tr_protect_digital_forms_tampering
+BEFORE UPDATE ON digital_forms
+FOR EACH ROW EXECUTE FUNCTION protect_public_form_tampering();
+
+-- ============================================================================
+-- INDEXES FOR PERFORMANCE
+-- ============================================================================
+CREATE INDEX IF NOT EXISTS idx_bookings_subscriber ON bookings(subscriber_id);
+CREATE INDEX IF NOT EXISTS idx_cars_subscriber ON cars(subscriber_id);
+CREATE INDEX IF NOT EXISTS idx_customers_subscriber ON customers(subscriber_id);
+CREATE INDEX IF NOT EXISTS idx_handover_records_booking ON handover_records(booking_id);
+
+-- ============================================================================
+-- STORAGE POLICIES
+-- ============================================================================
+DROP POLICY IF EXISTS "Handover photos access" ON storage.objects;
+
+-- Only allow access if the first folder in the path matches their subscriber_id
+CREATE POLICY "Tenant isolated storage access"
+ON storage.objects FOR ALL
+USING (
+  bucket_id IN ('handovers', 'signatures') 
+  AND auth.role() = 'authenticated' 
+  AND (string_to_array(name, '/'))[1] = current_subscriber_id()::text
+);
