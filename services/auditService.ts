@@ -155,13 +155,7 @@ export const approveAmendment = async (agreementId: string, subscriberId: string
   };
 
   // 3. Execute the update for the agreement
-  const { error: agreementError } = await supabase
-    .from('agreements')
-    .update(agreementUpdates)
-    .eq('id', agreementId)
-    .eq('subscriber_id', subscriberId);
-
-  if (agreementError) throw agreementError;
+  await apiService.updateAgreement(agreementId, subscriberId, agreementUpdates);
 
   // 4. Sync with bookings table if necessary
   if (bookingId) {

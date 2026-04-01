@@ -976,6 +976,23 @@ export const apiService = {
         }
       }
 
+      // Calculate commission earned based on agent's dynamic rate or tier override
+      if (finalBooking.agent_id && finalBooking.total_price !== undefined) {
+        try {
+          const staffMember = await this.getStaffMemberById(finalBooking.agent_id, targetSubscriberId);
+          if (staffMember) {
+            if (staffMember.commission_rate) {
+              finalBooking.commission_earned = finalBooking.total_price * (staffMember.commission_rate / 100);
+            } else if (staffMember.commission_tier_override && staffMember.commission_tier_override !== 'auto') {
+              const rate = staffMember.commission_tier_override === 'premium' ? 0.20 : staffMember.commission_tier_override === 'prestige' ? 0.25 : 0.30;
+              finalBooking.commission_earned = finalBooking.total_price * rate;
+            }
+          }
+        } catch (err) {
+          console.error('Error calculating commission for booking:', err);
+        }
+      }
+
       if (id) {
         const { data, error } = await supabase
           .from('bookings')
