@@ -25,6 +25,24 @@ Deno.serve(async (req) => {
       throw new Error('Missing uid, subscriber_id, or pin_code')
     }
 
+    // 🔐 --- NEW SECURITY GATE --- 🔐
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) throw new Error('Missing Authorization header')
+    const token = authHeader.replace('Bearer ', '')
+
+    // Ask Supabase to verify who owns this token
+    const { data: { user: caller }, error: callerError } = await supabaseAdmin.auth.getUser(token)
+    if (callerError || !caller) throw new Error('Invalid or expired token')
+
+    // Only allow Master Admin OR the Owner of the specific subscriber_id
+    const isSuperAdmin = caller.email === 'superadmin@ecafleet.com'
+    const isOwner = caller.id === subscriber_id
+
+    if (!isSuperAdmin && !isOwner) {
+      throw new Error('Forbidden: You can only provision staff for your own company.')
+    }
+    // 🔐 --- END SECURITY GATE --- 🔐
+
     const email = `${uid}@ecafleet.com`
     // Secure the password by combining it with a system salt and their PIN
     const password = `EcaFleet!${uid}${pin_code}`

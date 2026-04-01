@@ -11,6 +11,19 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // 🔐 --- DOS PROTECTION GATE --- 🔐
+    const authHeader = req.headers.get('Authorization');
+    const expectedAnonHeader = `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`;
+    const expectedServiceHeader = `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`;
+
+    if (authHeader !== expectedAnonHeader && authHeader !== expectedServiceHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized invocation' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+    // 🔐 --- END DOS PROTECTION --- 🔐
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
