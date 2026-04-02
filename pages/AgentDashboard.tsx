@@ -78,10 +78,23 @@ const AgentDashboard: React.FC = () => {
       const agentId = userId || undefined;
       const createdBy = ([userUid, userId].filter(Boolean) as string[]);
 
+      const now = getNowMYT();
+      const mytDate = utcToMyt(now);
+      
+      // Fetch data for the last 3 months to support the 12-week chart
+      const startDateObj = new Date(mytDate);
+      startDateObj.setMonth(startDateObj.getMonth() - 3);
+      startDateObj.setDate(1);
+      const startDateStr = startDateObj.toISOString();
+      
+      // End date is end of current month
+      const endDateObj = new Date(mytDate.getFullYear(), mytDate.getMonth() + 1, 0, 23, 59, 59, 999);
+      const endDateStr = endDateObj.toISOString();
+
       const [allBookings, cars, agreements, marketingEvents, members, staffMembers] = await Promise.all([
-        apiService.getBookings(subscriberId!),
+        apiService.getBookings(subscriberId!, startDateStr, endDateStr),
         apiService.getCars(subscriberId!),
-        apiService.getAgreements(subscriberId!, agentId, createdBy),
+        apiService.getAgreements(subscriberId!, agentId, createdBy, startDateStr, endDateStr),
         apiService.getMarketingEvents(subscriberId!),
         apiService.getMembers(subscriberId!),
         apiService.getStaffMembers(subscriberId!)
@@ -97,8 +110,6 @@ const AgentDashboard: React.FC = () => {
         }
       }
 
-      const now = getNowMYT();
-      const mytDate = utcToMyt(now);
       const todayStr = format(mytDate, 'yyyy-MM-dd');
       
       const startOfWeek = new Date(mytDate);

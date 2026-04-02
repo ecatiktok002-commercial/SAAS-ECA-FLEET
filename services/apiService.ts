@@ -817,11 +817,15 @@ export const apiService = {
         query = query.eq('agent_id', resolvedAgentId);
       }
       
-      if (startDate && endDate) {
+      if (startDate) {
         const bufferDate = new Date(startDate);
         bufferDate.setDate(bufferDate.getDate() - 60);
-        
         query = query.gte('pickup_datetime', bufferDate.toISOString());
+      }
+      if (endDate) {
+        // We don't want to filter out bookings that start after endDate if they are relevant,
+        // but typically we want bookings that start BEFORE endDate.
+        query = query.lte('pickup_datetime', endDate);
       }
 
       const { data, error } = await query;
@@ -1384,7 +1388,13 @@ export const apiService = {
     return withRetry(async () => {
       const { data, error } = await supabase.storage
         .from(bucket)
-        .createSignedUrls(paths, 3600); // 3600 seconds = 1 hour
+        .createSignedUrls(paths, 3600, {
+          transform: {
+            width: 400,
+            quality: 70,
+            format: 'webp' as any
+          }
+        } as any); // 3600 seconds = 1 hour
 
       if (error) {
         logSupabaseError('getSignedUrls', error);
@@ -1399,7 +1409,13 @@ export const apiService = {
     try {
       const { data, error } = await supabase.storage
         .from(bucket)
-        .createSignedUrl(path, 3600); // 1 hour
+        .createSignedUrl(path, 3600, {
+          transform: {
+            width: 400,
+            quality: 70,
+            format: 'webp' as any
+          }
+        }); // 1 hour
 
       if (error) throw error;
       return data.signedUrl;
@@ -1887,7 +1903,7 @@ export const apiService = {
   },
 
   // Agreements
-  async getAgreements(subscriberId: string, agentId?: string, createdBy?: string | string[]): Promise<Agreement[]> {
+  async getAgreements(subscriberId: string, agentId?: string, createdBy?: string | string[], startDate?: string, endDate?: string): Promise<Agreement[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let query = supabase.from('agreements').select('*');
@@ -1926,6 +1942,13 @@ export const apiService = {
         if (filters.length > 0) {
           query = query.or(filters.join(','));
         }
+      }
+
+      if (startDate) {
+        query = query.gte('created_at', startDate);
+      }
+      if (endDate) {
+        query = query.lte('created_at', endDate);
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });

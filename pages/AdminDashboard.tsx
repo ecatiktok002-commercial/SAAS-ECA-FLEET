@@ -94,16 +94,27 @@ const AdminDashboard: React.FC = () => {
       const agentId = undefined;
       const createdBy = undefined;
 
+      const now = getNowMYT();
+      const mytDate = utcToMyt(now);
+      
+      // Fetch data for the last 3 months to support the 12-week chart
+      const startDateObj = new Date(mytDate);
+      startDateObj.setMonth(startDateObj.getMonth() - 3);
+      startDateObj.setDate(1);
+      const startDateStr = startDateObj.toISOString();
+      
+      // End date is end of current month
+      const endDateObj = new Date(mytDate.getFullYear(), mytDate.getMonth() + 1, 0, 23, 59, 59, 999);
+      const endDateStr = endDateObj.toISOString();
+
       const [bookings, cars, agreements, marketingEvents, members] = await Promise.all([
-        apiService.getBookings(subscriberId!),
+        apiService.getBookings(subscriberId!, startDateStr, endDateStr),
         apiService.getCars(subscriberId!),
-        apiService.getAgreements(subscriberId!, agentId, createdBy),
+        apiService.getAgreements(subscriberId!, agentId, createdBy, startDateStr, endDateStr),
         apiService.getMarketingEvents(subscriberId!),
         apiService.getMembers(subscriberId!)
       ]);
 
-      const now = getNowMYT();
-      const mytDate = utcToMyt(now);
       const todayStr = format(mytDate, 'yyyy-MM-dd');
       
       const startOfWeek = new Date(mytDate);
