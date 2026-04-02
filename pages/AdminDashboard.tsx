@@ -61,18 +61,26 @@ const AdminDashboard: React.FC = () => {
     currency: 'MYR',
   });
 
-  const now = getNowMYT();
-  const mytDate = utcToMyt(now);
-  
-  // Fetch data for the last 3 months to support the 12-week chart
-  const startDateObj = new Date(mytDate);
-  startDateObj.setMonth(startDateObj.getMonth() - 3);
-  startDateObj.setDate(1);
-  const startDateStr = startDateObj.toISOString();
-  
-  // End date is end of current month
-  const endDateObj = new Date(mytDate.getFullYear(), mytDate.getMonth() + 1, 0, 23, 59, 59, 999);
-  const endDateStr = endDateObj.toISOString();
+  const { startDateStr, endDateStr, mytDate, now } = useMemo(() => {
+    const now = getNowMYT();
+    const mytDate = utcToMyt(now);
+    
+    // Fetch data for the last 3 months to support the 12-week chart
+    const startDateObj = new Date(mytDate);
+    startDateObj.setMonth(startDateObj.getMonth() - 3);
+    startDateObj.setDate(1);
+    startDateObj.setHours(0, 0, 0, 0);
+    
+    // End date is end of current month
+    const endDateObj = new Date(mytDate.getFullYear(), mytDate.getMonth() + 1, 0, 23, 59, 59, 999);
+    
+    return {
+      now,
+      mytDate,
+      startDateStr: startDateObj.toISOString(),
+      endDateStr: endDateObj.toISOString()
+    };
+  }, []);
 
   const { data, isLoading: loading, error: queryError } = useQuery({
     queryKey: ['adminDashboard', subscriberId, startDateStr, endDateStr],
