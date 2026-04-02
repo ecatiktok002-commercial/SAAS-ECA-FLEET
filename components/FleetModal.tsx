@@ -147,45 +147,47 @@ const FleetModal: React.FC<FleetModalProps> = ({
           {activeTab === 'vehicles' && (
             <>
               {/* Add New Car */}
-              <section>
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Add New Vehicle</h3>
-                <form onSubmit={handleAddVehicle} className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl">
-                  <div className="md:col-span-1">
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Plate Number</label>
-                    <input 
-                      type="text"
-                      placeholder="e.g. ABC-1234"
-                      value={plate}
-                      onChange={(e) => setPlate(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm uppercase outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div className="md:col-span-1">
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Model Name</label>
-                    <input 
-                      type="text"
-                      placeholder="e.g. Tesla Model Y"
-                      value={carName}
-                      onChange={(e) => setCarName(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <button 
-                    type="submit"
-                    disabled={isAdding}
-                    className="md:col-span-2 py-2.5 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    {isAdding ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        Adding...
-                      </>
-                    ) : (
-                      'Add to Fleet'
-                    )}
-                  </button>
-                </form>
-              </section>
+              {!currentStaff && (
+                <section>
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Add New Vehicle</h3>
+                  <form onSubmit={handleAddVehicle} className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl">
+                    <div className="md:col-span-1">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Plate Number</label>
+                      <input 
+                        type="text"
+                        placeholder="e.g. ABC-1234"
+                        value={plate}
+                        onChange={(e) => setPlate(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm uppercase outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="md:col-span-1">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Model Name</label>
+                      <input 
+                        type="text"
+                        placeholder="e.g. Tesla Model Y"
+                        value={carName}
+                        onChange={(e) => setCarName(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <button 
+                      type="submit"
+                      disabled={isAdding}
+                      className="md:col-span-2 py-2.5 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isAdding ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Adding...
+                        </>
+                      ) : (
+                        'Add to Fleet'
+                      )}
+                    </button>
+                  </form>
+                </section>
+              )}
 
               {/* List Fleet */}
               <section>
@@ -208,23 +210,27 @@ const FleetModal: React.FC<FleetModalProps> = ({
                             <span className={`text-[10px] font-bold ${car.status === 'active' ? 'text-emerald-600' : 'text-rose-600'}`}>
                               {car.status === 'active' ? 'ONLINE' : 'OFFLINE'}
                             </span>
-                            <button
-                              onClick={() => handleToggle(car.id, car.status === 'active')}
-                              className={`w-10 h-5 rounded-full relative transition-colors ${
-                                car.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'
-                              }`}
-                            >
-                              <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${
-                                car.status === 'active' ? 'left-6' : 'left-1'
-                              }`} />
-                            </button>
+                            {!currentStaff && (
+                              <button
+                                onClick={() => handleToggle(car.id, car.status === 'active')}
+                                className={`w-10 h-5 rounded-full relative transition-colors ${
+                                  car.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'
+                                }`}
+                              >
+                                <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${
+                                  car.status === 'active' ? 'left-6' : 'left-1'
+                                }`} />
+                              </button>
+                            )}
                           </div>
-                          <button 
-                            onClick={() => onDeleteCar(car.id)}
-                            className="text-slate-300 hover:text-red-500 transition-colors p-1"
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                          </button>
+                          {!currentStaff && (
+                            <button 
+                              onClick={() => onDeleteCar(car.id)}
+                              className="text-slate-300 hover:text-red-500 transition-colors p-1"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>

@@ -246,9 +246,9 @@ export default function EditAgreement() {
       const newFiles = Array.from(e.target.files);
       const totalCount = existingReceipts.length + paymentReceipts.length + newFiles.length;
       
-      if (totalCount > 3) {
-        alert('Total receipts (existing + new) cannot exceed 3.');
-        const allowedNewCount = 3 - (existingReceipts.length + paymentReceipts.length);
+      if (totalCount > 5) {
+        alert('Total receipts (existing + new) cannot exceed 5.');
+        const allowedNewCount = 5 - (existingReceipts.length + paymentReceipts.length);
         if (allowedNewCount <= 0) {
           e.target.value = '';
           return;

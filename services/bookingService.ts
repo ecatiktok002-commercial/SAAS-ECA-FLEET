@@ -92,7 +92,7 @@ export const suggestUpgrade = (
   for (let i = currentTierIndex + 1; i < tiers.length; i++) {
     const targetTier = tiers[i];
     // Find cars in this tier
-    const potentialUpgrades = cars.filter(c => c.type === targetTier);
+    const potentialUpgrades = cars.filter(c => c.type === targetTier && c.status === 'active');
     
     // Check if any car in this tier is free
     for (const car of potentialUpgrades) {
@@ -225,6 +225,7 @@ export const getAvailableCars = (date: Date, bookings: Booking[], cars: Car[]): 
   const checkEnd = checkStart + (1 * 60 * 60 * 1000); 
 
   return cars.filter(car => {
+    if (car.status !== 'active') return false;
     const carBookings = bookings.filter(b => b.car_id === car.id);
     const hasOverlap = carBookings.some(b => {
       const bStart = parseBookingDate(b.start_date, b.pickup_time);

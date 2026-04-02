@@ -249,9 +249,9 @@ export default function CreateAgreement() {
       const newFiles = Array.from(e.target.files);
       setPaymentReceipts(prev => {
         const totalCount = prev.length + newFiles.length;
-        if (totalCount > 3) {
-          alert('You can only upload a maximum of 3 receipts.');
-          const allowedNewCount = 3 - prev.length;
+        if (totalCount > 5) {
+          alert('You can only upload a maximum of 5 receipts.');
+          const allowedNewCount = 5 - prev.length;
           if (allowedNewCount <= 0) return prev;
           return [...prev, ...newFiles.slice(0, allowedNewCount)];
         }

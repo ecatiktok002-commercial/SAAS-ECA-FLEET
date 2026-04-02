@@ -136,7 +136,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
     const map: Record<string, number> = {};
 
     uniqueModels.forEach(model => {
-      const modelCars = cars.filter(c => c.name.trim() === model);
+      const modelCars = cars.filter(c => c.name.trim() === model && c.status === 'active');
       const available = modelCars.filter(car => {
          const [startDate, pickupTime] = selectedDateTimeStr.split('T');
          const bookingData = { 
