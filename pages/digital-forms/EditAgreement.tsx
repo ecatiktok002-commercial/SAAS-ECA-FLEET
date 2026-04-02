@@ -711,7 +711,7 @@ export default function EditAgreement() {
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Payment Receipts (Max 3)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Payment Receipts (Max 5)</label>
                 
                 <div className="space-y-4">
                   {existingReceipts.length > 0 && (
@@ -803,7 +803,7 @@ export default function EditAgreement() {
                           </label>
                           <p className="pl-1">or drag and drop</p>
                         </div>
-                        <p className="text-xs text-slate-500">PNG, JPG, PDF up to 10MB (Max 3 total)</p>
+                        <p className="text-xs text-slate-500">PNG, JPG, PDF up to 10MB (Max 5 total)</p>
                       </div>
                     </div>
                   )}

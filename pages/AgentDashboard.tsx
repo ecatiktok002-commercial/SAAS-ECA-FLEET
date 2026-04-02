@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/apiService';
@@ -16,6 +16,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
   ResponsiveContainer, Cell 
 } from 'recharts';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 
 interface PendingDelivery {
   id: string;
@@ -33,28 +35,7 @@ interface OverdueReturn {
 
 const AgentDashboard: React.FC = () => {
   const { subscriberId, userId, userUid } = useAuth();
-  
-  const [stats, setStats] = useState({
-    salesToday: 0,
-    salesThisWeek: 0,
-    salesThisMonth: 0,
-    idleVehicles: 0,
-  });
-  
-  const [pendingDeliveries, setPendingDeliveries] = useState<PendingDelivery[]>([]);
-  const [overdueReturns, setOverdueReturns] = useState<OverdueReturn[]>([]);
-  const [events, setEvents] = useState<MarketingEvent[]>([]);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [currentStaff, setCurrentStaff] = useState<any>(null);
-  const [dailyCommissions, setDailyCommissions] = useState<{ date: string, amount: number }[]>([]);
-  const [totalEarnedToday, setTotalEarnedToday] = useState(0);
-  const [lastMonthEarnings, setLastMonthEarnings] = useState(0);
-  const [lifetimeEarnings, setLifetimeEarnings] = useState(0);
-  const [recentAgreements, setRecentAgreements] = useState<Agreement[]>([]);
-  const [logisticCredits, setLogisticCredits] = useState<any[]>([]);
-  
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   
   const [confirmReturnId, setConfirmReturnId] = useState<string | null>(null);
   const [isConfirmingReturn, setIsConfirmingReturn] = useState(false);
@@ -64,239 +45,239 @@ const AgentDashboard: React.FC = () => {
     currency: 'MYR',
   });
 
-  useEffect(() => {
-    if (subscriberId) {
-      fetchDashboardData();
-    }
-  }, [subscriberId, userId, userUid]);
+  const now = getNowMYT();
+  const mytDate = utcToMyt(now);
+  
+  // Fetch data for the last 3 months to support the 12-week chart
+  const startDateObj = new Date(mytDate);
+  startDateObj.setMonth(startDateObj.getMonth() - 3);
+  startDateObj.setDate(1);
+  const startDateStr = startDateObj.toISOString();
+  
+  // End date is end of current month
+  const endDateObj = new Date(mytDate.getFullYear(), mytDate.getMonth() + 1, 0, 23, 59, 59, 999);
+  const endDateStr = endDateObj.toISOString();
 
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  const { data, isLoading: loading, error: queryError } = useQuery({
+    queryKey: ['agentDashboard', subscriberId, userId, userUid, startDateStr, endDateStr],
+    queryFn: async () => {
+      if (!subscriberId) throw new Error('No subscriber ID');
       
       const agentId = userId || undefined;
       const createdBy = ([userUid, userId].filter(Boolean) as string[]);
 
-      const now = getNowMYT();
-      const mytDate = utcToMyt(now);
-      
-      // Fetch data for the last 3 months to support the 12-week chart
-      const startDateObj = new Date(mytDate);
-      startDateObj.setMonth(startDateObj.getMonth() - 3);
-      startDateObj.setDate(1);
-      const startDateStr = startDateObj.toISOString();
-      
-      // End date is end of current month
-      const endDateObj = new Date(mytDate.getFullYear(), mytDate.getMonth() + 1, 0, 23, 59, 59, 999);
-      const endDateStr = endDateObj.toISOString();
-
       const [allBookings, cars, agreements, marketingEvents, members, staffMembers] = await Promise.all([
-        apiService.getBookings(subscriberId!, startDateStr, endDateStr),
-        apiService.getCars(subscriberId!),
-        apiService.getAgreements(subscriberId!, agentId, createdBy, startDateStr, endDateStr),
-        apiService.getMarketingEvents(subscriberId!),
-        apiService.getMembers(subscriberId!),
-        apiService.getStaffMembers(subscriberId!)
+        apiService.getBookings(subscriberId, startDateStr, endDateStr),
+        apiService.getCars(subscriberId),
+        apiService.getAgreements(subscriberId, agentId, createdBy, startDateStr, endDateStr),
+        apiService.getMarketingEvents(subscriberId),
+        apiService.getMembers(subscriberId),
+        apiService.getStaffMembers(subscriberId)
       ]);
 
+      let staff = null;
+      let logisticCredits: any[] = [];
       if (userUid) {
-        const staff = staffMembers.find(s => s.staff_uid === userUid);
-        setCurrentStaff(staff || null);
-        
+        staff = staffMembers.find(s => s.staff_uid === userUid) || null;
         if (staff) {
-          const credits = await apiService.getLogisticCredits(staff.id, subscriberId!);
-          setLogisticCredits(credits);
+          logisticCredits = await apiService.getLogisticCredits(staff.id, subscriberId);
         }
       }
 
-      const todayStr = format(mytDate, 'yyyy-MM-dd');
+      return { allBookings, cars, agreements, marketingEvents, members, staff, logisticCredits };
+    },
+    enabled: !!subscriberId,
+  });
+
+  const error = queryError ? queryError.message : null;
+
+  const dashboardData = useMemo(() => {
+    if (!data) return null;
+
+    const { allBookings, cars, agreements, marketingEvents, members, staff: currentStaff, logisticCredits } = data;
+
+    const todayStr = format(mytDate, 'yyyy-MM-dd');
+    
+    const startOfWeek = new Date(mytDate);
+    startOfWeek.setDate(mytDate.getDate() - mytDate.getDay());
+    const startOfWeekStr = format(startOfWeek, 'yyyy-MM-dd');
+    
+    const startOfMonth = new Date(mytDate.getFullYear(), mytDate.getMonth(), 1);
+    const startOfMonthStr = format(startOfMonth, 'yyyy-MM-dd');
+
+    const lastMonth = new Date(mytDate.getFullYear(), mytDate.getMonth() - 1, 1);
+    const lastMonthKey = format(lastMonth, 'yyyy-MM');
+    let lastMonthEarnings = 0;
+
+    // 1. Sales Metrics (Completed/Signed Agreements)
+    const completedAgreements = agreements.filter(a => {
+      const status = a.status?.toLowerCase().trim();
+      return status === 'completed' || (status === 'signed' && !!a.payment_receipt);
+    });
+    
+    let salesToday = 0;
+    let salesThisWeek = 0;
+    let salesThisMonth = 0;
+    
+    completedAgreements.forEach(a => {
+      const createdDate = a.created_at.split('T')[0];
+      const price = Number(a.total_price) || 0;
+      if (createdDate === todayStr) salesToday += price;
+      if (createdDate >= startOfWeekStr) salesThisWeek += price;
+      if (createdDate >= startOfMonthStr) salesThisMonth += price;
+    });
+
+    // 2. Idle Vehicles
+    const activeCars = cars.filter(c => c.status === 'active');
+    const carsOnRentToday = allBookings.filter(b => {
+      const start = utcToMyt(parseBookingDate(b.start_date, b.pickup_time));
+      const end = b.end_time ? utcToMyt(b.end_time) : new Date(start.getTime() + b.duration_days * 24 * 60 * 60 * 1000);
+      return start <= now && end >= now && b.status !== 'cancelled';
+    }).map(b => b.car_id);
+    
+    const uniqueCarsOnRent = new Set(carsOnRentToday);
+    const idleVehicles = activeCars.length - uniqueCarsOnRent.size;
+
+    // 3. Pending Deliveries & Overdue Returns
+    const pending: PendingDelivery[] = [];
+    const overdue: OverdueReturn[] = [];
+
+    const filteredBookings = allBookings.filter(b => b.agent_id === userId || b.created_by === userUid || b.created_by === userId);
+
+    filteredBookings.forEach(b => {
+      if (b.status === 'cancelled') return;
       
-      const startOfWeek = new Date(mytDate);
-      startOfWeek.setDate(mytDate.getDate() - mytDate.getDay());
-      const startOfWeekStr = format(startOfWeek, 'yyyy-MM-dd');
+      const startMs = parseBookingDate(b.start_date, b.pickup_time);
+      const endMs = b.end_time ? new Date(b.end_time).getTime() : startMs + b.duration_days * 24 * 60 * 60 * 1000;
+      const car = cars.find(c => c.id === b.car_id);
+      const member = members.find(m => m.id === b.member_id);
       
-      const startOfMonth = new Date(mytDate.getFullYear(), mytDate.getMonth(), 1);
-      const startOfMonthStr = format(startOfMonth, 'yyyy-MM-dd');
-
-      const lastMonth = new Date(mytDate.getFullYear(), mytDate.getMonth() - 1, 1);
-      const lastMonthKey = format(lastMonth, 'yyyy-MM');
-      let lastMonthEarnings = 0;
-
-      // 1. Sales Metrics (Completed/Signed Agreements)
-      const completedAgreements = agreements.filter(a => {
-        const status = a.status?.toLowerCase().trim();
-        return status === 'completed' || (status === 'signed' && !!a.payment_receipt);
-      });
+      if (formatInMYT(startMs, 'yyyy-MM-dd') === todayStr && startMs > now.getTime()) {
+        pending.push({
+          id: b.id,
+          carPlate: car?.plate || 'Unknown',
+          customerName: member?.name || 'Unknown',
+          pickupTime: new Date(startMs)
+        });
+      }
       
-      let salesToday = 0;
-      let salesThisWeek = 0;
-      let salesThisMonth = 0;
-      
-      completedAgreements.forEach(a => {
-        const createdDate = a.created_at.split('T')[0];
-        const price = Number(a.total_price) || 0;
-        if (createdDate === todayStr) salesToday += price;
-        if (createdDate >= startOfWeekStr) salesThisWeek += price;
-        if (createdDate >= startOfMonthStr) salesThisMonth += price;
-      });
+      if (now.getTime() > endMs && b.status !== 'completed') {
+        overdue.push({
+          id: b.id,
+          carPlate: car?.plate || 'Unknown',
+          customerName: member?.name || 'Unknown',
+          returnTime: new Date(endMs)
+        });
+      }
+    });
 
-      // 2. Idle Vehicles
-      const activeCars = cars.filter(c => c.status === 'active');
-      const carsOnRentToday = allBookings.filter(b => {
-        const start = utcToMyt(parseBookingDate(b.start_date, b.pickup_time));
-        const end = b.end_time ? utcToMyt(b.end_time) : new Date(start.getTime() + b.duration_days * 24 * 60 * 60 * 1000);
-        return start <= now && end >= now && b.status !== 'cancelled';
-      }).map(b => b.car_id);
-      
-      const uniqueCarsOnRent = new Set(carsOnRentToday);
-      const idleVehicles = activeCars.length - uniqueCarsOnRent.size;
+    pending.sort((a, b) => a.pickupTime.getTime() - b.pickupTime.getTime());
+    overdue.sort((a, b) => a.returnTime.getTime() - b.returnTime.getTime());
 
-      setStats({
-        salesToday,
-        salesThisWeek,
-        salesThisMonth,
-        idleVehicles: Math.max(0, idleVehicles)
-      });
-
-      // 3. Pending Deliveries & Overdue Returns
-      const pending: PendingDelivery[] = [];
-      const overdue: OverdueReturn[] = [];
-
-      const filteredBookings = allBookings.filter(b => b.agent_id === userId || b.created_by === userUid || b.created_by === userId);
-
-      filteredBookings.forEach(b => {
-        if (b.status === 'cancelled') return;
-        
-        const startMs = parseBookingDate(b.start_date, b.pickup_time);
-        const endMs = b.end_time ? new Date(b.end_time).getTime() : startMs + b.duration_days * 24 * 60 * 60 * 1000;
-        const car = cars.find(c => c.id === b.car_id);
-        const member = members.find(m => m.id === b.member_id);
-        
-        if (formatInMYT(startMs, 'yyyy-MM-dd') === todayStr && startMs > now.getTime()) {
-          pending.push({
-            id: b.id,
-            carPlate: car?.plate || 'Unknown',
-            customerName: member?.name || 'Unknown',
-            pickupTime: new Date(startMs)
-          });
-        }
-        
-        if (now.getTime() > endMs && b.status !== 'completed') {
-          overdue.push({
-            id: b.id,
-            carPlate: car?.plate || 'Unknown',
-            customerName: member?.name || 'Unknown',
-            returnTime: new Date(endMs)
-          });
-        }
-      });
-
-      pending.sort((a, b) => a.pickupTime.getTime() - b.pickupTime.getTime());
-      overdue.sort((a, b) => a.returnTime.getTime() - b.returnTime.getTime());
-
-      setPendingDeliveries(pending);
-      setOverdueReturns(overdue);
-      setEvents(marketingEvents);
-      setBookings(allBookings);
-      setRecentAgreements(completedAgreements.slice(0, 5));
-
-      // 4. Agent Specific Metrics (Earnings & Chart)
-      const getCommissionForAmount = (a: Agreement, runningTotal: number) => {
-        const totalPrice = Number(a.total_price) || 0;
-        if (a.commission_earned !== undefined && a.commission_earned !== null) {
-          return Number(a.commission_earned);
-        }
-        if (currentStaff?.commission_rate) {
-          return totalPrice * (Number(currentStaff.commission_rate) / 100);
-        }
-        const tierOverride = currentStaff?.commission_tier_override || 'auto';
-        if (tierOverride !== 'auto') {
-          const rate = tierOverride === 'premium' ? 0.20 : tierOverride === 'prestige' ? 0.25 : 0.30;
-          return totalPrice * rate;
-        }
-        const getTotalCommission = (total: number) => {
-          if (total <= 5000) return total * 0.20;
-          if (total <= 8000) return (5000 * 0.20) + ((total - 5000) * 0.25);
-          return (5000 * 0.20) + (3000 * 0.25) + ((total - 8000) * 0.30);
-        };
-        return getTotalCommission(runningTotal + totalPrice) - getTotalCommission(runningTotal);
+    // 4. Agent Specific Metrics (Earnings & Chart)
+    const getCommissionForAmount = (a: Agreement, runningTotal: number) => {
+      const totalPrice = Number(a.total_price) || 0;
+      if (a.commission_earned !== undefined && a.commission_earned !== null) {
+        return Number(a.commission_earned);
+      }
+      if (currentStaff?.commission_rate) {
+        return totalPrice * (Number(currentStaff.commission_rate) / 100);
+      }
+      const tierOverride = currentStaff?.commission_tier_override || 'auto';
+      if (tierOverride !== 'auto') {
+        const rate = tierOverride === 'premium' ? 0.20 : tierOverride === 'prestige' ? 0.25 : 0.30;
+        return totalPrice * rate;
+      }
+      const getTotalCommission = (total: number) => {
+        if (total <= 5000) return total * 0.20;
+        if (total <= 8000) return (5000 * 0.20) + ((total - 5000) * 0.25);
+        return (5000 * 0.20) + (3000 * 0.25) + ((total - 8000) * 0.30);
       };
+      return getTotalCommission(runningTotal + totalPrice) - getTotalCommission(runningTotal);
+    };
 
-      const weeklyData: { [key: string]: number } = {};
-      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      
-      for (let i = 12; i >= 0; i--) {
-        const d = getNowMYT();
-        d.setDate(d.getDate() - (i * 7));
-        const weekStart = new Date(d);
-        weekStart.setDate(d.getDate() - d.getDay());
+    const weeklyData: { [key: string]: number } = {};
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    
+    for (let i = 12; i >= 0; i--) {
+      const d = getNowMYT();
+      d.setDate(d.getDate() - (i * 7));
+      const weekStart = new Date(d);
+      weekStart.setDate(d.getDate() - d.getDay());
+      const weekNum = Math.ceil(weekStart.getDate() / 7);
+      const monthName = monthNames[weekStart.getMonth()];
+      const label = `W${weekNum} - ${monthName}`;
+      weeklyData[label] = 0;
+    }
+
+    const monthGroups: { [key: string]: Agreement[] } = {};
+    completedAgreements.forEach(a => {
+      const monthKey = a.created_at.substring(0, 7);
+      if (!monthGroups[monthKey]) monthGroups[monthKey] = [];
+      monthGroups[monthKey].push(a);
+    });
+
+    let earnedToday = 0;
+    let lifetime = 0;
+    
+    Object.keys(monthGroups).forEach(monthKey => {
+      const monthAgreements = monthGroups[monthKey].sort((a, b) => 
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+
+      let runningTotal = 0;
+      monthAgreements.forEach(a => {
+        const commission = Number(getCommissionForAmount(a, runningTotal)) || 0;
+        runningTotal += Number(a.total_price) || 0;
+        lifetime += commission;
+
+        if (monthKey === lastMonthKey) {
+          lastMonthEarnings += commission;
+        }
+
+        const dateStr = a.created_at.split('T')[0];
+        if (dateStr === todayStr) {
+          earnedToday += commission;
+        }
+
+        const date = new Date(a.created_at);
+        const weekStart = new Date(date);
+        weekStart.setDate(date.getDate() - date.getDay());
         const weekNum = Math.ceil(weekStart.getDate() / 7);
         const monthName = monthNames[weekStart.getMonth()];
         const label = `W${weekNum} - ${monthName}`;
-        weeklyData[label] = 0;
-      }
-
-      const monthGroups: { [key: string]: Agreement[] } = {};
-      completedAgreements.forEach(a => {
-        const monthKey = a.created_at.substring(0, 7);
-        if (!monthGroups[monthKey]) monthGroups[monthKey] = [];
-        monthGroups[monthKey].push(a);
+        
+        if (weeklyData[label] !== undefined) {
+          weeklyData[label] += commission;
+        }
       });
+    });
 
-      let earnedToday = 0;
-      let lifetime = 0;
-      
-      Object.keys(monthGroups).forEach(monthKey => {
-        const monthAgreements = monthGroups[monthKey].sort((a, b) => 
-          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        );
+    const chartData = Object.entries(weeklyData).map(([label, amount]) => ({
+      date: label,
+      amount: Number(Number(amount || 0).toFixed(2))
+    }));
 
-        let runningTotal = 0;
-        monthAgreements.forEach(a => {
-          const commission = Number(getCommissionForAmount(a, runningTotal)) || 0;
-          runningTotal += Number(a.total_price) || 0;
-          lifetime += commission;
-
-          if (monthKey === lastMonthKey) {
-            lastMonthEarnings += commission;
-          }
-
-          const dateStr = a.created_at.split('T')[0];
-          if (dateStr === todayStr) {
-            earnedToday += commission;
-          }
-
-          const date = new Date(a.created_at);
-          const weekStart = new Date(date);
-          weekStart.setDate(date.getDate() - date.getDay());
-          const weekNum = Math.ceil(weekStart.getDate() / 7);
-          const monthName = monthNames[weekStart.getMonth()];
-          const label = `W${weekNum} - ${monthName}`;
-          
-          if (weeklyData[label] !== undefined) {
-            weeklyData[label] += commission;
-          }
-        });
-      });
-
-      const chartData = Object.entries(weeklyData).map(([label, amount]) => ({
-        date: label,
-        amount: Number(Number(amount || 0).toFixed(2))
-      }));
-
-      setDailyCommissions(chartData);
-      setTotalEarnedToday(earnedToday);
-      setLastMonthEarnings(lastMonthEarnings);
-      setLifetimeEarnings(lifetime);
-
-    } catch (err: any) {
-      console.error('Failed to fetch dashboard data:', err);
-      setError(err.message || 'An unexpected error occurred while loading dashboard data.');
-    } finally {
-      setLoading(false);
-    }
-  };
+    return {
+      stats: {
+        salesToday,
+        salesThisWeek,
+        salesThisMonth,
+        idleVehicles: Math.max(0, idleVehicles),
+      },
+      pendingDeliveries: pending.slice(0, 5),
+      overdueReturns: overdue.slice(0, 5),
+      events: marketingEvents,
+      bookings: allBookings,
+      currentStaff,
+      dailyCommissions: chartData,
+      totalEarnedToday: earnedToday,
+      lastMonthEarnings,
+      lifetimeEarnings: lifetime,
+      recentAgreements: completedAgreements.slice(0, 5),
+      logisticCredits
+    };
+  }, [data, mytDate, now]);
 
   const handleConfirmReturn = async (id: string) => {
     try {
@@ -304,10 +285,11 @@ const AgentDashboard: React.FC = () => {
       setIsConfirmingReturn(true);
       await apiService.updateBookingStatus(id, subscriberId, 'completed');
       setConfirmReturnId(null);
-      fetchDashboardData();
+      queryClient.invalidateQueries({ queryKey: ['agentDashboard', subscriberId] });
+      toast.success('Vehicle marked as returned');
     } catch (err) {
       console.error('Failed to confirm return:', err);
-      alert('Failed to confirm return. Please try again.');
+      toast.error('Failed to confirm return. Please try again.');
     } finally {
       setIsConfirmingReturn(false);
     }
@@ -334,7 +316,7 @@ const AgentDashboard: React.FC = () => {
     );
   }
 
-  if (error) {
+  if (error || !dashboardData) {
     return (
       <div className="p-8 max-w-7xl mx-auto">
         <div className="bg-rose-50 border border-rose-200 rounded-2xl p-8 text-center max-w-2xl mx-auto shadow-sm">
@@ -342,9 +324,9 @@ const AgentDashboard: React.FC = () => {
             <AlertTriangle className="w-8 h-8" />
           </div>
           <h2 className="text-2xl font-bold text-rose-900 mb-3">Unable to Connect to Database</h2>
-          <p className="text-rose-700 mb-6 leading-relaxed">{error}</p>
+          <p className="text-rose-700 mb-6 leading-relaxed">{error || 'Unknown error'}</p>
           <button 
-            onClick={fetchDashboardData}
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['agentDashboard', subscriberId] })}
             className="px-6 py-2.5 bg-rose-600 text-white rounded-lg font-medium hover:bg-rose-700 transition-colors shadow-sm"
           >
             Retry Connection
@@ -353,6 +335,8 @@ const AgentDashboard: React.FC = () => {
       </div>
     );
   }
+
+  const { stats, pendingDeliveries, overdueReturns, events, bookings, currentStaff, dailyCommissions, totalEarnedToday, lastMonthEarnings, lifetimeEarnings, recentAgreements, logisticCredits } = dashboardData;
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">

@@ -2319,52 +2319,74 @@ export const apiService = {
     });
   },
 
-  async getCustomersCRM(subscriberId: string): Promise<any[]> {
+  async getCustomersCRM(subscriberId: string, options?: { page?: number, pageSize?: number, searchTerm?: string }): Promise<{ data: any[], count: number }> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
       let query = supabase
         .from('customer_crm_view')
-        .select('*');
+        .select('id, full_name, phone_number, ic_passport, total_bookings, last_rental_date, acquired_by_agent, status', { count: 'exact' });
       
       query = applySubscriberFilter(query, subscriberId);
 
-      const { data, error } = await query;
+      if (options?.searchTerm) {
+        const term = `%${options.searchTerm}%`;
+        query = query.or(`full_name.ilike.${term},ic_passport.ilike.${term},phone_number.ilike.${term}`);
+      }
+
+      // Default sort
+      query = query.order('last_rental_date', { ascending: false, nullsFirst: false });
+
+      if (options?.page && options?.pageSize) {
+        const from = (options.page - 1) * options.pageSize;
+        const to = from + options.pageSize - 1;
+        query = query.range(from, to);
+      }
+
+      const { data, error, count } = await query;
       
       if (error) {
         logSupabaseError('getCustomersCRM', error);
         
         // Fallback to raw customers table if view is missing or failing
-        // This ensures the CRM list is not empty even if the view has issues
         let rawQuery = supabase
           .from('customers')
-          .select('*');
+          .select('id, full_name, phone_number, ic_passport, acquired_by_agent', { count: 'exact' });
         
         rawQuery = applySubscriberFilter(rawQuery, subscriberId);
 
-        const { data: rawData, error: rawError } = await rawQuery;
+        if (options?.searchTerm) {
+          const term = `%${options.searchTerm}%`;
+          rawQuery = rawQuery.or(`full_name.ilike.${term},ic_passport.ilike.${term},phone_number.ilike.${term}`);
+        }
+
+        if (options?.page && options?.pageSize) {
+          const from = (options.page - 1) * options.pageSize;
+          const to = from + options.pageSize - 1;
+          rawQuery = rawQuery.range(from, to);
+        }
+
+        const { data: rawData, error: rawError, count: rawCount } = await rawQuery;
           
         if (rawError) {
           logSupabaseError('getCustomersCRM_fallback', rawError);
-          return [];
+          return { data: [], count: 0 };
         }
         
         // Map raw data to match the view's expected structure
-        return (rawData || []).map(c => ({
+        const mappedData = (rawData || []).map(c => ({
           id: c.id,
-          subscriber_id: c.subscriber_id,
           full_name: c.full_name,
           phone_number: c.phone_number,
           ic_passport: c.ic_passport,
-          billing_address: c.billing_address,
-          emergency_contact_name: c.emergency_contact_name,
-          emergency_contact_relation: c.emergency_contact_relation,
           acquired_by_agent: c.acquired_by_agent,
           total_bookings: 0, // Fallback default
           last_rental_date: null, // Fallback default
           status: 'New' // Fallback default
         }));
+
+        return { data: mappedData, count: rawCount || 0 };
       }
-      return data || [];
+      return { data: data || [], count: count || 0 };
     });
   },
 

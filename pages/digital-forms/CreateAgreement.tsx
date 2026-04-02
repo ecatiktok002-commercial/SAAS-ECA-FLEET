@@ -654,7 +654,7 @@ export default function CreateAgreement() {
                       </label>
                       <p className="pl-1">or drag and drop</p>
                     </div>
-                    <p className="text-xs text-slate-500">PNG, JPG, PDF up to 10MB (Max 3 files)</p>
+                    <p className="text-xs text-slate-500">PNG, JPG, PDF up to 10MB (Max 5 files)</p>
                     {paymentReceipts.length > 0 && (
                       <div className="mt-4 space-y-2">
                         {paymentReceipts.map((file, index) => (

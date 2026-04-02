@@ -1,25 +1,35 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
-import AdminDashboard from './pages/AdminDashboard';
-import AgentDashboard from './pages/AgentDashboard';
-import CalendarPage from './pages/CalendarPage';
 import LoginScreen from './components/LoginScreen';
-import StaffManagementPage from './pages/StaffManagementPage';
-import DigitalFormPage from './pages/DigitalFormPage';
-import CustomersPage from './pages/CustomersPage';
-import FleetGuardianPage from './pages/FleetGuardianPage';
-import AuditPayoutManagement from './pages/AuditPayoutManagement';
-import SubscriberManager from './pages/SubscriberManager';
-import SignAgreement from './pages/digital-forms/SignAgreement';
 import ConfigError from './components/ConfigError';
 import SupabaseErrorBanner from './components/SupabaseErrorBanner';
 import { isConfigured } from './services/supabase';
 
-import UpgradePlanPage from './pages/UpgradePlanPage';
-import PublicHandoverPage from './pages/PublicHandoverPage';
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const AgentDashboard = lazy(() => import('./pages/AgentDashboard'));
+const CalendarPage = lazy(() => import('./pages/CalendarPage'));
+const StaffManagementPage = lazy(() => import('./pages/StaffManagementPage'));
+const DigitalFormPage = lazy(() => import('./pages/DigitalFormPage'));
+const CustomersPage = lazy(() => import('./pages/CustomersPage'));
+const FleetGuardianPage = lazy(() => import('./pages/FleetGuardianPage'));
+const AuditPayoutManagement = lazy(() => import('./pages/AuditPayoutManagement'));
+const SubscriberManager = lazy(() => import('./pages/SubscriberManager'));
+const SignAgreement = lazy(() => import('./pages/digital-forms/SignAgreement'));
+const UpgradePlanPage = lazy(() => import('./pages/UpgradePlanPage'));
+const PublicHandoverPage = lazy(() => import('./pages/PublicHandoverPage'));
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 // A simple gate to handle Tier/Role redirects
 const StrictTierGate: React.FC<{ children: React.ReactNode; allowedTiers: number[]; allowStaff?: boolean }> = ({ children, allowedTiers, allowStaff = true }) => {
@@ -67,13 +77,15 @@ const App: React.FC = () => {
   }
 
   return (
-    <AuthProvider>
-      <Toaster position="bottom-right" />
-      <Router>
-        <AppRoutes />
-        <SupabaseErrorBanner />
-      </Router>
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <Toaster position="bottom-right" />
+        <Router>
+          <AppRoutes />
+          <SupabaseErrorBanner />
+        </Router>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 };
 
@@ -99,78 +111,80 @@ const AppRoutes: React.FC = () => {
   const isSuperAdmin = subscriberId === 'superadmin';
 
   return (
-    <Routes>
-      <Route path="/login" element={<LoginScreen />} />
-      <Route path="/forms/sign/:id" element={<SignAgreement />} />
-      <Route path="/handover/:bookingId" element={<PublicHandoverPage />} />
-      
-      <Route path="/" element={<Layout />}>
-        {/* Dashboard: Tier 3 for Admin, Tier 1/3 for Staff */}
-        <Route index element={
-          isSuperAdmin ? <Navigate to="/subscribers" replace /> : 
-          <IndexRedirect />
-        } />
-
-        <Route path="upgrade" element={<UpgradePlanPage />} />
-
-        <Route path="dashboard" element={
-          <StrictTierGate allowedTiers={[3]} allowStaff={false}>
-            <AdminDashboard />
-          </StrictTierGate>
-        } />
-
-        <Route path="admin" element={<Navigate to="/dashboard" replace />} />
-        <Route path="admin-dashboard" element={<Navigate to="/dashboard" replace />} />
-
-        <Route path="agent-dashboard" element={
-          <StrictTierGate allowedTiers={[3]}>
-            <AgentDashboard />
-          </StrictTierGate>
-        } />
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">Loading Page...</div>}>
+      <Routes>
+        <Route path="/login" element={<LoginScreen />} />
+        <Route path="/forms/sign/:id" element={<SignAgreement />} />
+        <Route path="/handover/:bookingId" element={<PublicHandoverPage />} />
         
-        {/* Digital Forms: Tier 1 and Tier 3 */}
-        <Route path="forms/*" element={
-          <StrictTierGate allowedTiers={[1, 3]}><DigitalFormPage /></StrictTierGate>
-        } />
+        <Route path="/" element={<Layout />}>
+          {/* Dashboard: Tier 3 for Admin, Tier 1/3 for Staff */}
+          <Route index element={
+            isSuperAdmin ? <Navigate to="/subscribers" replace /> : 
+            <IndexRedirect />
+          } />
 
-        {/* Audit & Payout: Tier 3 only */}
-        <Route path="audit" element={
-          <StrictTierGate allowedTiers={[3]} allowStaff={false}><AuditPayoutManagement /></StrictTierGate>
-        } />
+          <Route path="upgrade" element={<UpgradePlanPage />} />
+
+          <Route path="dashboard" element={
+            <StrictTierGate allowedTiers={[3]} allowStaff={false}>
+              <AdminDashboard />
+            </StrictTierGate>
+          } />
+
+          <Route path="admin" element={<Navigate to="/dashboard" replace />} />
+          <Route path="admin-dashboard" element={<Navigate to="/dashboard" replace />} />
+
+          <Route path="agent-dashboard" element={
+            <StrictTierGate allowedTiers={[3]}>
+              <AgentDashboard />
+            </StrictTierGate>
+          } />
+          
+          {/* Digital Forms: Tier 1 and Tier 3 */}
+          <Route path="forms/*" element={
+            <StrictTierGate allowedTiers={[1, 3]}><DigitalFormPage /></StrictTierGate>
+          } />
+
+          {/* Audit & Payout: Tier 3 only */}
+          <Route path="audit" element={
+            <StrictTierGate allowedTiers={[3]} allowStaff={false}><AuditPayoutManagement /></StrictTierGate>
+          } />
+          
+          {/* Customers: Tier 3 only */}
+          <Route path="customers" element={
+            <StrictTierGate allowedTiers={[3]} allowStaff={false}><CustomersPage /></StrictTierGate>
+          } />
+
+          {/* Calendar: Tier 2 and Tier 3 */}
+          <Route path="calendar" element={
+            <StrictTierGate allowedTiers={[2, 3]}><CalendarPage /></StrictTierGate>
+          } />
+
+          {/* Fleet Guardian: Tier 3 only */}
+          <Route path="fleet" element={
+            <StrictTierGate allowedTiers={[3]} allowStaff={false}><FleetGuardianPage /></StrictTierGate>
+          } />
+
+          {/* Vehicle Management: Tier 3 only */}
+          <Route path="vehicles" element={
+            <StrictTierGate allowedTiers={[3]} allowStaff={false}><FleetGuardianPage /></StrictTierGate>
+          } />
+
+          {/* Staff Management: All Tiers, but Admin only */}
+          <Route path="staff" element={
+            <StrictTierGate allowedTiers={[1, 2, 3]} allowStaff={false}><StaffManagementPage /></StrictTierGate>
+          } />
+          
+          {/* Subscribers: Superadmin only */}
+          <Route path="subscribers" element={
+            <StrictTierGate allowedTiers={[1, 2, 3]} allowStaff={false}><SubscriberManager /></StrictTierGate>
+          } />
+        </Route>
         
-        {/* Customers: Tier 3 only */}
-        <Route path="customers" element={
-          <StrictTierGate allowedTiers={[3]} allowStaff={false}><CustomersPage /></StrictTierGate>
-        } />
-
-        {/* Calendar: Tier 2 and Tier 3 */}
-        <Route path="calendar" element={
-          <StrictTierGate allowedTiers={[2, 3]}><CalendarPage /></StrictTierGate>
-        } />
-
-        {/* Fleet Guardian: Tier 3 only */}
-        <Route path="fleet" element={
-          <StrictTierGate allowedTiers={[3]} allowStaff={false}><FleetGuardianPage /></StrictTierGate>
-        } />
-
-        {/* Vehicle Management: Tier 3 only */}
-        <Route path="vehicles" element={
-          <StrictTierGate allowedTiers={[3]} allowStaff={false}><FleetGuardianPage /></StrictTierGate>
-        } />
-
-        {/* Staff Management: All Tiers, but Admin only */}
-        <Route path="staff" element={
-          <StrictTierGate allowedTiers={[1, 2, 3]} allowStaff={false}><StaffManagementPage /></StrictTierGate>
-        } />
-        
-        {/* Subscribers: Superadmin only */}
-        <Route path="subscribers" element={
-          <StrictTierGate allowedTiers={[1, 2, 3]} allowStaff={false}><SubscriberManager /></StrictTierGate>
-        } />
-      </Route>
-      
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 };
 

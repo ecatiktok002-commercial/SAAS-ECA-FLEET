@@ -6,6 +6,8 @@ import { formatInMYT, getNowMYT } from '../utils/dateUtils';
 import { apiService } from '../services/apiService';
 import { supabase } from '../services/supabase';
 import * as XLSX from 'xlsx';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 
 interface CustomerCRM {
   id: string;
@@ -20,107 +22,115 @@ interface CustomerCRM {
 
 const CustomersPage: React.FC = () => {
   const { subscriberId, staffRole, userId } = useAuth();
-  const [customersData, setCustomersData] = useState<CustomerCRM[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
+  const queryClient = useQueryClient();
+
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+      setCurrentPage(1); // Reset to page 1 on new search
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['customers', subscriberId, currentPage, debouncedSearchTerm],
+    queryFn: () => {
+      if (!subscriberId) return { data: [], count: 0 };
+      return apiService.getCustomersCRM(subscriberId, {
+        page: currentPage,
+        pageSize: itemsPerPage,
+        searchTerm: debouncedSearchTerm
+      });
+    },
+    enabled: !!subscriberId,
+  });
+
+  const customersData = data?.data || [];
+  const totalCount = data?.count || 0;
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const fetchData = async (showLoading = true) => {
-      if (!subscriberId) return;
-      if (showLoading) setIsLoading(true);
-      try {
-        const data = await apiService.getCustomersCRM(subscriberId);
-        if (isMounted) {
-          setCustomersData(data);
-        }
-      } catch (error) {
-        console.error('Error fetching customer CRM data:', error);
-      } finally {
-        if (isMounted && showLoading) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    fetchData();
-
     if (!subscriberId) return;
 
     // Set up real-time subscriptions for the underlying tables
     const channel = supabase.channel('customers-crm-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'customers', filter: `subscriber_id=eq.${subscriberId}` }, () => {
-        fetchData(false);
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'customers', 
+        filter: `subscriber_id=eq.${subscriberId}` 
+      }, (payload) => {
+        const updatedCustomer = payload.new;
+        
+        queryClient.setQueriesData(
+          { queryKey: ['customers', subscriberId] },
+          (oldData: any) => {
+            if (!oldData || !oldData.data) return oldData;
+            return {
+              ...oldData,
+              data: oldData.data.map((customer: any) => 
+                customer.id === updatedCustomer.id 
+                  ? { ...customer, ...updatedCustomer }
+                  : customer
+              )
+            };
+          }
+        );
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'customers', filter: `subscriber_id=eq.${subscriberId}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ['customers', subscriberId] });
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'customers', filter: `subscriber_id=eq.${subscriberId}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ['customers', subscriberId] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agreements', filter: `subscriber_id=eq.${subscriberId}` }, () => {
-        fetchData(false);
+        queryClient.invalidateQueries({ queryKey: ['customers', subscriberId] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'digital_forms', filter: `subscriber_id=eq.${subscriberId}` }, () => {
-        fetchData(false);
+        queryClient.invalidateQueries({ queryKey: ['customers', subscriberId] });
       })
       .subscribe();
 
     return () => {
-      isMounted = false;
       supabase.removeChannel(channel);
     };
-  }, [subscriberId]);
+  }, [subscriberId, queryClient]);
 
-  const filteredCustomers = useMemo(() => {
-    let result = [...customersData];
-
-    // Filter by search term
-    if (searchTerm) {
-      const lowerTerm = searchTerm.toLowerCase();
-      result = result.filter(c => 
-        c.full_name.toLowerCase().includes(lowerTerm) ||
-        (c.ic_passport && c.ic_passport.toLowerCase().includes(lowerTerm)) ||
-        (c.phone_number && c.phone_number.toLowerCase().includes(lowerTerm))
-      );
-    }
-
-    // Sort by last rental date (descending)
-    result.sort((a, b) => {
-      const dateA = a.last_rental_date ? new Date(a.last_rental_date).getTime() : 0;
-      const dateB = b.last_rental_date ? new Date(b.last_rental_date).getTime() : 0;
-      return dateB - dateA;
-    });
-
-    return result;
-  }, [customersData, searchTerm]);
-
-  // Reset to page 1 when search query changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm]);
-
-  const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
-  const currentCustomers = filteredCustomers.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  const exportToExcel = () => {
-    const dataToExport = filteredCustomers.map(c => ({
-      'Name': c.full_name,
-      'IC/Passport': c.ic_passport || 'N/A',
-      'Phone Number': c.phone_number || 'N/A',
-      'Total Bookings': c.total_bookings,
-      'Agent': c.acquired_by_agent || 'N/A',
-      'Status': c.status,
-      'Last Rental Date': c.last_rental_date ? formatInMYT(new Date(c.last_rental_date).getTime(), 'dd/MM/yyyy') : 'N/A'
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Customers');
+  const exportToExcel = async () => {
+    if (!subscriberId) return;
     
-    // Generate filename with date
-    const date = formatInMYT(getNowMYT(), 'yyyy-MM-dd');
-    XLSX.writeFile(workbook, `Customer_Database_${date}.xlsx`);
+    try {
+      toast.loading('Preparing export...', { id: 'export' });
+      // Fetch all customers for export
+      const allData = await apiService.getCustomersCRM(subscriberId, { searchTerm: debouncedSearchTerm });
+      
+      const dataToExport = allData.data.map(c => ({
+        'Name': c.full_name,
+        'IC/Passport': c.ic_passport || 'N/A',
+        'Phone Number': c.phone_number || 'N/A',
+        'Total Bookings': c.total_bookings,
+        'Agent': c.acquired_by_agent || 'N/A',
+        'Status': c.status,
+        'Last Rental Date': c.last_rental_date ? formatInMYT(new Date(c.last_rental_date).getTime(), 'dd/MM/yyyy') : 'N/A'
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Customers');
+      
+      // Generate filename with date
+      const date = formatInMYT(getNowMYT(), 'yyyy-MM-dd');
+      XLSX.writeFile(workbook, `Customer_Database_${date}.xlsx`);
+      toast.success('Export successful', { id: 'export' });
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Export failed', { id: 'export' });
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -139,7 +149,7 @@ const CustomersPage: React.FC = () => {
   };
 
   // Ensure 5 rows minimum
-  const displayRows = [...currentCustomers];
+  const displayRows = [...customersData];
   while (displayRows.length < 5 && !isLoading) {
     displayRows.push({
       id: `placeholder-${displayRows.length}`,
@@ -169,7 +179,7 @@ const CustomersPage: React.FC = () => {
           <div className="flex items-center gap-3 w-full md:w-auto">
             <button 
               onClick={exportToExcel}
-              disabled={isLoading || filteredCustomers.length === 0}
+              disabled={isLoading || totalCount === 0}
               className="flex items-center gap-2 px-4 py-2 bg-[#0F172A] hover:bg-slate-800 text-white rounded-lg text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700 shadow-lg"
             >
               <Download className="w-4 h-4" />
@@ -279,7 +289,7 @@ const CustomersPage: React.FC = () => {
           {totalPages > 1 && (
             <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div className="text-sm text-slate-500">
-                Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium">{Math.min(currentPage * itemsPerPage, filteredCustomers.length)}</span> of <span className="font-medium">{filteredCustomers.length}</span> results
+                Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium">{Math.min(currentPage * itemsPerPage, totalCount)}</span> of <span className="font-medium">{totalCount}</span> results
               </div>
               <div className="flex items-center gap-1">
                 <button
@@ -331,7 +341,7 @@ const CustomersPage: React.FC = () => {
 
           <div className="bg-slate-50 px-6 py-3 border-t border-slate-200 flex justify-between items-center">
             <p className="text-xs text-slate-500 font-medium">
-              Total {customersData.length} customers
+              Total {totalCount} customers
             </p>
             <p className="text-xs text-slate-400 italic">
               * Data isolated by Subscriber ID

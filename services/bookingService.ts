@@ -126,23 +126,25 @@ export const optimizeBookings = (bookings: Booking[], cars: Car[]): Booking[] =>
   const updates: Booking[] = [];
   const now = getNowMYT().getTime(); // System time to determine past vs future
   
-  // 1. Group cars by Model
-  const carsByModel: Record<string, Car[]> = {};
+  // 1. Group ALL cars by Model to find all bookings
+  const allCarsByModel: Record<string, Car[]> = {};
   cars.forEach(car => {
-    if (!carsByModel[car.name]) carsByModel[car.name] = [];
-    carsByModel[car.name].push(car);
+    if (!allCarsByModel[car.name]) allCarsByModel[car.name] = [];
+    allCarsByModel[car.name].push(car);
   });
 
   // 2. Process each model group
-  Object.keys(carsByModel).forEach(modelName => {
-    const modelCars = carsByModel[modelName];
-    // Get all bookings for this model
+  Object.keys(allCarsByModel).forEach(modelName => {
+    const allModelCars = allCarsByModel[modelName];
+    const activeModelCars = allModelCars.filter(c => c.status === 'active');
+    
+    // Get all bookings for this model (including those on offline cars)
     const modelBookings = bookings.filter(b => 
-      modelCars.some(c => c.id === b.car_id)
+      allModelCars.some(c => c.id === b.car_id)
     );
 
     // Split into Locked (Past/Ongoing) and Optimizable (Future)
-    // Locked: Start time < Now. These stay on their assigned car.
+    // Locked: Start time < Now. These stay on their assigned car (even if offline).
     // Optimizable: Start time >= Now. These can be shuffled.
     const lockedBookings = modelBookings.filter(b => parseBookingDate(b.start_date, b.pickup_time) < now);
     const optimizableBookings = modelBookings.filter(b => parseBookingDate(b.start_date, b.pickup_time) >= now);
@@ -154,7 +156,7 @@ export const optimizeBookings = (bookings: Booking[], cars: Car[]): Booking[] =>
     // Maps CarID -> Time when it becomes free (End of last locked booking)
     const carAvailability: Record<string, number> = {};
     
-    modelCars.forEach(c => {
+    activeModelCars.forEach(c => {
         // Find all locked bookings for this specific car
         const carLockedBookings = lockedBookings.filter(b => b.car_id === c.id);
         
@@ -180,7 +182,7 @@ export const optimizeBookings = (bookings: Booking[], cars: Car[]): Booking[] =>
       let minGap = Infinity;
 
       // Sort cars to ensure deterministic packing (e.g., always fill Plate A before Plate B)
-      const sortedCars = modelCars.sort((a, b) => a.plate.localeCompare(b.plate));
+      const sortedCars = activeModelCars.sort((a, b) => a.plate.localeCompare(b.plate));
 
       for (const car of sortedCars) {
         const lastEnd = carAvailability[car.id];

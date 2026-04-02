@@ -115,9 +115,9 @@ const CalendarPage: React.FC = () => {
       
       // --- END BULLETPROOF ROSTER LOGIC V3 ---
 
-      // Set current staff from fetched staff members if it matches currentUserId (staff_uid or id)
-      if (currentUserId) {
-        const found = fetchedStaff.find(s => s.staff_uid === currentUserId || s.id === currentUserId);
+      // Set current staff from fetched staff members if it matches currentUserId or userUid
+      if (currentUserId || userUid) {
+        const found = fetchedStaff.find(s => s.staff_uid === userUid || s.staff_uid === currentUserId || s.id === currentUserId);
         if (found) {
           setCurrentStaff(found);
         }

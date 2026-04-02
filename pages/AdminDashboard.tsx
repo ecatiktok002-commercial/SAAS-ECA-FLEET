@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/apiService';
@@ -11,10 +11,8 @@ import {
 } from 'lucide-react';
 import { Link, Navigate } from 'react-router-dom';
 import { Agreement, Booking, Car as CarType, MarketingEvent, Member } from '../types';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
-  ResponsiveContainer, Cell 
-} from 'recharts';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 
 interface AgentStat {
   name: string;
@@ -38,29 +36,12 @@ interface OverdueReturn {
 
 const AdminDashboard: React.FC = () => {
   const { subscriberId, staffRole, userUid, userId } = useAuth();
+  const queryClient = useQueryClient();
   
   // Rule: Only Admins can see this dashboard
   if (staffRole !== 'admin') {
     return <Navigate to="/" replace />;
   }
-  
-  const [stats, setStats] = useState({
-    salesToday: 0,
-    salesThisWeek: 0,
-    salesThisMonth: 0,
-    idleVehicles: 0,
-    serviceAlerts: [] as { plate: string, dueIn: number }[],
-  });
-  
-  const [pendingDeliveries, setPendingDeliveries] = useState<PendingDelivery[]>([]);
-  const [overdueReturns, setOverdueReturns] = useState<OverdueReturn[]>([]);
-  const [leaderboard, setLeaderboard] = useState<AgentStat[]>([]);
-  const [events, setEvents] = useState<MarketingEvent[]>([]);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [recentAgreements, setRecentAgreements] = useState<Agreement[]>([]);
-  
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   
   const [confirmReturnId, setConfirmReturnId] = useState<string | null>(null);
   const [isConfirmingReturn, setIsConfirmingReturn] = useState(false);
@@ -80,176 +61,176 @@ const AdminDashboard: React.FC = () => {
     currency: 'MYR',
   });
 
-  useEffect(() => {
-    if (subscriberId) {
-      fetchDashboardData();
-    }
-  }, [subscriberId, staffRole, userUid]);
+  const now = getNowMYT();
+  const mytDate = utcToMyt(now);
+  
+  // Fetch data for the last 3 months to support the 12-week chart
+  const startDateObj = new Date(mytDate);
+  startDateObj.setMonth(startDateObj.getMonth() - 3);
+  startDateObj.setDate(1);
+  const startDateStr = startDateObj.toISOString();
+  
+  // End date is end of current month
+  const endDateObj = new Date(mytDate.getFullYear(), mytDate.getMonth() + 1, 0, 23, 59, 59, 999);
+  const endDateStr = endDateObj.toISOString();
 
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  const { data, isLoading: loading, error: queryError } = useQuery({
+    queryKey: ['adminDashboard', subscriberId, startDateStr, endDateStr],
+    queryFn: async () => {
+      if (!subscriberId) throw new Error('No subscriber ID');
       
       const agentId = undefined;
       const createdBy = undefined;
 
-      const now = getNowMYT();
-      const mytDate = utcToMyt(now);
-      
-      // Fetch data for the last 3 months to support the 12-week chart
-      const startDateObj = new Date(mytDate);
-      startDateObj.setMonth(startDateObj.getMonth() - 3);
-      startDateObj.setDate(1);
-      const startDateStr = startDateObj.toISOString();
-      
-      // End date is end of current month
-      const endDateObj = new Date(mytDate.getFullYear(), mytDate.getMonth() + 1, 0, 23, 59, 59, 999);
-      const endDateStr = endDateObj.toISOString();
-
       const [bookings, cars, agreements, marketingEvents, members] = await Promise.all([
-        apiService.getBookings(subscriberId!, startDateStr, endDateStr),
-        apiService.getCars(subscriberId!),
-        apiService.getAgreements(subscriberId!, agentId, createdBy, startDateStr, endDateStr),
-        apiService.getMarketingEvents(subscriberId!),
-        apiService.getMembers(subscriberId!)
+        apiService.getBookings(subscriberId, startDateStr, endDateStr),
+        apiService.getCars(subscriberId),
+        apiService.getAgreements(subscriberId, agentId, createdBy, startDateStr, endDateStr),
+        apiService.getMarketingEvents(subscriberId),
+        apiService.getMembers(subscriberId)
       ]);
 
-      const todayStr = format(mytDate, 'yyyy-MM-dd');
-      
-      const startOfWeek = new Date(mytDate);
-      startOfWeek.setDate(mytDate.getDate() - mytDate.getDay());
-      const startOfWeekStr = format(startOfWeek, 'yyyy-MM-dd');
-      
-      const startOfMonth = new Date(mytDate.getFullYear(), mytDate.getMonth(), 1);
-      const startOfMonthStr = format(startOfMonth, 'yyyy-MM-dd');
+      return { bookings, cars, agreements, marketingEvents, members };
+    },
+    enabled: !!subscriberId,
+  });
 
-      // 1. Sales Metrics (Completed/Signed Agreements)
-      const completedAgreements = agreements.filter(a => {
-        const status = a.status?.toLowerCase().trim();
-        return status === 'completed' || (status === 'signed' && !!a.payment_receipt);
-      });
-      
-      let salesToday = 0;
-      let salesThisWeek = 0;
-      let salesThisMonth = 0;
-      
-      completedAgreements.forEach(a => {
-        const createdDate = a.created_at.split('T')[0];
-        const price = a.total_price || 0;
-        if (createdDate === todayStr) salesToday += price;
-        if (createdDate >= startOfWeekStr) salesThisWeek += price;
-        if (createdDate >= startOfMonthStr) salesThisMonth += price;
-      });
+  const error = queryError ? queryError.message : null;
 
-      // 2. Idle Vehicles
-      const activeCars = cars.filter(c => c.status === 'active');
-      const carsOnRentToday = bookings.filter(b => {
-        const start = utcToMyt(parseBookingDate(b.start_date, b.pickup_time));
-        const end = b.end_time ? utcToMyt(b.end_time) : new Date(start.getTime() + b.duration_days * 24 * 60 * 60 * 1000);
-        return start <= now && end >= now && b.status !== 'cancelled';
-      }).map(b => b.car_id);
+  const dashboardData = useMemo(() => {
+    if (!data) return null;
+
+    const { bookings, cars, agreements, marketingEvents, members } = data;
+
+    const todayStr = format(mytDate, 'yyyy-MM-dd');
+    
+    const startOfWeek = new Date(mytDate);
+    startOfWeek.setDate(mytDate.getDate() - mytDate.getDay());
+    const startOfWeekStr = format(startOfWeek, 'yyyy-MM-dd');
+    
+    const startOfMonth = new Date(mytDate.getFullYear(), mytDate.getMonth(), 1);
+    const startOfMonthStr = format(startOfMonth, 'yyyy-MM-dd');
+
+    // 1. Sales Metrics (Completed/Signed Agreements)
+    const completedAgreements = agreements.filter(a => {
+      const status = a.status?.toLowerCase().trim();
+      return status === 'completed' || (status === 'signed' && !!a.payment_receipt);
+    });
+    
+    let salesToday = 0;
+    let salesThisWeek = 0;
+    let salesThisMonth = 0;
+    
+    completedAgreements.forEach(a => {
+      const createdDate = a.created_at.split('T')[0];
+      const price = a.total_price || 0;
+      if (createdDate === todayStr) salesToday += price;
+      if (createdDate >= startOfWeekStr) salesThisWeek += price;
+      if (createdDate >= startOfMonthStr) salesThisMonth += price;
+    });
+
+    // 2. Idle Vehicles
+    const activeCars = cars.filter(c => c.status === 'active');
+    const carsOnRentToday = bookings.filter(b => {
+      const start = utcToMyt(parseBookingDate(b.start_date, b.pickup_time));
+      const end = b.end_time ? utcToMyt(b.end_time) : new Date(start.getTime() + b.duration_days * 24 * 60 * 60 * 1000);
+      return start <= now && end >= now && b.status !== 'cancelled';
+    }).map(b => b.car_id);
+    
+    const uniqueCarsOnRent = new Set(carsOnRentToday);
+    const idleVehicles = activeCars.length - uniqueCarsOnRent.size;
+
+    // Calculate service alerts
+    const serviceAlerts = cars
+      .filter(c => c.next_service_mileage && c.next_service_mileage > 0)
+      .map(c => ({
+        plate: c.plateNumber || c.plate,
+        dueIn: (c.next_service_mileage || 0) - (c.current_mileage || 0)
+      }))
+      .filter(alert => alert.dueIn <= 500) // Show if within 500km or overdue
+      .sort((a, b) => a.dueIn - b.dueIn);
+
+    // 3. Pending Deliveries (Today, Current Time < Pickup Time)
+    const pending: PendingDelivery[] = [];
+    const overdue: OverdueReturn[] = [];
+
+    const filteredBookings = bookings;
+
+    filteredBookings.forEach(b => {
+      if (b.status === 'cancelled') return;
       
-      const uniqueCarsOnRent = new Set(carsOnRentToday);
-      const idleVehicles = activeCars.length - uniqueCarsOnRent.size;
+      // The booking timestamps are saved in UTC.
+      // We can compare them directly with `now.getTime()` (which is also UTC).
+      const startMs = parseBookingDate(b.start_date, b.pickup_time);
+      const endMs = b.end_time 
+        ? new Date(b.end_time).getTime() 
+        : startMs + (b.duration_days || 0) * 24 * 60 * 60 * 1000;
 
-      // Calculate service alerts
-      const serviceAlerts = cars
-        .filter(c => c.next_service_mileage && c.next_service_mileage > 0)
-        .map(c => ({
-          plate: c.plateNumber || c.plate,
-          dueIn: (c.next_service_mileage || 0) - (c.current_mileage || 0)
-        }))
-        .filter(alert => alert.dueIn <= 500) // Show if within 500km or overdue
-        .sort((a, b) => a.dueIn - b.dueIn);
+      const car = cars.find(c => c.id === b.car_id);
+      const member = members.find(m => m.id === b.member_id);
+      
+      // Pending Deliveries Logic
+      // We use formatInMYT to get the MYT date string from the UTC timestamp
+      if (formatInMYT(startMs, 'yyyy-MM-dd') === todayStr && startMs > now.getTime()) {
+        pending.push({
+          id: b.id,
+          carPlate: car?.plate || 'Unknown',
+          customerName: member?.name || 'Unknown',
+          pickupTime: new Date(startMs)
+        });
+      }
+      
+      // Overdue Returns
+      if (now.getTime() > endMs && b.status !== 'completed') {
+        overdue.push({
+          id: b.id,
+          carPlate: car?.plate || 'Unknown',
+          customerName: member?.name || 'Unknown',
+          returnTime: new Date(endMs)
+        });
+      }
+    });
 
-      setStats({
+    pending.sort((a, b) => a.pickupTime.getTime() - b.pickupTime.getTime());
+    overdue.sort((a, b) => a.returnTime.getTime() - b.returnTime.getTime());
+
+    // 5. Agent Leaderboard (This month)
+    const agentMap = new Map<string, { name: string, total: number }>();
+    completedAgreements.forEach(a => {
+      const createdDate = a.created_at.split('T')[0];
+      if (createdDate >= startOfMonthStr) {
+        const key = a.created_by || a.agent_name || 'Unknown';
+        const current = agentMap.get(key) || { name: a.agent_name || 'Unknown', total: 0 };
+        current.total += (a.total_price || 0);
+        agentMap.set(key, current);
+      }
+    });
+
+    const sortedAgents = Array.from(agentMap.values())
+      .map(({ name, total }) => ({
+        name,
+        total,
+        percentage: salesThisMonth > 0 ? (total / salesThisMonth) * 100 : 0
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    return {
+      stats: {
         salesToday,
         salesThisWeek,
         salesThisMonth,
         idleVehicles: Math.max(0, idleVehicles),
         serviceAlerts
-      });
-
-      // 3. Pending Deliveries (Today, Current Time < Pickup Time)
-      const pending: PendingDelivery[] = [];
-      const overdue: OverdueReturn[] = [];
-
-      const filteredBookings = bookings;
-
-      filteredBookings.forEach(b => {
-        if (b.status === 'cancelled') return;
-        
-       // The booking timestamps are saved in UTC.
-       // We can compare them directly with `now.getTime()` (which is also UTC).
-       const startMs = parseBookingDate(b.start_date, b.pickup_time);
-       const endMs = b.end_time 
-         ? new Date(b.end_time).getTime() 
-         : startMs + (b.duration_days || 0) * 24 * 60 * 60 * 1000;
-
-       const car = cars.find(c => c.id === b.car_id);
-       const member = members.find(m => m.id === b.member_id);
-       
-       // Pending Deliveries Logic
-       // We use formatInMYT to get the MYT date string from the UTC timestamp
-       if (formatInMYT(startMs, 'yyyy-MM-dd') === todayStr && startMs > now.getTime()) {
-         pending.push({
-           id: b.id,
-           carPlate: car?.plate || 'Unknown',
-           customerName: member?.name || 'Unknown',
-           pickupTime: new Date(startMs)
-         });
-       }
-       
-       // Overdue Returns
-       if (now.getTime() > endMs && b.status !== 'completed') {
-         overdue.push({
-           id: b.id,
-           carPlate: car?.plate || 'Unknown',
-           customerName: member?.name || 'Unknown',
-           returnTime: new Date(endMs)
-         });
-       }
-      });
-
-      pending.sort((a, b) => a.pickupTime.getTime() - b.pickupTime.getTime());
-      overdue.sort((a, b) => a.returnTime.getTime() - b.returnTime.getTime());
-
-      setPendingDeliveries(pending.slice(0, 5));
-      setOverdueReturns(overdue.slice(0, 5));
-
-      // 5. Agent Leaderboard (This month)
-      const agentMap = new Map<string, { name: string, total: number }>();
-      completedAgreements.forEach(a => {
-        const createdDate = a.created_at.split('T')[0];
-        if (createdDate >= startOfMonthStr) {
-          const key = a.created_by || a.agent_name || 'Unknown';
-          const current = agentMap.get(key) || { name: a.agent_name || 'Unknown', total: 0 };
-          current.total += (a.total_price || 0);
-          agentMap.set(key, current);
-        }
-      });
-
-      const sortedAgents = Array.from(agentMap.values())
-        .map(({ name, total }) => ({
-          name,
-          total,
-          percentage: salesThisMonth > 0 ? (total / salesThisMonth) * 100 : 0
-        }))
-        .sort((a, b) => b.total - a.total);
-
-      setLeaderboard(sortedAgents.slice(0, 5));
-      setEvents(marketingEvents);
-      setBookings(bookings);
-      setRecentAgreements(completedAgreements.slice(0, 5));
-
-    } catch (err: any) {
-      console.error('Failed to fetch dashboard data:', err);
-      setError(err.message || 'An unexpected error occurred while loading dashboard data.');
-    } finally {
-      setLoading(false);
-    }
-  };
+      },
+      pendingDeliveries: pending.slice(0, 5),
+      overdueReturns: overdue.slice(0, 5),
+      leaderboard: sortedAgents.slice(0, 5),
+      events: marketingEvents,
+      bookings,
+      recentAgreements: completedAgreements.slice(0, 5),
+      agreements
+    };
+  }, [data, mytDate, now]);
 
   const handleAddEvent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -272,9 +253,11 @@ const AdminDashboard: React.FC = () => {
         start_date: '', 
         end_date: '' 
       });
-      fetchDashboardData();
+      queryClient.invalidateQueries({ queryKey: ['adminDashboard', subscriberId] });
+      toast.success('Event created successfully');
     } catch (err) {
       console.error('Failed to add event:', err);
+      toast.error('Failed to create event');
     }
   };
 
@@ -284,10 +267,11 @@ const AdminDashboard: React.FC = () => {
       setIsConfirmingReturn(true);
       await apiService.updateBookingStatus(id, subscriberId, 'completed');
       setConfirmReturnId(null);
-      fetchDashboardData();
+      queryClient.invalidateQueries({ queryKey: ['adminDashboard', subscriberId] });
+      toast.success('Vehicle marked as returned');
     } catch (err) {
       console.error('Failed to confirm return:', err);
-      alert('Failed to confirm return. Please try again.');
+      toast.error('Failed to confirm return. Please try again.');
     } finally {
       setIsConfirmingReturn(false);
     }
@@ -314,7 +298,7 @@ const AdminDashboard: React.FC = () => {
     );
   }
 
-  if (error) {
+  if (error || !dashboardData) {
     return (
       <div className="p-8 max-w-7xl mx-auto">
         <div className="bg-rose-50 border border-rose-200 rounded-2xl p-8 text-center max-w-2xl mx-auto shadow-sm">
@@ -322,9 +306,9 @@ const AdminDashboard: React.FC = () => {
             <AlertTriangle className="w-8 h-8" />
           </div>
           <h2 className="text-2xl font-bold text-rose-900 mb-3">Unable to Connect to Database</h2>
-          <p className="text-rose-700 mb-6 leading-relaxed">{error}</p>
+          <p className="text-rose-700 mb-6 leading-relaxed">{error || 'Unknown error'}</p>
           <button 
-            onClick={fetchDashboardData}
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['adminDashboard', subscriberId] })}
             className="px-6 py-2.5 bg-rose-600 text-white rounded-lg font-medium hover:bg-rose-700 transition-colors shadow-sm"
           >
             Retry Connection
@@ -333,6 +317,8 @@ const AdminDashboard: React.FC = () => {
       </div>
     );
   }
+
+  const { stats, pendingDeliveries, overdueReturns, leaderboard, events, bookings, recentAgreements, agreements } = dashboardData;
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
@@ -374,7 +360,7 @@ const AdminDashboard: React.FC = () => {
             </div>
             {stats.serviceAlerts.length > 0 && (
               <div className="mt-4 space-y-1">
-                {stats.serviceAlerts.slice(0, 3).map((alert, idx) => (
+                {stats.serviceAlerts.slice(0, 3).map((alert: any, idx: number) => (
                   <div key={idx} className="bg-rose-50 text-rose-700 px-2.5 py-1.5 rounded-lg text-xs font-bold animate-pulse flex justify-between items-center">
                     <span>{alert.plate}</span>
                     <span>{alert.dueIn <= 0 ? 'OVERDUE' : `due in ${alert.dueIn} km`}</span>
@@ -402,7 +388,7 @@ const AdminDashboard: React.FC = () => {
               </span>
             </div>
             <div className="divide-y divide-slate-100 flex-1 overflow-y-auto max-h-96">
-              {pendingDeliveries.length > 0 ? pendingDeliveries.map(delivery => (
+              {pendingDeliveries.length > 0 ? pendingDeliveries.map((delivery: any) => (
                 <div key={delivery.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between">
                   <div>
                     <p className="font-medium text-slate-900">{delivery.customerName}</p>
@@ -438,7 +424,7 @@ const AdminDashboard: React.FC = () => {
               </span>
             </div>
             <div className="divide-y divide-slate-100 flex-1 overflow-y-auto max-h-96">
-              {overdueReturns.length > 0 ? overdueReturns.map(returnItem => (
+              {overdueReturns.length > 0 ? overdueReturns.map((returnItem: any) => (
                 <div 
                   key={returnItem.id} 
                   className="p-4 hover:bg-rose-50/50 transition-colors cursor-pointer"
@@ -521,7 +507,7 @@ const AdminDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {recentAgreements.length > 0 ? recentAgreements.map((agreement) => (
+                {recentAgreements.length > 0 ? recentAgreements.map((agreement: any) => (
                   <tr key={agreement.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {formatInMYT(new Date(agreement.created_at).getTime(), 'dd/MM/yyyy')}
@@ -566,7 +552,7 @@ const AdminDashboard: React.FC = () => {
             </div>
             <div className="p-6 flex-1 bg-slate-50/50">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {events.length > 0 ? events.map(event => {
+                {events.length > 0 ? events.map((event: any) => {
                   const now = getNowMYT();
                   const isActive = utcToMyt(event.start_date) <= now && utcToMyt(event.end_date) >= now;
                   return (
@@ -579,7 +565,7 @@ const AdminDashboard: React.FC = () => {
                             onClick={async () => {
                               try {
                                 await apiService.deleteMarketingEvent(event.id, subscriberId!);
-                                fetchDashboardData();
+                                queryClient.invalidateQueries({ queryKey: ['adminDashboard', subscriberId] });
                               } catch (err) {
                                 console.error('Failed to delete event:', err);
                               }
@@ -626,7 +612,7 @@ const AdminDashboard: React.FC = () => {
             </div>
             <div className="p-6">
               <div className="space-y-6">
-                {leaderboard.length > 0 ? leaderboard.map((agent, idx) => (
+                {leaderboard.length > 0 ? leaderboard.map((agent: any, idx: number) => (
                   <div key={idx} className="space-y-2">
                     <div className="flex justify-between items-end">
                       <div className="flex items-center gap-3">
