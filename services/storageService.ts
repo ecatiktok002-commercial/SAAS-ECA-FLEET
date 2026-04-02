@@ -39,13 +39,7 @@ export const getAgreements = async (subscriberId: string, agentId?: string) => {
 export const getSecureUrl = async (bucket: string, path: string): Promise<string> => {
   const { data, error } = await supabase.storage
     .from(bucket)
-    .createSignedUrl(path, 3600, {
-      transform: {
-        width: 400,
-        quality: 70,
-        format: 'webp' as any
-      }
-    }); // URL expires in 1 hour (3600 seconds)
+    .createSignedUrl(path, 3600); // URL expires in 1 hour (3600 seconds)
 
   if (error) throw error;
   return data.signedUrl;

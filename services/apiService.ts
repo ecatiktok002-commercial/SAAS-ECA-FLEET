@@ -1388,13 +1388,7 @@ export const apiService = {
     return withRetry(async () => {
       const { data, error } = await supabase.storage
         .from(bucket)
-        .createSignedUrls(paths, 3600, {
-          transform: {
-            width: 400,
-            quality: 70,
-            format: 'webp' as any
-          }
-        } as any); // 3600 seconds = 1 hour
+        .createSignedUrls(paths, 3600); // 3600 seconds = 1 hour
 
       if (error) {
         logSupabaseError('getSignedUrls', error);
@@ -1409,13 +1403,7 @@ export const apiService = {
     try {
       const { data, error } = await supabase.storage
         .from(bucket)
-        .createSignedUrl(path, 3600, {
-          transform: {
-            width: 400,
-            quality: 70,
-            format: 'webp' as any
-          }
-        }); // 1 hour
+        .createSignedUrl(path, 3600); // 1 hour
 
       if (error) throw error;
       return data.signedUrl;
