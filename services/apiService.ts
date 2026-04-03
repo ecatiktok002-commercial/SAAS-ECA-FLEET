@@ -264,6 +264,8 @@ const mapCarToDB = (car: any) => {
     duration_days: booking.duration_days,
     start_date: booking.start_date,
     pickup_time: booking.pickup_time,
+    end_date: booking.end_date,
+    return_time: booking.return_time,
     actual_end_time: booking.end_time,
     status: booking.status,
     total_price: booking.total_price,
@@ -1017,6 +1019,67 @@ export const apiService = {
           throw new Error(error.message || 'Failed to update booking');
         }
         if (!data || data.length === 0) throw new Error('Update failed');
+
+        // Tier 3 Feature: Sync Booking changes to Digital Forms and Agreements
+        try {
+          const { data: subscriberData } = await supabase
+            .from('subscribers')
+            .select('tier')
+            .eq('id', targetSubscriberId)
+            .single();
+
+          if (subscriberData && String(subscriberData.tier).toLowerCase().includes('tier 3')) {
+            const { data: carData } = await supabase
+              .from('cars')
+              .select('plate_number, make, model')
+              .eq('id', finalBooking.car_id)
+              .single();
+
+            if (carData) {
+              const carModel = `${carData.make} ${carData.model}`.trim();
+              
+              // We use the updated booking data returned from the DB to ensure we have the latest values
+              const updatedBooking = data[0];
+              const bookingStartDate = updatedBooking.start_date;
+              const bookingDuration = updatedBooking.duration_days || updatedBooking.duration;
+              const bookingPickupTime = updatedBooking.pickup_time;
+              
+              const calculatedEndDate = updatedBooking.end_date || format(addDays(parseISO(bookingStartDate), bookingDuration), 'yyyy-MM-dd');
+              
+              const updatePayload: any = {
+                car_plate_number: carData.plate_number,
+                car_model: carModel,
+                start_date: bookingStartDate,
+                pickup_time: bookingPickupTime,
+                end_date: calculatedEndDate,
+                return_time: updatedBooking.return_time || bookingPickupTime,
+                duration_days: bookingDuration
+              };
+
+              // Only update total_price if it was explicitly provided in the update
+              if (finalBooking.total_price !== undefined) {
+                updatePayload.total_price = finalBooking.total_price;
+              }
+
+              // Update Digital Forms
+              await supabase
+                .from('digital_forms')
+                .update(updatePayload)
+                .eq('booking_id', id)
+                .eq('subscriber_id', targetSubscriberId);
+
+              // Update Agreements
+              await supabase
+                .from('agreements')
+                .update(updatePayload)
+                .eq('booking_id', id)
+                .eq('subscriber_id', targetSubscriberId);
+            }
+          }
+        } catch (syncError) {
+          console.error('Failed to sync booking changes to forms/agreements:', syncError);
+        }
+
         return mapBookingFromDB(data[0]);
       } else {
         // For new bookings, ensure agent_id is set to the staff_member record ID, not the auth UID
