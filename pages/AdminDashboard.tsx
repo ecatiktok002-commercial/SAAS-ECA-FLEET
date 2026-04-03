@@ -6,7 +6,7 @@ import { parseBookingDate } from '../services/bookingService';
 import { getNowMYT, utcToMyt, formatInMYT } from '../utils/dateUtils';
 import { 
   Users, Car, CalendarCheck, DollarSign, FileText, AlertTriangle, 
-  TrendingUp, Clock, ArrowRight, Plus, Zap, AlertCircle, CheckCircle2,
+  TrendingUp, TrendingDown, Clock, ArrowRight, Plus, Zap, AlertCircle, CheckCircle2,
   Wallet, BarChart3, ListTodo, X
 } from 'lucide-react';
 import { Link, Navigate } from 'react-router-dom';
@@ -65,9 +65,9 @@ const AdminDashboard: React.FC = () => {
     const now = getNowMYT();
     const mytDate = utcToMyt(now);
     
-    // Fetch data for the last 3 months to support the 12-week chart
+    // Fetch data for the last 6 months to support the 6-month sales history
     const startDateObj = new Date(mytDate);
-    startDateObj.setMonth(startDateObj.getMonth() - 3);
+    startDateObj.setMonth(startDateObj.getMonth() - 6);
     startDateObj.setDate(1);
     startDateObj.setHours(0, 0, 0, 0);
     
@@ -116,8 +116,23 @@ const AdminDashboard: React.FC = () => {
     startOfWeek.setDate(mytDate.getDate() - mytDate.getDay());
     const startOfWeekStr = format(startOfWeek, 'yyyy-MM-dd');
     
+    const startOfLastWeek = new Date(startOfWeek);
+    startOfLastWeek.setDate(startOfWeek.getDate() - 7);
+    const startOfLastWeekStr = format(startOfLastWeek, 'yyyy-MM-dd');
+
     const startOfMonth = new Date(mytDate.getFullYear(), mytDate.getMonth(), 1);
     const startOfMonthStr = format(startOfMonth, 'yyyy-MM-dd');
+
+    // Past 6 months sales tracking
+    const past6MonthsSales = Array.from({ length: 6 }).map((_, i) => {
+      const d = new Date(mytDate.getFullYear(), mytDate.getMonth() - i, 1);
+      return {
+        month: format(d, 'MMM yyyy'),
+        sales: 0,
+        startStr: format(d, 'yyyy-MM-dd'),
+        endStr: format(new Date(mytDate.getFullYear(), mytDate.getMonth() - i + 1, 0), 'yyyy-MM-dd')
+      };
+    });
 
     // 1. Sales Metrics (Completed/Signed Agreements)
     const completedAgreements = agreements.filter(a => {
@@ -127,6 +142,7 @@ const AdminDashboard: React.FC = () => {
     
     let salesToday = 0;
     let salesThisWeek = 0;
+    let salesLastWeek = 0;
     let salesThisMonth = 0;
     
     completedAgreements.forEach(a => {
@@ -134,8 +150,19 @@ const AdminDashboard: React.FC = () => {
       const price = a.total_price || 0;
       if (createdDate === todayStr) salesToday += price;
       if (createdDate >= startOfWeekStr) salesThisWeek += price;
+      if (createdDate >= startOfLastWeekStr && createdDate < startOfWeekStr) salesLastWeek += price;
       if (createdDate >= startOfMonthStr) salesThisMonth += price;
+
+      // Populate past 6 months
+      for (const monthData of past6MonthsSales) {
+        if (createdDate >= monthData.startStr && createdDate <= monthData.endStr) {
+          monthData.sales += price;
+          break;
+        }
+      }
     });
+
+    const salesLastMonth = past6MonthsSales[1]?.sales || 0;
 
     // 2. Idle Vehicles
     const activeCars = cars.filter(c => c.status === 'active');
@@ -226,7 +253,10 @@ const AdminDashboard: React.FC = () => {
       stats: {
         salesToday,
         salesThisWeek,
+        salesLastWeek,
         salesThisMonth,
+        salesLastMonth,
+        past6MonthsSales,
         idleVehicles: Math.max(0, idleVehicles),
         serviceAlerts
       },
@@ -351,10 +381,43 @@ const AdminDashboard: React.FC = () => {
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
             <h3 className="text-slate-500 text-sm font-medium mb-2">Sales This Week</h3>
             <p className="text-3xl font-bold text-slate-900">{currencyFormatter.format(stats.salesThisWeek)}</p>
+            {stats.salesLastWeek > 0 ? (
+              <div className={`flex items-center text-xs font-medium mt-2 ${stats.salesThisWeek >= stats.salesLastWeek ? 'text-emerald-600' : 'text-rose-600'}`}>
+                {stats.salesThisWeek >= stats.salesLastWeek ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                {stats.salesThisWeek >= stats.salesLastWeek ? '+' : ''}{(((stats.salesThisWeek - stats.salesLastWeek) / stats.salesLastWeek) * 100).toFixed(1)}% vs last week
+              </div>
+            ) : stats.salesThisWeek > 0 ? (
+              <div className="flex items-center text-emerald-600 text-xs font-medium mt-2">
+                <TrendingUp className="w-3 h-3 mr-1" /> +100% vs last week
+              </div>
+            ) : null}
           </div>
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm group relative">
             <h3 className="text-slate-500 text-sm font-medium mb-2">Sales This Month</h3>
             <p className="text-3xl font-bold text-slate-900">{currencyFormatter.format(stats.salesThisMonth)}</p>
+            {stats.salesLastMonth > 0 ? (
+              <div className={`flex items-center text-xs font-medium mt-2 ${stats.salesThisMonth >= stats.salesLastMonth ? 'text-emerald-600' : 'text-rose-600'}`}>
+                {stats.salesThisMonth >= stats.salesLastMonth ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                {stats.salesThisMonth >= stats.salesLastMonth ? '+' : ''}{(((stats.salesThisMonth - stats.salesLastMonth) / stats.salesLastMonth) * 100).toFixed(1)}% vs last month
+              </div>
+            ) : stats.salesThisMonth > 0 ? (
+              <div className="flex items-center text-emerald-600 text-xs font-medium mt-2">
+                <TrendingUp className="w-3 h-3 mr-1" /> +100% vs last month
+              </div>
+            ) : null}
+            
+            {/* Hover Tooltip for 6 Months Sales */}
+            <div className="absolute top-full left-0 mt-2 w-64 bg-slate-800 text-white text-sm rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 p-4">
+              <h4 className="font-semibold mb-3 text-slate-200 border-b border-slate-700 pb-2">Past 6 Months</h4>
+              <div className="space-y-2">
+                {stats.past6MonthsSales.map((monthData: any, idx: number) => (
+                  <div key={idx} className="flex justify-between items-center">
+                    <span className="text-slate-400">{monthData.month}</span>
+                    <span className="font-medium">{currencyFormatter.format(monthData.sales)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
             <div>
