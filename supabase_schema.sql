@@ -477,7 +477,7 @@ BEGIN
   -- Actually, the simplest check is if auth.uid() = check_id
   RETURN auth.uid() = check_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Helper to get subscriber_id for the current authenticated user
 CREATE OR REPLACE FUNCTION current_subscriber_id()
@@ -723,7 +723,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP TRIGGER IF EXISTS tr_sync_staff_to_member ON staff_members;
 CREATE TRIGGER tr_sync_staff_to_member
@@ -742,7 +742,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP TRIGGER IF EXISTS tr_sync_subscriber_to_member ON subscribers;
 CREATE TRIGGER tr_sync_subscriber_to_member
@@ -769,7 +769,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Note: This trigger on auth.users must be created manually in the Supabase SQL Editor 
 -- if the 'auth' schema is not accessible via this migration script.
@@ -947,7 +947,7 @@ BEGIN
   UPDATE public.digital_forms SET agent_id = p_new_id WHERE agent_id IN (SELECT id FROM public.staff_members WHERE access_id = p_uid);
   UPDATE public.logs SET user_id = p_new_id WHERE user_id IN (SELECT id FROM public.staff_members WHERE access_id = p_uid);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE OR REPLACE FUNCTION verify_login_uid(p_uid TEXT)
 RETURNS JSON AS $$
@@ -1205,11 +1205,12 @@ BEGIN
     RAISE EXCEPTION 'Unauthorized';
   END IF;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- 16. pg_cron for cleanup-expired-photos
-CREATE EXTENSION IF NOT EXISTS pg_cron;
-CREATE EXTENSION IF NOT EXISTS pg_net;
+CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE EXTENSION IF NOT EXISTS pg_cron SCHEMA extensions;
+CREATE EXTENSION IF NOT EXISTS pg_net SCHEMA extensions;
 
 SELECT cron.schedule(
   'cleanup-expired-photos-daily',
@@ -1361,7 +1362,7 @@ BEGIN
     'orphanedAgreements', v_orphaned_agreements
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- ============================================================================
 -- SECURITY TRIGGERS FOR STAFF AND FORMS
@@ -1379,7 +1380,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Attach to both staff tables
 DROP TRIGGER IF EXISTS tr_protect_staff_members ON staff_members;
@@ -1408,7 +1409,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP TRIGGER IF EXISTS tr_protect_agreements_tampering ON agreements;
 CREATE TRIGGER tr_protect_agreements_tampering
@@ -1441,3 +1442,10 @@ USING (
   AND auth.role() = 'authenticated' 
   AND (string_to_array(name, '/'))[1] = current_subscriber_id()::text
 );
+
+-- ============================================================================
+-- COMPOUND INDEXES FOR PERFORMANCE
+-- ============================================================================
+CREATE INDEX IF NOT EXISTS idx_agreements_sub_date ON agreements(subscriber_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_bookings_sub_date ON bookings(subscriber_id, pickup_datetime);
+CREATE INDEX IF NOT EXISTS idx_agreements_booking_id ON agreements(booking_id);
