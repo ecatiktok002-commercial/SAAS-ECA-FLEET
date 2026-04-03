@@ -481,7 +481,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Helper to get subscriber_id for the current authenticated user
 CREATE OR REPLACE FUNCTION current_subscriber_id()
-RETURNS UUID AS $$
+RETURNS UUID AS $$ 
 DECLARE
   jwt_sub_id TEXT;
 BEGIN
