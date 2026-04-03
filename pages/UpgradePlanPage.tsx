@@ -15,19 +15,19 @@ const UpgradePlanPage: React.FC = () => {
   const tiers = [
     {
       name: 'Tier 1 (Forms Module)',
-      price: 'RM 199/mo',
+      price: 'RM 100/mo',
       features: ['Digital Forms', 'Staff Management'],
       isCurrent: subscriberTier === 1
     },
     {
       name: 'Tier 2 (Calendar Module)',
-      price: 'RM 299/mo',
+      price: 'RM 100/mo',
       features: ['Calendar UI', 'Staff Management'],
       isCurrent: subscriberTier === 2
     },
     {
       name: 'Tier 3 (Fleet Guardian)',
-      price: 'RM 499/mo',
+      price: 'RM 299/mo',
       features: ['All Features', 'CRM', 'Audit & Payouts', 'Fleet Tracking', 'Admin Dashboard'],
       isCurrent: subscriberTier === 3
     }

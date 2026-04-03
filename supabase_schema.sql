@@ -1052,9 +1052,9 @@ DECLARE
   v_base_date TIMESTAMP WITH TIME ZONE;
 BEGIN
   -- Determine tier price
-  IF NEW.tier = 'Tier 1' THEN v_tier_price := 150;
-  ELSIF NEW.tier = 'Tier 2' THEN v_tier_price := 200;
-  ELSIF NEW.tier = 'Tier 3' THEN v_tier_price := 399;
+  IF NEW.tier = 'Tier 1' THEN v_tier_price := 100;
+  ELSIF NEW.tier = 'Tier 2' THEN v_tier_price := 100;
+  ELSIF NEW.tier = 'Tier 3' THEN v_tier_price := 299;
   ELSE v_tier_price := 0;
   END IF;
 
