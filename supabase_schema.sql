@@ -975,6 +975,10 @@ BEGIN
       RETURN json_build_object('role', 'orphaned_staff', 'message', 'Company record not found for this staff member.');
     END IF;
 
+    IF v_company.status != 'ACTIVE' OR v_company.is_active = false OR (v_company.expiry_date IS NOT NULL AND v_company.expiry_date < CURRENT_DATE) THEN
+      RETURN json_build_object('role', 'disabled_subscriber', 'message', 'This company account has been deactivated or expired.');
+    END IF;
+
     RETURN json_build_object(
       'role', 'staff', 
       'subscriber_id', v_company.id, 
@@ -998,6 +1002,10 @@ BEGIN
       RETURN json_build_object('role', 'orphaned_staff', 'message', 'Company record not found for this staff member.');
     END IF;
 
+    IF v_company.status != 'ACTIVE' OR v_company.is_active = false OR (v_company.expiry_date IS NOT NULL AND v_company.expiry_date < CURRENT_DATE) THEN
+      RETURN json_build_object('role', 'disabled_subscriber', 'message', 'This company account has been deactivated or expired.');
+    END IF;
+
     RETURN json_build_object(
       'role', 'staff', 
       'subscriber_id', v_company.id, 
@@ -1013,6 +1021,10 @@ BEGIN
   -- Fallback for direct subscriber login (Master Login)
   SELECT * INTO v_company FROM subscribers WHERE name ILIKE p_uid ORDER BY CASE WHEN tier != 'Tier 1' THEN 0 ELSE 1 END LIMIT 1;
   IF FOUND THEN
+    IF v_company.status != 'ACTIVE' OR v_company.is_active = false OR (v_company.expiry_date IS NOT NULL AND v_company.expiry_date < CURRENT_DATE) THEN
+      RETURN json_build_object('role', 'disabled_subscriber', 'message', 'This company account has been deactivated or expired.');
+    END IF;
+
     RETURN json_build_object(
       'role', 'subscriber', 
       'id', v_company.id, 
@@ -1221,6 +1233,25 @@ SELECT cron.schedule(
       headers:='{"Content-Type": "application/json", "Authorization": "Bearer ' || current_setting('request.headers', true)::json->>'apikey' || '"}'::jsonb,
       body:='{}'::jsonb
     );
+  $$
+);
+
+-- Auto-deactivate expired subscribers daily at 1 AM
+CREATE OR REPLACE FUNCTION public.auto_deactivate_expired_subscribers()
+RETURNS VOID AS $$
+BEGIN
+  UPDATE public.subscribers
+  SET status = 'INACTIVE', is_active = false
+  WHERE expiry_date < CURRENT_DATE
+    AND status = 'ACTIVE';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+SELECT cron.schedule(
+  'auto-deactivate-expired-subscribers-daily',
+  '0 1 * * *',
+  $$
+    SELECT public.auto_deactivate_expired_subscribers();
   $$
 );
 

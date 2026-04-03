@@ -89,6 +89,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         throw new Error('This staff account has been disabled.');
       }
 
+      if (subData.role === 'disabled_subscriber') {
+        throw new Error(subData.message || 'This company account has been deactivated or expired.');
+      }
+
       if (subData.role === 'orphaned_staff') {
         throw new Error(subData.message || 'Company record not found for this staff member.');
       }

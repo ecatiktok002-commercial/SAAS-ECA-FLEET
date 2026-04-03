@@ -202,6 +202,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (emailPrefix) {
             const { data: rpcData } = await supabase.rpc('verify_login_uid', { p_uid: emailPrefix });
             if (rpcData) {
+              if (rpcData.role === 'disabled_subscriber' || rpcData.role === 'disabled_staff') {
+                console.warn('Account is disabled. Logging out.');
+                await logout();
+                return;
+              }
+
               activeTier = rpcData.tier ? normalizeTier(rpcData.tier) : 'tier_1';
               displayName = rpcData.company_code || rpcData.staff_name;
               
@@ -218,11 +224,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (!displayName) {
             const { data: companyData } = await supabase
               .from('subscribers')
-              .select('tier, name')
+              .select('tier, name, status, is_active, expiry_date')
               .eq('id', finalSubscriberId)
               .single();
             
             if (companyData) {
+              const isExpired = companyData.expiry_date && new Date(companyData.expiry_date) < new Date();
+              if (companyData.status !== 'ACTIVE' || companyData.is_active === false || isExpired) {
+                console.warn('Account is disabled or expired. Logging out.');
+                await logout();
+                return;
+              }
+
               activeTier = companyData.tier ? normalizeTier(companyData.tier) : 'tier_1';
               displayName = companyData.name;
             }
