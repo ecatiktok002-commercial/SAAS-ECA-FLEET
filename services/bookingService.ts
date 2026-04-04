@@ -38,7 +38,7 @@ export const validateBooking = (newBooking: Omit<Booking, 'id'>, existingBooking
  */
 export const findAvailableCarByModel = (
   modelName: string, 
-  start: Date, 
+  startDateTimeStr: string, 
   duration: number, 
   bookings: Booking[], 
   cars: Car[],
@@ -46,14 +46,15 @@ export const findAvailableCarByModel = (
 ): string | null => {
   // FIX: Filter only for 'active' cars so toggled-off units are skipped
   const modelCars = cars.filter(c => c.name.trim() === modelName.trim() && c.status === 'active');
+  const [startDate, pickupTime] = startDateTimeStr.split('T');
   
   // 2. Iterate through each car to find one that is free
   for (const car of modelCars) {
     const isFree = validateBooking(
       { 
         car_id: car.id, 
-        start_date: start.toISOString().split('T')[0], 
-        pickup_time: start.toISOString().split('T')[1].substring(0, 5), 
+        start_date: startDate, 
+        pickup_time: pickupTime, 
         duration_days: duration, 
         member_id: '', 
         end_time 
@@ -76,7 +77,7 @@ export const findAvailableCarByModel = (
  */
 export const suggestUpgrade = (
   currentModel: string, 
-  start: Date, 
+  startDateTimeStr: string, 
   duration: number, 
   bookings: Booking[], 
   cars: Car[],
@@ -87,6 +88,7 @@ export const suggestUpgrade = (
   if (!currentCar) return null;
 
   const currentTierIndex = tiers.indexOf(currentCar.type);
+  const [startDate, pickupTime] = startDateTimeStr.split('T');
   
   // Look through higher tiers
   for (let i = currentTierIndex + 1; i < tiers.length; i++) {
@@ -99,8 +101,8 @@ export const suggestUpgrade = (
       const isFree = validateBooking(
         { 
           car_id: car.id, 
-          start_date: start.toISOString().split('T')[0], 
-          pickup_time: start.toISOString().split('T')[1].substring(0, 5), 
+          start_date: startDate, 
+          pickup_time: pickupTime, 
           duration_days: duration, 
           member_id: '', 
           end_time 

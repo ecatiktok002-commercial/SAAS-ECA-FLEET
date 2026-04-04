@@ -286,7 +286,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
       
       const foundCarId = findAvailableCarByModel(
         selectedModel, 
-        new Date(selectedDateTimeStr), 
+        selectedDateTimeStr, 
         duration, 
         existingBookings.filter(b => b.id !== editingBooking?.id), 
         cars,
@@ -297,7 +297,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
         // Try to find upgrade
         const upgrade = suggestUpgrade(
           selectedModel,
-          new Date(selectedDateTimeStr),
+          selectedDateTimeStr,
           duration,
           existingBookings.filter(b => b.id !== editingBooking?.id),
           cars,
