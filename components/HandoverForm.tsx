@@ -95,13 +95,11 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
       
     if (error) throw error;
     
-    // Replace getPublicUrl with createSignedUrl
-    const { data: signedData, error: signedError } = await supabase.storage
+    const { data: publicData } = supabase.storage
       .from('handover_images')
-      .createSignedUrl(data.path, 3600); // URL expires in 1 hour (3600 seconds)
+      .getPublicUrl(data.path);
       
-    if (signedError) throw signedError;
-    return signedData.signedUrl;
+    return publicData.publicUrl;
   };
 
   const handleSubmit = async () => {
@@ -203,25 +201,6 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
         }]);
 
       if (dbError) throw dbError;
-
-      // 6. Update Car's Current Mileage if higher
-      if (!isNaN(newMileage) && newMileage > 0) {
-        // Fetch current car mileage
-        const { data: carData } = await supabase
-          .from('cars')
-          .select('current_mileage')
-          .eq('id', car_id)
-          .eq('subscriber_id', subscriberId)
-          .single();
-          
-        if (carData && newMileage > (carData.current_mileage || 0)) {
-          await supabase
-            .from('cars')
-            .update({ current_mileage: newMileage })
-            .eq('id', car_id)
-            .eq('subscriber_id', subscriberId);
-        }
-      }
 
       if (onSuccess) onSuccess();
       onClose();
