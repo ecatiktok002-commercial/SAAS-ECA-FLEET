@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
-import { formatInMYT } from '../../utils/dateUtils';
+import { formatInMYT, getNowMYT } from '../../utils/dateUtils';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiService } from '../../services/apiService';
@@ -31,12 +31,12 @@ const AgreementDashboard: React.FC = () => {
   const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'pending' | 'requests' | 'completed'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'pending' | 'requests' | 'completed' | 'upcoming' | 'signed'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const tableRef = useRef<HTMLDivElement>(null);
 
-  const handleFilterClick = (type: 'all' | 'pending' | 'requests' | 'completed') => {
+  const handleFilterClick = (type: 'all' | 'pending' | 'requests' | 'completed' | 'upcoming' | 'signed') => {
     setFilterType(type);
     setCurrentPage(1);
     tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -105,17 +105,39 @@ const AgreementDashboard: React.FC = () => {
 
     if (!matchesSearch) return false;
 
+    if (filterType === 'all') return true;
+
     if (filterType === 'pending') {
       return a.status?.toLowerCase().trim() === 'pending';
     }
     if (filterType === 'requests') {
       return a.has_pending_changes;
     }
-    if (filterType === 'completed') {
-      const s = a.status?.toLowerCase().trim();
-      return s === 'signed' || s === 'completed';
+
+    const status = a.status?.toLowerCase().trim();
+    const hasReceipt = !!a.payment_receipt && a.payment_receipt !== '[]' && a.payment_receipt !== 'null';
+    const isSigned = status === 'signed' || status === 'completed';
+    const isPaid = hasReceipt;
+    const pickupDate = new Date(a.start_date || a.created_at);
+    const now = getNowMYT();
+    const isFuture = pickupDate.getTime() > now.getTime();
+    const isPast = pickupDate.getTime() <= now.getTime();
+
+    if (filterType === 'upcoming') {
+      return isSigned && isPaid && isFuture;
     }
+    if (filterType === 'completed') {
+      return isSigned && isPaid && isPast;
+    }
+    if (filterType === 'signed') {
+      return isSigned && !isPaid;
+    }
+
     return true;
+  }).sort((a, b) => {
+    const dateA = new Date(a.start_date || a.created_at).getTime();
+    const dateB = new Date(b.start_date || b.created_at).getTime();
+    return dateB - dateA;
   });
 
   // Reset to page 1 when search query changes
@@ -157,62 +179,112 @@ const AgreementDashboard: React.FC = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div className={`grid grid-cols-2 md:grid-cols-3 ${staffRole === 'admin' ? 'lg:grid-cols-6' : 'lg:grid-cols-5'} gap-4 mb-8`}>
         <div 
           onClick={() => handleFilterClick('all')}
-          className={`bg-white p-6 rounded-2xl border shadow-sm cursor-pointer hover:shadow-md transition-all ${filterType === 'all' ? 'border-blue-500 ring-1 ring-blue-500' : 'border-slate-200'}`}
+          className={`bg-white p-4 rounded-2xl border shadow-sm cursor-pointer hover:shadow-md transition-all ${filterType === 'all' ? 'border-blue-500 ring-1 ring-blue-500' : 'border-slate-200'}`}
         >
-          <div className="flex items-center gap-3 mb-2">
-            <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
-              <FileText className="w-5 h-5" />
+          <div className="flex items-center gap-2 mb-2">
+            <div className="bg-blue-50 p-1.5 rounded-lg text-blue-600">
+              <FileText className="w-4 h-4" />
             </div>
-            <span className="text-sm font-medium text-slate-500">Total Agreements</span>
+            <span className="text-xs font-medium text-slate-500">Total</span>
           </div>
-          <div className="text-2xl font-bold text-slate-900">{agreements.length}</div>
+          <div className="text-xl font-bold text-slate-900">{agreements.length}</div>
         </div>
+
         <div 
-          onClick={() => handleFilterClick('completed')}
-          className={`bg-white p-6 rounded-2xl border shadow-sm cursor-pointer hover:shadow-md transition-all ${filterType === 'completed' ? 'border-emerald-500 ring-1 ring-emerald-500' : 'border-slate-200'}`}
+          onClick={() => handleFilterClick('upcoming')}
+          className={`bg-white p-4 rounded-2xl border shadow-sm cursor-pointer hover:shadow-md transition-all ${filterType === 'upcoming' ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-slate-200'}`}
         >
-          <div className="flex items-center gap-3 mb-2">
-            <div className="bg-emerald-50 p-2 rounded-lg text-emerald-600">
-              <CheckCircle2 className="w-5 h-5" />
+          <div className="flex items-center gap-2 mb-2">
+            <div className="bg-indigo-50 p-1.5 rounded-lg text-indigo-600">
+              <Clock className="w-4 h-4" />
             </div>
-            <span className="text-sm font-medium text-slate-500">Signed/Completed</span>
+            <span className="text-xs font-medium text-slate-500">Upcoming</span>
           </div>
-          <div className="text-2xl font-bold text-slate-900">
+          <div className="text-xl font-bold text-slate-900">
             {agreements.filter(a => {
-              const s = a.status?.toLowerCase().trim();
-              return s === 'signed' || s === 'completed';
+              const status = a.status?.toLowerCase().trim();
+              const hasReceipt = !!a.payment_receipt && a.payment_receipt !== '[]' && a.payment_receipt !== 'null';
+              const isSigned = status === 'signed' || status === 'completed';
+              const isPaid = hasReceipt;
+              const isFuture = new Date(a.start_date || a.created_at).getTime() > getNowMYT().getTime();
+              return isSigned && isPaid && isFuture;
             }).length}
           </div>
         </div>
+
+        <div 
+          onClick={() => handleFilterClick('completed')}
+          className={`bg-white p-4 rounded-2xl border shadow-sm cursor-pointer hover:shadow-md transition-all ${filterType === 'completed' ? 'border-emerald-500 ring-1 ring-emerald-500' : 'border-slate-200'}`}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <div className="bg-emerald-50 p-1.5 rounded-lg text-emerald-600">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+            <span className="text-xs font-medium text-slate-500">Completed</span>
+          </div>
+          <div className="text-xl font-bold text-slate-900">
+            {agreements.filter(a => {
+              const status = a.status?.toLowerCase().trim();
+              const hasReceipt = !!a.payment_receipt && a.payment_receipt !== '[]' && a.payment_receipt !== 'null';
+              const isSigned = status === 'signed' || status === 'completed';
+              const isPaid = hasReceipt;
+              const isPast = new Date(a.start_date || a.created_at).getTime() <= getNowMYT().getTime();
+              return isSigned && isPaid && isPast;
+            }).length}
+          </div>
+        </div>
+
+        <div 
+          onClick={() => handleFilterClick('signed')}
+          className={`bg-white p-4 rounded-2xl border shadow-sm cursor-pointer hover:shadow-md transition-all ${filterType === 'signed' ? 'border-blue-500 ring-1 ring-blue-500' : 'border-slate-200'}`}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <div className="bg-blue-50 p-1.5 rounded-lg text-blue-600">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+            <span className="text-xs font-medium text-slate-500">Signed</span>
+          </div>
+          <div className="text-xl font-bold text-slate-900">
+            {agreements.filter(a => {
+              const status = a.status?.toLowerCase().trim();
+              const hasReceipt = !!a.payment_receipt && a.payment_receipt !== '[]' && a.payment_receipt !== 'null';
+              const isSigned = status === 'signed' || status === 'completed';
+              const isPaid = hasReceipt;
+              return isSigned && !isPaid;
+            }).length}
+          </div>
+        </div>
+
         <div 
           onClick={() => handleFilterClick('pending')}
-          className={`bg-white p-6 rounded-2xl border shadow-sm cursor-pointer hover:shadow-md transition-all ${filterType === 'pending' ? 'border-amber-500 ring-1 ring-amber-500' : 'border-slate-200'}`}
+          className={`bg-white p-4 rounded-2xl border shadow-sm cursor-pointer hover:shadow-md transition-all ${filterType === 'pending' ? 'border-amber-500 ring-1 ring-amber-500' : 'border-slate-200'}`}
         >
-          <div className="flex items-center gap-3 mb-2">
-            <div className="bg-amber-50 p-2 rounded-lg text-amber-600">
-              <Clock className="w-5 h-5" />
+          <div className="flex items-center gap-2 mb-2">
+            <div className="bg-amber-50 p-1.5 rounded-lg text-amber-600">
+              <Clock className="w-4 h-4" />
             </div>
-            <span className="text-sm font-medium text-slate-500">Pending Signature</span>
+            <span className="text-xs font-medium text-slate-500">Pending</span>
           </div>
-          <div className="text-2xl font-bold text-slate-900">
+          <div className="text-xl font-bold text-slate-900">
             {agreements.filter(a => a.status?.toLowerCase().trim() === 'pending').length}
           </div>
         </div>
+
         {staffRole === 'admin' && (
           <div 
             onClick={() => handleFilterClick('requests')}
-            className={`bg-white p-6 rounded-2xl border shadow-sm cursor-pointer hover:shadow-md transition-all ${filterType === 'requests' ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-200'}`}
+            className={`bg-white p-4 rounded-2xl border shadow-sm cursor-pointer hover:shadow-md transition-all ${filterType === 'requests' ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-200'}`}
           >
-            <div className="flex items-center gap-3 mb-2">
-              <div className="bg-red-50 p-2 rounded-lg text-red-600">
-                <AlertCircle className="w-5 h-5" />
+            <div className="flex items-center gap-2 mb-2">
+              <div className="bg-red-50 p-1.5 rounded-lg text-red-600">
+                <AlertCircle className="w-4 h-4" />
               </div>
-              <span className="text-sm font-medium text-slate-500">Pending Requests</span>
+              <span className="text-xs font-medium text-slate-500">Requests</span>
             </div>
-            <div className="text-2xl font-bold text-slate-900">
+            <div className="text-xl font-bold text-slate-900">
               {agreements.filter(a => a.has_pending_changes).length}
             </div>
           </div>
@@ -288,15 +360,28 @@ const AgreementDashboard: React.FC = () => {
                         {(() => {
                           const status = agreement.status?.toLowerCase().trim();
                           const hasReceipt = !!agreement.payment_receipt && agreement.payment_receipt !== '[]' && agreement.payment_receipt !== 'null';
+                          const isSigned = status === 'signed' || status === 'completed';
+                          const isPaid = hasReceipt;
+                          const pickupDate = new Date(agreement.start_date || agreement.created_at);
+                          const now = getNowMYT();
+                          const isFuture = pickupDate.getTime() > now.getTime();
+                          const isPast = pickupDate.getTime() <= now.getTime();
                           
-                          if ((status === 'completed' && hasReceipt) || (status === 'signed' && hasReceipt)) {
+                          if (isSigned && isPaid && isFuture) {
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">
+                                <Clock className="w-3 h-3" />
+                                Upcoming
+                              </span>
+                            );
+                          } else if (isSigned && isPaid && isPast) {
                             return (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
                                 <CheckCircle2 className="w-3 h-3" />
                                 Completed
                               </span>
                             );
-                          } else if (status === 'signed' || status === 'completed') {
+                          } else if (isSigned && !isPaid) {
                             return (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
                                 <CheckCircle2 className="w-3 h-3" />
