@@ -1269,7 +1269,20 @@ ALTER TABLE payout_history ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Payout history access" ON payout_history;
 CREATE POLICY "Payout history access" ON payout_history 
-  FOR ALL USING (auth.uid() = subscriber_id);
+  FOR ALL USING (
+    auth.uid() = subscriber_id -- Subscriber
+    OR 
+    subscriber_id = current_subscriber_id() -- Agent/Staff
+    OR
+    (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
+  )
+  WITH CHECK (
+    auth.uid() = subscriber_id -- Subscriber
+    OR 
+    subscriber_id = current_subscriber_id() -- Agent/Staff
+    OR
+    (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
+  );
 
 -- 17. Subscriber Audit View (Updated to include reconciled)
 DROP VIEW IF EXISTS subscriber_audit_view;

@@ -76,6 +76,17 @@ const AuditPayoutManagement: React.FC = () => {
   const [scanTrigger, setScanTrigger] = useState(0);
   const [isScanning, setIsScanning] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(getNowMYT());
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
 
   useEffect(() => {
     setSelectedIds([]);
@@ -129,21 +140,26 @@ const AuditPayoutManagement: React.FC = () => {
   };
 
   const handleOverride = async (record: AuditRecord) => {
-    if (!window.confirm(record.has_pending_changes ? 'Approve this amendment and synchronize with booking?' : 'Are you sure you want to approve this payout?')) return;
-    
-    try {
-      setProcessing(record.form_id);
-      if (record.has_pending_changes) {
-        await approveAmendment(record.form_id, subscriberId!);
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Confirm Approval',
+      message: record.has_pending_changes ? 'Approve this amendment and synchronize with booking?' : 'Are you sure you want to approve this payout?',
+      onConfirm: async () => {
+        try {
+          setProcessing(record.form_id);
+          if (record.has_pending_changes) {
+            await approveAmendment(record.form_id, subscriberId!);
+          }
+          await apiService.approveAuditRecord(record.form_id, record.booking_id, subscriberId!);
+          await refreshData();
+          toast.success('Payout approved!');
+        } catch (err) {
+          toast.error('Failed to approve record');
+        } finally {
+          setProcessing(null);
+        }
       }
-      await apiService.approveAuditRecord(record.form_id, record.booking_id, subscriberId!);
-      await refreshData();
-      toast.success('Payout approved!');
-    } catch (err) {
-      alert('Failed to approve record');
-    } finally {
-      setProcessing(null);
-    }
+    });
   };
 
   const handleRerunMatchy = async (record: AuditRecord) => {
@@ -161,80 +177,90 @@ const AuditPayoutManagement: React.FC = () => {
 
   const handleApproveSelected = async () => {
     if (selectedIds.length === 0) return;
-    if (!window.confirm(`Approve ${selectedIds.length} selected payouts?`)) return;
-
-    try {
-      setProcessing('bulk');
-      
-      // Handle amendments separately to ensure sync with bookings
-      const recordsToApprove = records.filter(r => selectedIds.includes(r.form_id));
-      const amendmentRecords = recordsToApprove.filter(r => r.has_pending_changes);
-      const normalRecords = recordsToApprove.filter(r => !r.has_pending_changes);
-      
-      // 1. Approve amendments one by one
-      for (const record of amendmentRecords) {
-        await approveAmendment(record.form_id, subscriberId!);
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Bulk Approve',
+      message: `Approve ${selectedIds.length} selected payouts?`,
+      onConfirm: async () => {
+        try {
+          setProcessing('bulk');
+          
+          // Handle amendments separately to ensure sync with bookings
+          const recordsToApprove = records.filter(r => selectedIds.includes(r.form_id));
+          const amendmentRecords = recordsToApprove.filter(r => r.has_pending_changes);
+          const normalRecords = recordsToApprove.filter(r => !r.has_pending_changes);
+          
+          // 1. Approve amendments one by one
+          for (const record of amendmentRecords) {
+            await approveAmendment(record.form_id, subscriberId!);
+          }
+          
+          // 2. Approve normal records in bulk
+          if (normalRecords.length > 0) {
+            await apiService.approveSelectedAuditRecords(normalRecords.map(r => r.form_id), subscriberId!);
+          }
+          
+          setSelectedIds([]);
+          await refreshData();
+          toast.success('Payouts approved!');
+        } catch (err) {
+          toast.error('Failed to approve selected records');
+        } finally {
+          setProcessing(null);
+        }
       }
-      
-      // 2. Approve normal records in bulk
-      if (normalRecords.length > 0) {
-        await apiService.approveSelectedAuditRecords(normalRecords.map(r => r.form_id), subscriberId!);
-      }
-      
-      setSelectedIds([]);
-      await refreshData();
-      toast.success('Payouts approved!');
-    } catch (err) {
-      alert('Failed to approve selected records');
-    } finally {
-      setProcessing(null);
-    }
+    });
   };
 
   const handleProcessMonthlyPayout = async () => {
     if (approvedRecordsForMonth.length === 0) {
-      alert('No approved payouts to process for this month.');
+      toast.error('No approved payouts to process for this month.');
       return;
     }
 
     const selectedMonthString = formatInMYT(selectedMonth, 'MMMM yyyy');
-    if (!window.confirm(`Process monthly payout for ${selectedMonthString}? This will reconcile ${approvedRecordsForMonth.length} records.`)) return;
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Process Monthly Payout',
+      message: `Process monthly payout for ${selectedMonthString}? This will reconcile ${approvedRecordsForMonth.length} records.`,
+      onConfirm: async () => {
+        try {
+          setProcessing('process');
+          
+          const calculatedTotal = approvedRecordsForMonth.reduce((sum, r) => sum + (Number(r.commission_earned) || 0), 0);
+          const agentBreakdown = payoutSummary;
 
-    try {
-      setProcessing('process');
-      
-      const calculatedTotal = approvedRecordsForMonth.reduce((sum, r) => sum + (Number(r.commission_earned) || 0), 0);
-      const agentBreakdown = payoutSummary;
+          console.log("PAYOUT PAYLOAD:", { subscriber_id: subscriberId, month_year: selectedMonthString, total_amount: calculatedTotal, breakdown: agentBreakdown });
 
-      console.log("PAYOUT PAYLOAD:", { subscriber_id: subscriberId, month_year: selectedMonthString, total_amount: calculatedTotal, breakdown: agentBreakdown });
+          const { error: insertError } = await supabase.from('payout_history').insert([{
+            subscriber_id: subscriberId,
+            total_amount: calculatedTotal,
+            month_year: selectedMonthString,
+            breakdown: agentBreakdown
+          }]);
 
-      const { error: insertError } = await supabase.from('payout_history').insert([{
-        subscriber_id: subscriberId,
-        total_amount: calculatedTotal,
-        month_year: selectedMonthString,
-        breakdown: agentBreakdown
-      }]);
+          if (insertError) throw insertError;
 
-      if (insertError) throw insertError;
+          const formIds = approvedRecordsForMonth.map(r => r.form_id);
+          const { error: updateError } = await supabase
+            .from('agreements')
+            .update({ status: 'reconciled', payout_status: 'paid' })
+            .in('id', formIds)
+            .eq('subscriber_id', subscriberId);
 
-      const formIds = approvedRecordsForMonth.map(r => r.form_id);
-      const { error: updateError } = await supabase
-        .from('agreements')
-        .update({ status: 'reconciled', payout_status: 'paid' })
-        .in('id', formIds)
-        .eq('subscriber_id', subscriberId);
+          if (updateError) throw updateError;
 
-      if (updateError) throw updateError;
-
-      await refreshData();
-      setActiveTab('history');
-      toast.success('Monthly payout processed successfully');
-    } catch (error) {
-      console.error("SUPABASE REJECTION:", error);
-      toast.error("Process failed. Open F12 console to see the error.");
-    } finally {
-      setProcessing(null);
-    }
+          await refreshData();
+          setActiveTab('history');
+          toast.success('Monthly payout processed successfully');
+        } catch (error) {
+          console.error("SUPABASE REJECTION:", error);
+          toast.error("Process failed. Open F12 console to see the error.");
+        } finally {
+          setProcessing(null);
+        }
+      }
+    });
   };
 
   const toggleSelectAll = (ids: string[]) => {
@@ -881,6 +907,34 @@ const AuditPayoutManagement: React.FC = () => {
                 className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Confirmation Modal */}
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden">
+            <div className="p-6">
+              <h3 className="text-lg font-bold text-slate-900 mb-2">{confirmDialog.title}</h3>
+              <p className="text-slate-600">{confirmDialog.message}</p>
+            </div>
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+                className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                  confirmDialog.onConfirm();
+                }}
+                className="px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm"
+              >
+                Confirm
               </button>
             </div>
           </div>
