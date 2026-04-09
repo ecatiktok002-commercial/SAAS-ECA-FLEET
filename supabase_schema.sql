@@ -841,6 +841,7 @@ WITH completed_records AS (
         payment_receipt
     FROM agreements 
     WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL AND payment_receipt != ''))
+      AND COALESCE(start_date, created_at::date) <= CURRENT_DATE
     UNION ALL
     SELECT 
         id,
@@ -854,6 +855,7 @@ WITH completed_records AS (
         payment_receipt
     FROM digital_forms 
     WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL AND payment_receipt != ''))
+      AND COALESCE(start_date, created_at::date) <= CURRENT_DATE
 ),
 customer_stats AS (
     SELECT 
@@ -1179,9 +1181,11 @@ SELECT DISTINCT ON (subscriber_id, identity_number)
 FROM (
     SELECT subscriber_id, customer_name, customer_phone, identity_number, agent_name, created_at FROM agreements
     WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL AND payment_receipt != ''))
+      AND COALESCE(start_date, created_at::date) <= CURRENT_DATE
     UNION ALL
     SELECT subscriber_id, customer_name, customer_phone, identity_number, agent_name, created_at FROM digital_forms
     WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL AND payment_receipt != ''))
+      AND COALESCE(start_date, created_at::date) <= CURRENT_DATE
 ) combined_data
 WHERE identity_number IS NOT NULL
 ORDER BY subscriber_id, identity_number, created_at ASC
@@ -1303,7 +1307,9 @@ SELECT
     a.is_receipt_verified,
     CASE 
         WHEN a.status = 'reconciled' THEN 'reconciled'
-        WHEN a.status = 'completed' OR b.status = 'completed' THEN 'completed'
+        WHEN (a.status = 'completed' OR b.status = 'completed' OR (a.status = 'signed' AND a.payment_receipt IS NOT NULL AND a.payment_receipt != '')) 
+             AND COALESCE(a.start_date, a.created_at::date) > CURRENT_DATE THEN 'upcoming'
+        WHEN a.status = 'completed' OR b.status = 'completed' OR (a.status = 'signed' AND a.payment_receipt IS NOT NULL AND a.payment_receipt != '') THEN 'completed'
         ELSE a.status 
     END as status,
     a.reference_number,

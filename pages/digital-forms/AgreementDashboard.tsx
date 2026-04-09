@@ -95,6 +95,14 @@ const AgreementDashboard: React.FC = () => {
     }
   };
 
+  const getPickupDateTime = (agreement: Agreement) => {
+    if (!agreement.start_date) return new Date(agreement.created_at);
+    const dateStr = agreement.start_date;
+    const timeStr = agreement.pickup_time || '00:00';
+    const formattedTime = timeStr.length === 5 ? `${timeStr}:00` : timeStr;
+    return new Date(`${dateStr}T${formattedTime}+08:00`);
+  };
+
   const filteredForms = agreements.filter(a => {
     const query = searchQuery.toLowerCase();
     const matchesSearch = (
@@ -118,7 +126,7 @@ const AgreementDashboard: React.FC = () => {
     const hasReceipt = !!a.payment_receipt && a.payment_receipt !== '[]' && a.payment_receipt !== 'null';
     const isSigned = status === 'signed' || status === 'completed';
     const isPaid = hasReceipt;
-    const pickupDate = new Date(a.start_date || a.created_at);
+    const pickupDate = getPickupDateTime(a);
     const now = getNowMYT();
     const isFuture = pickupDate.getTime() > now.getTime();
     const isPast = pickupDate.getTime() <= now.getTime();
@@ -135,8 +143,8 @@ const AgreementDashboard: React.FC = () => {
 
     return true;
   }).sort((a, b) => {
-    const dateA = new Date(a.start_date || a.created_at).getTime();
-    const dateB = new Date(b.start_date || b.created_at).getTime();
+    const dateA = getPickupDateTime(a).getTime();
+    const dateB = getPickupDateTime(b).getTime();
     return dateB - dateA;
   });
 
@@ -209,7 +217,7 @@ const AgreementDashboard: React.FC = () => {
               const hasReceipt = !!a.payment_receipt && a.payment_receipt !== '[]' && a.payment_receipt !== 'null';
               const isSigned = status === 'signed' || status === 'completed';
               const isPaid = hasReceipt;
-              const isFuture = new Date(a.start_date || a.created_at).getTime() > getNowMYT().getTime();
+              const isFuture = getPickupDateTime(a).getTime() > getNowMYT().getTime();
               return isSigned && isPaid && isFuture;
             }).length}
           </div>
@@ -231,7 +239,7 @@ const AgreementDashboard: React.FC = () => {
               const hasReceipt = !!a.payment_receipt && a.payment_receipt !== '[]' && a.payment_receipt !== 'null';
               const isSigned = status === 'signed' || status === 'completed';
               const isPaid = hasReceipt;
-              const isPast = new Date(a.start_date || a.created_at).getTime() <= getNowMYT().getTime();
+              const isPast = getPickupDateTime(a).getTime() <= getNowMYT().getTime();
               return isSigned && isPaid && isPast;
             }).length}
           </div>
@@ -362,7 +370,7 @@ const AgreementDashboard: React.FC = () => {
                           const hasReceipt = !!agreement.payment_receipt && agreement.payment_receipt !== '[]' && agreement.payment_receipt !== 'null';
                           const isSigned = status === 'signed' || status === 'completed';
                           const isPaid = hasReceipt;
-                          const pickupDate = new Date(agreement.start_date || agreement.created_at);
+                          const pickupDate = getPickupDateTime(agreement);
                           const now = getNowMYT();
                           const isFuture = pickupDate.getTime() > now.getTime();
                           const isPast = pickupDate.getTime() <= now.getTime();
@@ -406,7 +414,7 @@ const AgreementDashboard: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-slate-500 text-sm">
-                      {formatInMYT(new Date(agreement.start_date || agreement.created_at).getTime(), 'dd/MM/yyyy')}
+                      {formatInMYT(getPickupDateTime(agreement).getTime(), 'dd/MM/yyyy')}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
