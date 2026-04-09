@@ -8,7 +8,7 @@ import { Agreement } from '../../types';
 import { 
   FileText, 
   Plus, 
-  Search, 
+  Search,  
   MoreVertical, 
   ExternalLink, 
   Trash2, 
