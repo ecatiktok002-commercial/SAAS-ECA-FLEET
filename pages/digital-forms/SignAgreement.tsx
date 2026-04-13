@@ -426,14 +426,14 @@ export default function SignAgreement() {
                 <div className="bg-white p-3 print:p-1.5 rounded-xl print:rounded-none border border-slate-200 print:border-slate-300 shadow-sm print:shadow-none flex items-start print:block">
                   <div className="bg-slate-100 print:bg-transparent p-2 print:p-0 rounded-lg mr-3 print:mr-0 print:mb-0.5">
                     <Car className="h-5 w-5 print:h-3 print:w-3 text-slate-700 print:inline print:mr-1" />
-                    <h4 className="font-bold text-slate-900 mb-1 print:mb-0.5 uppercase text-[10px] print:text-[7pt] tracking-wider print:inline">Kelayakan & Penggunaan</h4>
+                    <h4 className="font-bold text-slate-900 mb-1 print:mb-0.5 uppercase text-[10px] print:text-[7pt] tracking-wider print:inline">Penggunaan</h4>
                   </div>
                   <div>
                     <ul className="space-y-0.5 print:space-y-0 text-[11px] print:text-[6.5pt] text-slate-600 list-disc ml-4 print:ml-3 print:leading-tight">
-                      <li>Pemandu sah (Kelas D) sahaja.</li>
+                      <li>Pemandu sah (Kelas P,D) sahaja.</li>
                       <li>Lesen P excess wajib RM400.</li>
-                      <li>Had Mileage 200KM/hari (Lebihan RM0.50/km).</li>
-                      <li>Tiada sub-let / luar Semenanjung.</li>
+                      <li>Ada Had Mileage 200km/500km (Lebihan RM0.50/km).</li>
+                      <li>Tiada sub-let / keluar luar Semenanjung.</li>
                     </ul>
                   </div>
                 </div>
@@ -445,9 +445,10 @@ export default function SignAgreement() {
                   </div>
                   <div>
                     <ul className="space-y-0.5 print:space-y-0 text-[11px] print:text-[6.5pt] text-slate-600 list-disc ml-4 print:ml-3 print:leading-tight">
-                      <li>Caj RM10.00/jam.</li>
-                      <li>Lebih 8 jam = caj 1 hari.</li>
-                      <li>Mesti maklum 5 jam awal untuk lanjutan.</li>
+                      <li>Extend Caj RM10.00/jam.</li>
+                      <li>Extend Lebih 8 jam = kira caj 1 hari.</li>
+                      <li>Perlu maklum 5 jam awal untuk sebarang extend.</li>
+                      <li>Deposit refund dalam 48 jam.</li>
                     </ul>
                   </div>
                 </div>
@@ -460,7 +461,8 @@ export default function SignAgreement() {
                   <div>
                     <ul className="space-y-0.5 print:space-y-0 text-[11px] print:text-[6.5pt] text-slate-600 list-disc ml-4 print:ml-3 print:leading-tight">
                       <li>Minyak mesti sama (Same Level) atau RM10/bar.</li>
-                      <li>Wajib bersih (Caj cuci RM20).</li>
+                      <li>Kekal bersih (Caj cuci RM20).</li>
+                      <li>Kalau Cancel kurang dari 12 jam = Deposit Forfiet.</li>
                     </ul>
                   </div>
                 </div>
@@ -474,7 +476,7 @@ export default function SignAgreement() {
                     <ul className="space-y-0.5 print:space-y-0 text-[11px] print:text-[6.5pt] text-slate-600 list-disc ml-4 print:ml-3 print:leading-tight">
                       <li>Wajib report polis dalam 24 jam.</li>
                       <li>Penyewa tanggung semua saman.</li>
-                      <li>Ganti Rugi Masa Hilang (Loss of Use) dikenakan jika kereta di bengkel.</li>
+                      <li>"Loss of Use" dikenakan jika penyewa buat rosak atau kemalangan.</li>
                     </ul>
                   </div>
                 </div>
