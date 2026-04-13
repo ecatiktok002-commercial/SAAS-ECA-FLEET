@@ -131,29 +131,19 @@ const withRetry = async <T>(fn: () => Promise<T>, retries = 3, delay = 1000): Pr
   try {
     return await fn();
   } catch (error: any) {
-    // Fix the 42501 Error: Refresh session and retry once if permission denied
-    if (error.code === '42501' || error.status === 403 || error.message?.includes('42501')) {
-      console.warn('Permission denied (42501). Attempting to refresh session and retry...');
-      const { error: refreshError } = await supabase.auth.refreshSession();
-      if (!refreshError) {
-        try {
-          return await fn();
-        } catch (retryError) {
-          throw retryError;
-        }
-      }
-    }
-
     const isNetworkError = error.message?.includes('Failed to fetch') || 
                           error.name === 'TypeError' || 
                           error.message?.includes('NetworkError') ||
                           !window.navigator.onLine;
     
+    // Only retry on actual network drops, NOT on permission/auth errors
     if (retries > 0 && isNetworkError) {
       console.warn(`Supabase Network Retry [${retries} left]: Attempting to reconnect...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       return withRetry(fn, retries - 1, delay * 2);
     }
+    
+    // Throw auth and syntax errors immediately so React Query can handle them gracefully
     throw error;
   }
 };

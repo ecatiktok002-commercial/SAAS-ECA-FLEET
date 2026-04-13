@@ -27,6 +27,7 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 1000 * 60 * 5, // 5 minutes
       refetchOnWindowFocus: false,
+      retry: false, // Prevents infinite retry loops on database errors
     },
   },
 });
