@@ -35,6 +35,7 @@ export default function EditAgreement() {
   });
   const [paymentReceipts, setPaymentReceipts] = useState<File[]>([]);
   const [existingReceipts, setExistingReceipts] = useState<string[]>([]);
+  const [pendingReceipts, setPendingReceipts] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState('');
@@ -148,6 +149,23 @@ export default function EditAgreement() {
           }
         } else {
           setExistingReceipts([]);
+        }
+
+        // Parse pending receipts if requested
+        if (data.has_pending_changes && data.pending_changes?.payment_receipt) {
+          try {
+            const parsedStr = data.pending_changes.payment_receipt;
+            const parsed = typeof parsedStr === 'string' ? JSON.parse(parsedStr) : parsedStr;
+            if (Array.isArray(parsed)) {
+              setPendingReceipts(parsed);
+            } else {
+              setPendingReceipts([parsedStr]);
+            }
+          } catch (e) {
+            setPendingReceipts([data.pending_changes.payment_receipt]);
+          }
+        } else {
+          setPendingReceipts([]);
         }
       } catch (err: any) {
         setError(err.message);
@@ -761,6 +779,39 @@ export default function EditAgreement() {
                                   Remove
                                 </button>
                               )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {pendingReceipts.filter(r => !existingReceipts.includes(r)).length > 0 && isAdmin && (
+                    <div className="grid grid-cols-1 gap-4">
+                      {pendingReceipts.filter(r => !existingReceipts.includes(r)).map((receipt, index) => (
+                        <div key={`pending-${index}`} className="bg-amber-50 rounded-xl border border-amber-200 p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="bg-amber-100 p-2 rounded-lg">
+                                <Upload className="w-5 h-5 text-amber-600" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900">Requested Receipt #{index + 1}</p>
+                                <p className="text-xs text-amber-600 font-medium">New proposed receipt</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPreviewUrl(receipt);
+                                  setIsPreviewOpen(true);
+                                }}
+                                className="inline-flex items-center px-3 py-1.5 border border-amber-200 shadow-sm text-xs font-medium rounded-lg text-slate-700 bg-white hover:bg-amber-50 transition-colors"
+                              >
+                                <Eye className="w-3.5 h-3.5 mr-1.5" />
+                                View
+                              </button>
                             </div>
                           </div>
                         </div>
