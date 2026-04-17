@@ -711,7 +711,14 @@ export default function EditAgreement() {
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Payment Receipts (Max 5)</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-slate-700">Payment Receipts (Max 5)</label>
+                  {agreement?.has_pending_changes && agreement?.pending_changes?.payment_receipt && (
+                    <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-100">
+                      Requested: New Additional Photo/PDF
+                    </span>
+                  )}
+                </div>
                 
                 <div className="space-y-4">
                   {existingReceipts.length > 0 && (
