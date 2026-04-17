@@ -574,17 +574,31 @@ const AuditPayoutManagement: React.FC = () => {
                               {record.payment_receipt && (
                                 <button
                                   onClick={() => {
+                                    let allUrls: string[] = [];
                                     try {
                                       const parsed = JSON.parse(record.payment_receipt!);
-                                      const urls = Array.isArray(parsed) ? parsed : [record.payment_receipt!];
-                                      setPreviewUrls(urls);
-                                      setCurrentPreviewIndex(0);
-                                      setIsPreviewOpen(true);
+                                      allUrls = Array.isArray(parsed) ? parsed : [record.payment_receipt!];
                                     } catch (e) {
-                                      setPreviewUrls([record.payment_receipt!]);
-                                      setCurrentPreviewIndex(0);
-                                      setIsPreviewOpen(true);
+                                      allUrls = [record.payment_receipt!];
                                     }
+                                    
+                                    if (record.has_pending_changes && record.pending_changes?.payment_receipt) {
+                                      try {
+                                        const pendingParsed = typeof record.pending_changes.payment_receipt === 'string' 
+                                            ? JSON.parse(record.pending_changes.payment_receipt)
+                                            : record.pending_changes.payment_receipt;
+                                            
+                                        const pendingUrls = Array.isArray(pendingParsed) ? pendingParsed : [record.pending_changes.payment_receipt];
+                                        allUrls = Array.from(new Set([...allUrls, ...pendingUrls])); // Use Set to deduplicate in case existing receipts are also included
+                                      } catch (e) {
+                                        if (typeof record.pending_changes.payment_receipt === 'string') {
+                                           allUrls = Array.from(new Set([...allUrls, record.pending_changes.payment_receipt]));
+                                        }
+                                      }
+                                    }
+                                    setPreviewUrls(allUrls);
+                                    setCurrentPreviewIndex(0);
+                                    setIsPreviewOpen(true);
                                   }}
                                   className="text-[10px] text-blue-600 font-bold hover:underline flex items-center gap-0.5"
                                 >

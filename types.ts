@@ -226,6 +226,7 @@ export interface AuditRecord {
   is_dates_matched: boolean;
   discrepancy_reason: string | null;
   has_pending_changes?: boolean;
+  pending_changes?: any;
 }
 
 export interface Company {
