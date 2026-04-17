@@ -796,7 +796,7 @@ export default function EditAgreement() {
                     </div>
                   )}
 
-                  {(existingReceipts.length + paymentReceipts.length) < 3 && !isLocked && (
+                  {(existingReceipts.length + paymentReceipts.length) < 5 && !isLocked && (
                     <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-lg hover:bg-slate-50 transition-colors">
                       <div className="space-y-1 text-center">
                         <Upload className="mx-auto h-12 w-12 text-slate-400" />
