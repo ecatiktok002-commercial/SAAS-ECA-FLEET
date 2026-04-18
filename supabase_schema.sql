@@ -1354,15 +1354,19 @@ BEGIN
         status = 'completed',
         payout_status = 'pending_review'
     FROM public.bookings b
+    -- We JOIN the cars table so the system can read the physical car plate
+    JOIN public.cars c ON b.car_id = c.id
     WHERE a.subscriber_id = target_subscriber_id
       AND b.subscriber_id = target_subscriber_id
       AND a.booking_id IS NULL 
-      -- 1. Date Match
+      -- 1. Exact Date Match
       AND a.start_date = COALESCE(b.start_date, (b.pickup_datetime AT TIME ZONE 'Asia/Kuala_Lumpur')::date)
-      -- 2. Time Match
+      -- 2. Exact Time Match
       AND to_char(a.pickup_time, 'HH24:MI') = to_char(COALESCE(b.pickup_time, (b.pickup_datetime AT TIME ZONE 'Asia/Kuala_Lumpur')::time), 'HH24:MI')
-      -- 3. Duration Match
-      AND a.duration_days = COALESCE(b.duration_days, b.duration);
+      -- 3. Exact Duration Match
+      AND a.duration_days = COALESCE(b.duration_days, b.duration)
+      -- 4. Exact Car Plate Match (The Ultimate Unique Differentiator)
+      AND (a.car_plate_number = c.plate OR a.car_plate_number = c.plate_number);
 
     GET DIAGNOSTICS updated_rows = ROW_COUNT;
     RETURN QUERY SELECT updated_rows;

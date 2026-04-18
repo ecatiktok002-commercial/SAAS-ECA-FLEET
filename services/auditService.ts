@@ -67,8 +67,9 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
         const dateMatch = agreement.start_date === bStartDate;
         const timeMatch = agreement.pickup_time?.substring(0, 5) === bPickupTime?.substring(0, 5);
         const durationMatch = agreement.duration_days === bDuration;
+        const carPlateMatch = agreement.car_plate_number === b.cars?.plate || agreement.car_plate_number === b.cars?.plate_number;
 
-        return dateMatch && timeMatch && durationMatch;
+        return dateMatch && timeMatch && durationMatch && carPlateMatch;
       });
 
       if (matchingBooking) {
@@ -159,6 +160,24 @@ export const approveAmendment = async (agreementId: string, subscriberId: string
 
   // 4. Sync with bookings table if necessary
   if (bookingId) {
+    let bookingUpdates: any = {};
+    
+    // Check if car plate was changed
+    if (pendingChanges.car_plate_number) {
+      // Find the proper car_id from cars table
+      const { data: carData } = await supabase
+        .from('cars')
+        .select('id')
+        .eq('subscriber_id', subscriberId)
+        .or(`plate_number.eq."${pendingChanges.car_plate_number}",plate.eq."${pendingChanges.car_plate_number}"`)
+        .limit(1)
+        .single();
+        
+      if (carData) {
+        bookingUpdates.car_id = carData.id;
+      }
+    }
+
     // Check if date/time fields were changed
     const dateFields = ['start_date', 'end_date', 'pickup_time', 'return_time', 'duration_days'];
     const hasDateChanges = dateFields.some(f => f in pendingChanges);
@@ -181,23 +200,25 @@ export const approveAmendment = async (agreementId: string, subscriberId: string
           const duration = Math.max(0, differenceInDays(endDateObj, startDateObj));
           
           if (isValid(startTimestamp) && isValid(endTimestamp)) {
-            const { error: bookingError } = await supabase
-              .from('bookings')
-              .update({
-                pickup_datetime: startTimestamp.toISOString(),
-                actual_end_time: endTimestamp.toISOString(),
-                duration_days: duration
-              })
-              .eq('id', bookingId);
-              
-            if (bookingError) {
-              console.error('Booking sync failed:', bookingError);
-              throw new Error(`Agreement updated but booking sync failed: ${bookingError.message}`);
-            }
+             bookingUpdates.pickup_datetime = startTimestamp.toISOString();
+             bookingUpdates.actual_end_time = endTimestamp.toISOString();
+             bookingUpdates.duration_days = duration;
           }
         } catch (err) {
           console.error('Error calculating booking sync:', err);
         }
+      }
+    }
+    
+    if (Object.keys(bookingUpdates).length > 0) {
+      const { error: bookingError } = await supabase
+        .from('bookings')
+        .update(bookingUpdates)
+        .eq('id', bookingId);
+        
+      if (bookingError) {
+        console.error('Booking sync failed:', bookingError);
+        throw new Error(`Agreement updated but booking sync failed: ${bookingError.message}`);
       }
     }
   }
