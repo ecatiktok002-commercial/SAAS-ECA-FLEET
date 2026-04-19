@@ -139,13 +139,14 @@ const BookingModal: React.FC<BookingModalProps> = ({
       const modelCars = cars.filter(c => c.name.trim() === model && c.status === 'active');
       const available = modelCars.filter(car => {
          const [startDate, pickupTime] = selectedDateTimeStr.split('T');
-         const bookingData = { 
+        const bookingData = { 
            car_id: car.id, 
            start_date: startDate, 
            pickup_time: pickupTime,
            duration_days: Number(duration),
            member_id: '', // Dummy for validation
-           ...(isEarlyReturn && actualEndTime ? { end_time: mytToUtc(actualEndTime).toISOString() } : { end_time: null })
+           // Changed from end_time to actual_end_time
+           ...(isEarlyReturn && actualEndTime ? { actual_end_time: mytToUtc(actualEndTime).toISOString() } : { actual_end_time: null })
          };
          // Exclude current booking if editing
          const otherBookings = editingBooking 
@@ -171,7 +172,11 @@ const BookingModal: React.FC<BookingModalProps> = ({
         setMemberId(editingBooking.member_id || '');
         setDuration(editingBooking.duration_days);
         
-        if (editingBooking.end_time) {
+        if (editingBooking.actual_end_time) {
+          setIsEarlyReturn(true);
+          setActualEndTime(getMYTInputString(editingBooking.actual_end_time));
+        } else if (editingBooking.end_time && editingBooking.end_time.includes('-')) {
+          // Legacy fallback just in case old data still has a full timestamp in end_time
           setIsEarlyReturn(true);
           setActualEndTime(getMYTInputString(editingBooking.end_time));
         } else {
@@ -330,7 +335,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
       start_date: startDate,
       pickup_time: pickupTime,
       duration_days: Number(duration),
-      ...(isEarlyReturn && actualEndTime ? { end_time: mytToUtc(actualEndTime).toISOString() } : { end_time: null })
+      // Changed from end_time to actual_end_time
+      ...(isEarlyReturn && actualEndTime ? { actual_end_time: mytToUtc(actualEndTime).toISOString() } : { actual_end_time: null })
     };
 
     // Double check validation for specific car (Category mode is already validated by findAvailableCarByModel)
