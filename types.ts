@@ -57,9 +57,9 @@ export interface Booking {
   start_date: string; // YYYY-MM-DD
   pickup_time: string; // HH:mm
   duration_days: number; // in days
+  actual_end_time?: string | null; 
   end_time?: string | null; // ISO string
-  actual_end_time?: string | null;
-  end_date?: string | null;
+  end_date?: string | null; 
   track?: number; // assigned vertical slot
   status?: 'active' | 'completed' | 'cancelled';
   total_price?: number;
@@ -68,8 +68,8 @@ export interface Booking {
   is_dates_matched?: boolean;
   has_discrepancy?: boolean;
   discrepancy_reason?: string;
-  end_date?: string;
   return_time?: string;
+}
 }
 
 export interface Expense {
