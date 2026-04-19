@@ -9,6 +9,22 @@ export const parseBookingDate = (dateStr: string, timeStr?: string): number => {
   return mytToUtc(`${dateStr}T${formattedTime}`).getTime();
 };
 
+export const getBookingEndTime = (b: Booking): number => {
+  if (b.actual_end_time) {
+    return new Date(b.actual_end_time).getTime();
+  }
+
+  const startMs = parseBookingDate(b.start_date, b.pickup_time);
+  
+  if (b.return_time) {
+    const calcEndDateMs = startMs + (b.duration_days || 0) * 24 * 60 * 60 * 1000;
+    const endDateStr = getMYTDateString(calcEndDateMs);
+    return parseBookingDate(endDateStr, b.return_time);
+  }
+
+  return startMs + (b.duration_days || 0) * 24 * 60 * 60 * 1000;
+};
+
 /**
  * Checks if a new booking overlaps with any existing bookings for the same car.
  */

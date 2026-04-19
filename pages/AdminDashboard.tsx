@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/apiService';
-import { parseBookingDate } from '../services/bookingService';
+import { parseBookingDate, getBookingEndTime } from '../services/bookingService';
 import { getNowMYT, utcToMyt, formatInMYT } from '../utils/dateUtils';
 import { 
   Users, Car, CalendarCheck, DollarSign, FileText, AlertTriangle, 
@@ -169,9 +169,7 @@ const AdminDashboard: React.FC = () => {
     const carsOnRentToday = bookings.filter(b => {
       const start = utcToMyt(parseBookingDate(b.start_date, b.pickup_time));
       // FIX: Use actual_end_time or duration_days. Ignore DB's end_time string.
-      const end = b.actual_end_time 
-        ? utcToMyt(b.actual_end_time) 
-        : new Date(start.getTime() + (b.duration_days || 0) * 24 * 60 * 60 * 1000);
+      const end = utcToMyt(getBookingEndTime(b));
       return start <= now && end >= now && b.status !== 'cancelled';
     }).map(b => b.car_id);
     
@@ -202,9 +200,7 @@ const AdminDashboard: React.FC = () => {
       const startMs = parseBookingDate(b.start_date, b.pickup_time);
       
       // FIX: Use actual_end_time or duration_days. Ignore DB's end_time string.
-      const endMs = b.actual_end_time 
-        ? new Date(b.actual_end_time).getTime() 
-        : startMs + (b.duration_days || 0) * 24 * 60 * 60 * 1000;
+      const endMs = getBookingEndTime(b);
 
       const car = cars.find(c => c.id === b.car_id);
       const member = members.find(m => m.id === b.member_id);

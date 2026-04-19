@@ -2,7 +2,7 @@ import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { formatInMYT } from '../utils/dateUtils';
 import { Booking, Car, Member } from '../types';
-import { parseBookingDate } from './bookingService';
+import { parseBookingDate, getBookingEndTime } from './bookingService';
 
 /**
  * Exports bookings for the specified month to an Excel file.
@@ -28,7 +28,7 @@ export const exportBookingsToExcel = (
   const relevantBookings = bookings.filter(b => {
     const bStart = parseBookingDate(b.start_date, b.pickup_time);
     // FIX: Ignore DB end_time string. Use actual_end_time or duration
-    const bEnd = b.actual_end_time ? new Date(b.actual_end_time).getTime() : bStart + ((b.duration_days || 0) * 24 * 60 * 60 * 1000);
+    const bEnd = getBookingEndTime(b);
     const mStart = startOfMonth.getTime();
     const mEnd = endOfMonth.getTime();
 
@@ -48,7 +48,7 @@ export const exportBookingsToExcel = (
     // Calculate End Date for display
     const bStart = parseBookingDate(b.start_date, b.pickup_time);
     // FIX: Ignore DB end_time string. Use actual_end_time or duration
-    const endDate = b.actual_end_time ? new Date(b.actual_end_time) : new Date(bStart + ((b.duration_days || 0) * 24 * 60 * 60 * 1000));
+    const endDate = new Date(getBookingEndTime(b));
 
     return {
       'Plate Number': car?.plate || 'Unknown',
