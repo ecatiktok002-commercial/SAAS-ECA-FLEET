@@ -58,6 +58,8 @@ export interface Booking {
   pickup_time: string; // HH:mm
   duration_days: number; // in days
   end_time?: string | null; // ISO string
+  actual_end_time?: string | null;
+  end_date?: string | null;
   track?: number; // assigned vertical slot
   status?: 'active' | 'completed' | 'cancelled';
   total_price?: number;
