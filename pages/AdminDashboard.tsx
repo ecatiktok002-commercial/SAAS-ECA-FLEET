@@ -168,7 +168,10 @@ const AdminDashboard: React.FC = () => {
     const activeCars = cars.filter(c => c.status === 'active');
     const carsOnRentToday = bookings.filter(b => {
       const start = utcToMyt(parseBookingDate(b.start_date, b.pickup_time));
-      const end = b.end_time ? utcToMyt(b.end_time) : new Date(start.getTime() + b.duration_days * 24 * 60 * 60 * 1000);
+      // FIX: Use actual_end_time or duration_days. Ignore DB's end_time string.
+      const end = b.actual_end_time 
+        ? utcToMyt(b.actual_end_time) 
+        : new Date(start.getTime() + (b.duration_days || 0) * 24 * 60 * 60 * 1000);
       return start <= now && end >= now && b.status !== 'cancelled';
     }).map(b => b.car_id);
     
@@ -197,8 +200,10 @@ const AdminDashboard: React.FC = () => {
       // The booking timestamps are saved in UTC.
       // We can compare them directly with `now.getTime()` (which is also UTC).
       const startMs = parseBookingDate(b.start_date, b.pickup_time);
-      const endMs = b.end_time 
-        ? new Date(b.end_time).getTime() 
+      
+      // FIX: Use actual_end_time or duration_days. Ignore DB's end_time string.
+      const endMs = b.actual_end_time 
+        ? new Date(b.actual_end_time).getTime() 
         : startMs + (b.duration_days || 0) * 24 * 60 * 60 * 1000;
 
       const car = cars.find(c => c.id === b.car_id);

@@ -1,4 +1,3 @@
-
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { formatInMYT } from '../utils/dateUtils';
@@ -26,11 +25,10 @@ export const exportBookingsToExcel = (
   const fileName = `Fleet_Bookings_${monthName}_${year}.xlsx`;
 
   // Filter bookings: Overlap logic
-  // A booking overlaps with the month if:
-  // Booking Start < Month End AND Booking End > Month Start
   const relevantBookings = bookings.filter(b => {
     const bStart = parseBookingDate(b.start_date, b.pickup_time);
-    const bEnd = b.end_time ? new Date(b.end_time).getTime() : bStart + (b.duration_days * 24 * 60 * 60 * 1000);
+    // FIX: Ignore DB end_time string. Use actual_end_time or duration
+    const bEnd = b.actual_end_time ? new Date(b.actual_end_time).getTime() : bStart + ((b.duration_days || 0) * 24 * 60 * 60 * 1000);
     const mStart = startOfMonth.getTime();
     const mEnd = endOfMonth.getTime();
 
@@ -49,7 +47,8 @@ export const exportBookingsToExcel = (
     
     // Calculate End Date for display
     const bStart = parseBookingDate(b.start_date, b.pickup_time);
-    const endDate = b.end_time ? new Date(b.end_time) : new Date(bStart + (b.duration_days * 24 * 60 * 60 * 1000));
+    // FIX: Ignore DB end_time string. Use actual_end_time or duration
+    const endDate = b.actual_end_time ? new Date(b.actual_end_time) : new Date(bStart + ((b.duration_days || 0) * 24 * 60 * 60 * 1000));
 
     return {
       'Plate Number': car?.plate || 'Unknown',

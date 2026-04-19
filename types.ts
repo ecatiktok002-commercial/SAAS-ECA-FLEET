@@ -57,9 +57,10 @@ export interface Booking {
   pickup_time: string; // HH:mm
   duration_days: number; // in days
   
-  actual_end_time?: string | null; 
-  end_time?: string | null; // ISO string
-  end_date?: string | null;
+  // FIX: Updated definitions to match current Supabase schema
+  end_time?: string | null; // Now a TIME string from DB (HH:mm:ss), ignored by frontend
+  actual_end_time?: string | null; // ISO string used for early returns
+  end_date?: string | null; // Now a DATE string from DB (YYYY-MM-DD), ignored by frontend
   
   track?: number; // assigned vertical slot
   status?: 'active' | 'completed' | 'cancelled';
