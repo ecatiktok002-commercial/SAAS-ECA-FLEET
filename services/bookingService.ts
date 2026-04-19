@@ -1,4 +1,3 @@
-
 import { Booking, Car } from '../types';
 import { mytToUtc, getMYTDateString, getNowMYT } from '../utils/dateUtils';
 
@@ -15,13 +14,15 @@ export const parseBookingDate = (dateStr: string, timeStr?: string): number => {
  */
 export const validateBooking = (newBooking: Omit<Booking, 'id'>, existingBookings: Booking[]): boolean => {
   const newStart = parseBookingDate(newBooking.start_date, newBooking.pickup_time);
-  const newEnd = newBooking.end_time ? new Date(newBooking.end_time).getTime() : newStart + (newBooking.duration_days * 24 * 60 * 60 * 1000);
+  
+  // FRONTEND FIX: Ignore DB end_time to prevent NaN crashes. Calculate strictly via duration.
+  const newEnd = newStart + ((newBooking.duration_days || 0) * 24 * 60 * 60 * 1000);
 
   const carBookings = existingBookings.filter(b => b.car_id === newBooking.car_id);
 
   for (const b of carBookings) {
     const bStart = parseBookingDate(b.start_date, b.pickup_time);
-    const bEnd = b.end_time ? new Date(b.end_time).getTime() : bStart + (b.duration_days * 24 * 60 * 60 * 1000);
+    const bEnd = bStart + ((b.duration_days || 0) * 24 * 60 * 60 * 1000);
 
     if (newStart < bEnd && newEnd > bStart) {
       return false; 
@@ -120,8 +121,7 @@ export const suggestUpgrade = (
  * OPTIMIZATION ALGORITHM (Tetris/Auto-Shuffle):
  * Rearranges bookings within the same model group to pack them onto fewer plates,
  * creating larger contiguous blocks of free time on other plates.
- * 
- * RESTRICTION: Only optimizes bookings that start ON or AFTER the current system time.
+ * * RESTRICTION: Only optimizes bookings that start ON or AFTER the current system time.
  * Past/Ongoing bookings remain static on their assigned plates.
  */
 export const optimizeBookings = (bookings: Booking[], cars: Car[]): Booking[] => {
@@ -166,7 +166,8 @@ export const optimizeBookings = (bookings: Booking[], cars: Car[]): Booking[] =>
         // If no locked bookings, available immediately (0)
         let maxEnd = 0;
         carLockedBookings.forEach(b => {
-            const bEnd = b.end_time ? new Date(b.end_time).getTime() : parseBookingDate(b.start_date, b.pickup_time) + (b.duration_days * 24 * 60 * 60 * 1000);
+            const bStart = parseBookingDate(b.start_date, b.pickup_time);
+            const bEnd = bStart + ((b.duration_days || 0) * 24 * 60 * 60 * 1000);
             if (bEnd > maxEnd) maxEnd = bEnd;
         });
         
@@ -176,7 +177,7 @@ export const optimizeBookings = (bookings: Booking[], cars: Car[]): Booking[] =>
     // 4. Re-assign Optimizable Bookings
     optimizableBookings.forEach(booking => {
       const bStart = parseBookingDate(booking.start_date, booking.pickup_time);
-      const bEnd = booking.end_time ? new Date(booking.end_time).getTime() : bStart + (booking.duration_days * 24 * 60 * 60 * 1000);
+      const bEnd = bStart + ((booking.duration_days || 0) * 24 * 60 * 60 * 1000);
 
       // Find the "best" car for this booking.
       // Best = The car that becomes free closest to booking start time (without overlap).
@@ -233,7 +234,7 @@ export const getAvailableCars = (date: Date, bookings: Booking[], cars: Car[]): 
     const carBookings = bookings.filter(b => b.car_id === car.id);
     const hasOverlap = carBookings.some(b => {
       const bStart = parseBookingDate(b.start_date, b.pickup_time);
-      const bEnd = b.end_time ? new Date(b.end_time).getTime() : bStart + (b.duration_days * 24 * 60 * 60 * 1000);
+      const bEnd = bStart + ((b.duration_days || 0) * 24 * 60 * 60 * 1000);
       return checkStart < bEnd && checkEnd > bStart;
     });
     return !hasOverlap;
@@ -257,13 +258,13 @@ export const assignTracks = (bookings: Booking[]): Booking[] => {
   for (const b of sorted) {
     let track = 0;
     const bStart = parseBookingDate(b.start_date, b.pickup_time);
-    const bEnd = b.end_time ? new Date(b.end_time).getTime() : bStart + (b.duration_days * 24 * 60 * 60 * 1000);
+    const bEnd = bStart + ((b.duration_days || 0) * 24 * 60 * 60 * 1000);
 
     while (true) {
       const conflict = assigned.some(other => {
         if (other.track !== track) return false;
         const otherStart = parseBookingDate(other.start_date, other.pickup_time);
-        const otherEnd = other.end_time ? new Date(other.end_time).getTime() : otherStart + (other.duration_days * 24 * 60 * 60 * 1000);
+        const otherEnd = otherStart + ((other.duration_days || 0) * 24 * 60 * 60 * 1000);
         return bStart < otherEnd && bEnd > otherStart;
       });
 
@@ -283,9 +284,7 @@ export const isBookingOnDate = (booking: Booking, date: Date): boolean => {
   const endOfDay = startOfDay + (24 * 60 * 60 * 1000);
   
   const bookingStart = parseBookingDate(booking.start_date, booking.pickup_time);
-  const bookingEnd = booking.end_time 
-    ? new Date(booking.end_time).getTime() 
-    : bookingStart + (booking.duration_days * 24 * 60 * 60 * 1000);
+  const bookingEnd = bookingStart + ((booking.duration_days || 0) * 24 * 60 * 60 * 1000);
   
   return bookingStart < endOfDay && bookingEnd > startOfDay;
 };
@@ -297,9 +296,7 @@ export const getBookingSegmentData = (booking: Booking, date: Date) => {
   const dayEnd = dayStart + (24 * 60 * 60 * 1000);
   
   const bStart = parseBookingDate(booking.start_date, booking.pickup_time);
-  const bEnd = booking.end_time 
-    ? new Date(booking.end_time).getTime() 
-    : bStart + (booking.duration_days * 24 * 60 * 60 * 1000);
+  const bEnd = bStart + ((booking.duration_days || 0) * 24 * 60 * 60 * 1000);
 
   const intersectionStart = Math.max(dayStart, bStart);
   const intersectionEnd = Math.min(dayEnd, bEnd);
