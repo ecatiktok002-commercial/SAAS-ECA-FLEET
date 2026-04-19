@@ -33,7 +33,8 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
   // 3. Fetch agreements created in this month (to find orphaned agreements)
   const { data: recentAgreements, error: recentAgreementsError } = await supabase
     .from('agreements')
-    .select('*')
+    // FIX: Explicitly select lightweight columns. DO NOT select payment_receipt or signature_data!
+    .select('id, booking_id, subscriber_id, start_date, pickup_time, duration_days, car_plate_number, customer_name, reference_number, agent_name, total_price, status, payout_status')
     .eq('subscriber_id', subscriberId)
     .gte('created_at', monthStartDate)
     .lte('created_at', monthEndDate);
@@ -102,7 +103,8 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
       const chunk = bookingIds.slice(i, i + 100);
       const { data: linked, error: linkedError } = await supabase
         .from('agreements')
-        .select('*')
+        // FIX: Explicitly select lightweight columns here too
+        .select('id, booking_id, subscriber_id, start_date, pickup_time, duration_days, car_plate_number, customer_name, reference_number, agent_name, total_price, status, payout_status')
         .eq('subscriber_id', subscriberId)
         .in('booking_id', chunk);
         
