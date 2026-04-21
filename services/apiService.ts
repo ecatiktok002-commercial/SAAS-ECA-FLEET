@@ -923,14 +923,14 @@ export const apiService = {
       }
 
       // If completed, also update linked agreement status to 'completed'
-      // but only if it has a valid payment receipt and is not already 'reconciled'
+      // but only if it has a valid payment receipt and is not already 'completed'
       if (status === 'completed') {
         const { data: agreements } = await supabase
           .from('agreements')
           .select('id, payment_receipt')
           .eq('booking_id', id)
           .eq('subscriber_id', targetSubscriberId)
-          .neq('status', 'reconciled');
+          .neq('status', 'completed');
 
         if (agreements && agreements.length > 0) {
           for (const agreement of agreements) {
@@ -2500,7 +2500,7 @@ export const apiService = {
     return withRetry(async () => {
       const { error } = await supabase
         .from('agreements')
-        .update({ payout_status: 'paid', status: 'reconciled' })
+        .update({ payout_status: 'paid' })
         .eq('payout_status', 'approved')
         .eq('subscriber_id', targetSubscriberId);
       
@@ -2653,11 +2653,11 @@ export const apiService = {
         throw new Error('Failed to create payout history');
       }
 
-      // 2. Update agreements to reconciled
+      // 2. Update agreements to paid (leaving status intact)
       const formIds = records.map(r => r.form_id);
       const { error: updateError } = await supabase
         .from('agreements')
-        .update({ status: 'reconciled', payout_status: 'paid' })
+        .update({ payout_status: 'paid' })
         .in('id', formIds)
         .eq('subscriber_id', targetSubscriberId);
 

@@ -244,7 +244,7 @@ const AuditPayoutManagement: React.FC = () => {
           const formIds = approvedRecordsForMonth.map(r => r.form_id);
           const { error: updateError } = await supabase
             .from('agreements')
-            .update({ status: 'reconciled', payout_status: 'paid' })
+            .update({ payout_status: 'paid' })
             .in('id', formIds)
             .eq('subscriber_id', subscriberId);
 
@@ -291,7 +291,7 @@ const AuditPayoutManagement: React.FC = () => {
     .reduce((sum, r) => sum + (Number(r.commission_earned) || 0), 0);
 
   const approvedRecordsForMonth = useMemo(() => 
-    currentMonthRecords.filter(r => !!r.booking_id && r.payout_status === 'approved' && r.status !== 'reconciled'),
+    currentMonthRecords.filter(r => !!r.booking_id && r.payout_status === 'approved'),
     [currentMonthRecords]
   );
 
