@@ -227,7 +227,11 @@ const AuditPayoutManagement: React.FC = () => {
         try {
           setProcessing('process');
           
-          const calculatedTotal = approvedRecordsForMonth.reduce((sum, r) => sum + (Number(r.commission_earned) || 0), 0);
+          const calculatedTotal = approvedRecordsForMonth.reduce((sum, r) => {
+            let earned = Number(r.commission_earned) || 0;
+            if (earned <= 0 && Number(r.form_price) > 0) earned = Number(r.form_price) * 0.20;
+            return sum + earned;
+          }, 0);
           const agentBreakdown = payoutSummary;
 
           console.log("PAYOUT PAYLOAD:", { subscriber_id: subscriberId, month_year: selectedMonthString, total_amount: calculatedTotal, breakdown: agentBreakdown });
@@ -288,7 +292,11 @@ const AuditPayoutManagement: React.FC = () => {
   ), [readyForReview, searchTerm]);
 
   const pendingPayoutsSum = readyForReview
-    .reduce((sum, r) => sum + (Number(r.commission_earned) || 0), 0);
+    .reduce((sum, r) => {
+      let earned = Number(r.commission_earned) || 0;
+      if (earned <= 0 && Number(r.form_price) > 0) earned = Number(r.form_price) * 0.20;
+      return sum + earned;
+    }, 0);
 
   const approvedRecordsForMonth = useMemo(() => 
     currentMonthRecords.filter(r => !!r.booking_id && r.payout_status === 'approved'),
@@ -296,7 +304,11 @@ const AuditPayoutManagement: React.FC = () => {
   );
 
   const readyForPayoutSum = approvedRecordsForMonth
-    .reduce((sum, r) => sum + (Number(r.commission_earned) || 0), 0);
+    .reduce((sum, r) => {
+      let earned = Number(r.commission_earned) || 0;
+      if (earned <= 0 && Number(r.form_price) > 0) earned = Number(r.form_price) * 0.20;
+      return sum + earned;
+    }, 0);
 
   // Payout Summary Logic
   const payoutSummary = useMemo(() => {
@@ -313,7 +325,12 @@ const AuditPayoutManagement: React.FC = () => {
       
       existing.total_bookings += 1;
       existing.total_revenue += (Number(r.form_price) || 0);
-      existing.payout_due += (Number(r.commission_earned) || 0);
+      let earned = Number(r.commission_earned) || 0;
+      if (earned <= 0 && Number(r.form_price) > 0) {
+        // Fallback calculation for dynamic tier if db somehow stored 0
+        earned = Number(r.form_price) * 0.20;
+      }
+      existing.payout_due += earned;
       
       agentMap.set(r.agent_id, existing);
     });
@@ -570,7 +587,11 @@ const AuditPayoutManagement: React.FC = () => {
                           <td className="py-4 px-6">
                             <div className="text-sm font-bold text-slate-900">RM {(Number(record.form_price) || 0).toFixed(2)}</div>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <div className="text-[10px] text-emerald-600 font-bold">Comm: RM {(Number(record.commission_earned) || 0).toFixed(2)}</div>
+                            <div className="text-[10px] text-emerald-600 font-bold">Comm: RM {(() => {
+                              let earned = Number(record.commission_earned) || 0;
+                              if (earned <= 0 && Number(record.form_price) > 0) earned = Number(record.form_price) * 0.20;
+                              return earned.toFixed(2);
+                            })()}</div>
                               {record.payment_receipt && (
                                 <button
                                   onClick={() => {

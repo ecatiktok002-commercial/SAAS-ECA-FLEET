@@ -216,10 +216,13 @@ const AgentDashboard: React.FC = () => {
     // 4. Agent Specific Metrics (Earnings & Chart)
     const getCommissionForAmount = (a: Agreement, runningTotal: number) => {
       const totalPrice = Number(a.total_price) || 0;
+      let earned = 0;
       if (a.commission_earned !== undefined && a.commission_earned !== null) {
-        return Number(a.commission_earned);
+        earned = Number(a.commission_earned);
+        if (earned > 0 || totalPrice === 0) return earned;
       }
-      if (currentStaff?.commission_rate) {
+      
+      if (currentStaff?.commission_rate && Number(currentStaff.commission_rate) > 0) {
         return totalPrice * (Number(currentStaff.commission_rate) / 100);
       }
       const tierOverride = currentStaff?.commission_tier_override || 'auto';

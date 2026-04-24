@@ -979,7 +979,7 @@ export const apiService = {
         try {
           const staffMember = await this.getStaffMemberById(finalBooking.agent_id, targetSubscriberId);
           if (staffMember) {
-            if (staffMember.commission_rate) {
+            if (staffMember.commission_rate && Number(staffMember.commission_rate) > 0) {
               finalBooking.commission_earned = finalBooking.total_price * (staffMember.commission_rate / 100);
             } else if (staffMember.commission_tier_override && staffMember.commission_tier_override !== 'auto') {
               const rate = staffMember.commission_tier_override === 'premium' ? 0.20 : staffMember.commission_tier_override === 'prestige' ? 0.25 : 0.30;
@@ -2056,7 +2056,7 @@ export const apiService = {
         try {
           const staffMember = await this.getStaffMemberById(finalAgreement.agent_id, targetSubscriberId);
           if (staffMember) {
-            if (staffMember.commission_rate) {
+            if (staffMember.commission_rate && Number(staffMember.commission_rate) > 0) {
               finalAgreement.commission_earned = finalAgreement.total_price * (staffMember.commission_rate / 100);
             } else if (staffMember.commission_tier_override && staffMember.commission_tier_override !== 'auto') {
               const rate = staffMember.commission_tier_override === 'premium' ? 0.20 : staffMember.commission_tier_override === 'prestige' ? 0.25 : 0.30;
@@ -2156,7 +2156,7 @@ export const apiService = {
           if (agentId && totalPrice !== undefined) {
             const staffMember = await this.getStaffMemberById(agentId, targetSubscriberId);
             if (staffMember) {
-              if (staffMember.commission_rate) {
+              if (staffMember.commission_rate && Number(staffMember.commission_rate) > 0) {
                 finalUpdates.commission_earned = totalPrice * (staffMember.commission_rate / 100);
               } else if (staffMember.commission_tier_override && staffMember.commission_tier_override !== 'auto') {
                 const rate = staffMember.commission_tier_override === 'premium' ? 0.20 : staffMember.commission_tier_override === 'prestige' ? 0.25 : 0.30;
@@ -2556,6 +2556,8 @@ export const apiService = {
       if (staffError) throw staffError;
 
       const staffMap = new Map(staff.map(s => [s.id, s]));
+      const staffNameMap = new Map(staff.map(s => [s.name?.toLowerCase().trim(), s]));
+      const authToStaffMap = new Map<string, string>();
 
       // 3. Group agreements by agent and month for 'auto' tier running totals
       const agentMonthTotals = new Map<string, number>();
@@ -2568,13 +2570,29 @@ export const apiService = {
 
       // 4. Iterate and update
       for (const agreement of agreements) {
-        const agent = staffMap.get(agreement.agent_id);
+        let agent = staffMap.get(agreement.agent_id);
+        
+        // Fallback for older agreements that might have auth_uid
+        if (!agent && agreement.agent_id) {
+          let resId = authToStaffMap.get(agreement.agent_id);
+          if (!resId) {
+            resId = await resolveAgentId(agreement.agent_id);
+            if (resId) authToStaffMap.set(agreement.agent_id, resId);
+          }
+          if (resId) agent = staffMap.get(resId);
+        }
+        
+        // Final fallback: Match by name
+        if (!agent && agreement.agent_name) {
+          agent = staffNameMap.get(agreement.agent_name.toLowerCase().trim());
+        }
+        
         if (!agent || agreement.total_price === undefined || agreement.total_price === null) continue;
 
         let expectedCommission = 0;
         const totalPrice = Number(agreement.total_price);
 
-        if (agent.commission_rate) {
+        if (agent.commission_rate && Number(agent.commission_rate) > 0) {
           expectedCommission = totalPrice * (Number(agent.commission_rate) / 100);
         } else if (agent.commission_tier_override && agent.commission_tier_override !== 'auto') {
           const rate = agent.commission_tier_override === 'premium' ? 0.20 : 
