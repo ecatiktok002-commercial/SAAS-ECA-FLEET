@@ -1366,7 +1366,10 @@ BEGIN
       -- 3. Exact Duration Match
       AND a.duration_days = COALESCE(b.duration_days, b.duration)
       -- 4. Exact Car Plate Match (The Ultimate Unique Differentiator)
-      AND (a.car_plate_number = c.plate OR a.car_plate_number = c.plate_number);
+      AND (
+        REPLACE(LOWER(a.car_plate_number), ' ', '') = REPLACE(LOWER(c.plate), ' ', '') OR 
+        REPLACE(LOWER(a.car_plate_number), ' ', '') = REPLACE(LOWER(c.plate_number), ' ', '')
+      );
 
     GET DIAGNOSTICS updated_rows = ROW_COUNT;
     RETURN QUERY SELECT updated_rows;

@@ -64,11 +64,14 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
         const bPickupTime = b.pickup_time || (b.pickup_datetime ? formatInMYT(b.pickup_datetime, 'HH:mm') : null);
         const bDuration = b.duration_days || b.duration;
 
+        const normalizePlate = (p?: string | null) => (p || '').replace(/\s+/g, '').toLowerCase();
+
         // Match criteria: Date, Time (HH:mm), and Duration
         const dateMatch = agreement.start_date === bStartDate;
         const timeMatch = agreement.pickup_time?.substring(0, 5) === bPickupTime?.substring(0, 5);
-        const durationMatch = agreement.duration_days === bDuration;
-        const carPlateMatch = agreement.car_plate_number === b.cars?.plate || agreement.car_plate_number === b.cars?.plate_number;
+        const durationMatch = Number(agreement.duration_days) === Number(bDuration);
+        const carPlateMatch = normalizePlate(agreement.car_plate_number) === normalizePlate(b.cars?.plate) || 
+                              normalizePlate(agreement.car_plate_number) === normalizePlate(b.cars?.plate_number);
 
         return dateMatch && timeMatch && durationMatch && carPlateMatch;
       });
