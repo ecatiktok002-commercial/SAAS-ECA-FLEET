@@ -292,7 +292,7 @@ const AdminDashboard: React.FC = () => {
         start_date: '', 
         end_date: '' 
       });
-      queryClient.invalidateQueries({ queryKey: ['adminDashboard', subscriberId] });
+      await queryClient.refetchQueries({ queryKey: ['adminDashboard'] });
       toast.success('Event created successfully');
     } catch (err) {
       console.error('Failed to add event:', err);
@@ -306,7 +306,7 @@ const AdminDashboard: React.FC = () => {
       setIsConfirmingReturn(true);
       await apiService.updateBookingStatus(id, subscriberId, 'completed');
       setConfirmReturnId(null);
-      queryClient.invalidateQueries({ queryKey: ['adminDashboard', subscriberId] });
+      await queryClient.refetchQueries({ queryKey: ['adminDashboard'] });
       toast.success('Vehicle marked as returned');
     } catch (err) {
       console.error('Failed to confirm return:', err);
@@ -637,7 +637,7 @@ const AdminDashboard: React.FC = () => {
                             onClick={async () => {
                               try {
                                 await apiService.deleteMarketingEvent(event.id, subscriberId!);
-                                queryClient.invalidateQueries({ queryKey: ['adminDashboard', subscriberId] });
+                                await queryClient.refetchQueries({ queryKey: ['adminDashboard'] });
                               } catch (err) {
                                 console.error('Failed to delete event:', err);
                               }

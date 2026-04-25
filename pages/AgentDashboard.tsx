@@ -330,7 +330,7 @@ const AgentDashboard: React.FC = () => {
       setIsConfirmingReturn(true);
       await apiService.updateBookingStatus(id, subscriberId, 'completed');
       setConfirmReturnId(null);
-      queryClient.invalidateQueries({ queryKey: ['agentDashboard', subscriberId] });
+      await queryClient.refetchQueries({ queryKey: ['agentDashboard'] });
       toast.success('Vehicle marked as returned');
     } catch (err) {
       console.error('Failed to confirm return:', err);
