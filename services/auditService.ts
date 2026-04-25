@@ -61,15 +61,17 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
         if (isAlreadyLinked) return false;
 
         const bStartDate = b.start_date || (b.pickup_datetime ? formatInMYT(b.pickup_datetime, 'yyyy-MM-dd') : null);
+        const bDuration = b.duration_days || b.duration;
         
         const normalizePlate = (p?: string | null) => (p || '').replace(/\s+/g, '').toLowerCase();
 
-        // Match criteria: Focus on Date and Plate (which are the strongest signals for a unique rental)
+        // Match criteria: Date, Duration, and Car Plate
         const dateMatch = agreement.start_date === bStartDate;
+        const durationMatch = Number(agreement.duration_days) === Number(bDuration);
         const carPlateMatch = normalizePlate(agreement.car_plate_number) === normalizePlate(b.cars?.plate) || 
                               normalizePlate(agreement.car_plate_number) === normalizePlate(b.cars?.plate_number);
 
-        return dateMatch && carPlateMatch;
+        return dateMatch && durationMatch && carPlateMatch;
       });
 
       if (matchingBooking) {
