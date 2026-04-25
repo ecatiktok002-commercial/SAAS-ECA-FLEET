@@ -2540,7 +2540,8 @@ export const apiService = {
       // 1. Fetch all agreements
       const { data: agreements, error: agError } = await supabase
         .from('agreements')
-        .select('*')
+        // 🚀 SPEED FIX: Only select the specific columns needed for commission math!
+        .select('id, agent_id, agent_name, total_price, commission_earned, created_at')
         .eq('subscriber_id', targetSubscriberId)
         .not('agent_id', 'is', null)
         .order('created_at', { ascending: true }); // Important for running total
