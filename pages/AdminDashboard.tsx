@@ -625,8 +625,10 @@ const AdminDashboard: React.FC = () => {
             <div className="p-6 flex-1 bg-slate-50/50">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {events.length > 0 ? events.map((event: any) => {
-                  const now = getNowMYT();
-                  const isActive = utcToMyt(event.start_date) <= now && utcToMyt(event.end_date) >= now;
+                  const nowStr = formatInMYT(getNowMYT(), 'yyyy-MM-dd');
+                  const eStart = event.start_date.substring(0, 10);
+                  const eEnd = event.end_date.substring(0, 10);
+                  const isActive = eStart <= nowStr && eEnd >= nowStr;
                   return (
                     <div key={event.id} className={`p-4 rounded-xl border ${isActive ? 'bg-gradient-to-br from-indigo-500 to-purple-600 border-transparent text-white shadow-md' : 'bg-white border-slate-200 text-slate-900'}`}>
                       <div className="flex justify-between items-start mb-4">

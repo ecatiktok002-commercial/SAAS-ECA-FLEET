@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Trophy, Star, Target, Zap, Clock, CheckCircle2 } from 'lucide-react';
 import { MarketingEvent, Booking } from '../types';
-import { getNowMYT, utcToMyt } from '../utils/dateUtils';
+import { getNowMYT, utcToMyt, formatInMYT } from '../utils/dateUtils';
 import confetti from 'canvas-confetti';
 
 interface AgentGamificationWidgetProps {
@@ -64,9 +64,11 @@ export const AgentGamificationWidget: React.FC<AgentGamificationWidgetProps> = (
   const formatRM = (amount: number) => `RM ${amount.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const activeEvents = React.useMemo(() => {
+    const nowStr = formatInMYT(getNowMYT(), 'yyyy-MM-dd');
     return events.filter(e => {
-      const now = getNowMYT();
-      return utcToMyt(e.start_date) <= now && utcToMyt(e.end_date) >= now;
+      const eStart = e.start_date.substring(0, 10);
+      const eEnd = e.end_date.substring(0, 10);
+      return eStart <= nowStr && eEnd >= nowStr;
     });
   }, [events]);
 
@@ -74,11 +76,11 @@ export const AgentGamificationWidget: React.FC<AgentGamificationWidgetProps> = (
   const eventProgress = React.useMemo(() => {
     return activeEvents.map(event => {
       const eventBookings = bookings.filter(b => {
-        const bookingDate = utcToMyt(b.start_date);
+        const bookingDate = formatInMYT(b.start_date ? new Date(b.start_date).getTime() : getNowMYT(), 'yyyy-MM-dd');
         return b.agent_id === userId && 
                b.status === 'completed' &&
-               bookingDate >= utcToMyt(event.start_date) && 
-               bookingDate <= utcToMyt(event.end_date);
+               bookingDate >= event.start_date.substring(0, 10) && 
+               bookingDate <= event.end_date.substring(0, 10);
       });
 
       let current = 0;
