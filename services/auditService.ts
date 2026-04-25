@@ -20,7 +20,7 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
   // 2. Fetch all active bookings for the month
   const { data: bookings, error: bookingsError } = await supabase
     .from('bookings')
-    .select('*, cars(plate)')
+    .select('*, cars(plate, plate_number)')
     .eq('subscriber_id', subscriberId)
     .gte('pickup_datetime', monthStartDate)
     .lte('pickup_datetime', monthEndDate)
@@ -61,19 +61,15 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
         if (isAlreadyLinked) return false;
 
         const bStartDate = b.start_date || (b.pickup_datetime ? formatInMYT(b.pickup_datetime, 'yyyy-MM-dd') : null);
-        const bPickupTime = b.pickup_time || (b.pickup_datetime ? formatInMYT(b.pickup_datetime, 'HH:mm') : null);
-        const bDuration = b.duration_days || b.duration;
-
+        
         const normalizePlate = (p?: string | null) => (p || '').replace(/\s+/g, '').toLowerCase();
 
-        // Match criteria: Date, Time (HH:mm), and Duration
+        // Match criteria: Focus on Date and Plate (which are the strongest signals for a unique rental)
         const dateMatch = agreement.start_date === bStartDate;
-        const timeMatch = agreement.pickup_time?.substring(0, 5) === bPickupTime?.substring(0, 5);
-        const durationMatch = Number(agreement.duration_days) === Number(bDuration);
         const carPlateMatch = normalizePlate(agreement.car_plate_number) === normalizePlate(b.cars?.plate) || 
                               normalizePlate(agreement.car_plate_number) === normalizePlate(b.cars?.plate_number);
 
-        return dateMatch && timeMatch && durationMatch && carPlateMatch;
+        return dateMatch && carPlateMatch;
       });
 
       if (matchingBooking) {
