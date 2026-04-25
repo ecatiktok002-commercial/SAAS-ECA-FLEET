@@ -250,7 +250,7 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
         <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
           <h4 className="font-bold text-slate-800 flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-slate-400" />
-            Orphan Resolution Queue
+            List of Non-Matched Bookings
           </h4>
         </div>
 

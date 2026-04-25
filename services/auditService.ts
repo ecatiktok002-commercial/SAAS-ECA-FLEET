@@ -8,7 +8,49 @@ import { formatInMYT } from '../utils/dateUtils';
  * Strictly enforces Multi-Tenant Data Isolation.
  */
 export const runMatchyScan = async (subscriberId: string, monthStartDate: string, monthEndDate: string) => {
-  
+  // 0. Integrity Check: Unlink agreements that no longer legitimately match their bookings
+  // This handles cases where a calendar booking was extended but the form wasn't updated
+  const { data: linkedCheck } = await supabase
+    .from('agreements')
+    .select('id, duration_days, start_date, car_plate_number, booking_id, bookings(duration_days, duration, start_date, pickup_datetime, cars(plate, plate_number))')
+    .eq('subscriber_id', subscriberId)
+    .not('booking_id', 'is', null);
+
+  if (linkedCheck && linkedCheck.length > 0) {
+    const invalidLinks = linkedCheck.filter((a: any) => {
+      const b = a.bookings;
+      if (!b) return true; // Booking deleted
+
+      const bStartDate = b.start_date || (b.pickup_datetime ? formatInMYT(b.pickup_datetime, 'yyyy-MM-dd') : null);
+      const bDuration = b.duration_days || b.duration;
+      const normalizePlate = (p?: string | null) => (p || '').replace(/\s+/g, '').toLowerCase();
+
+      const dateMatch = a.start_date === bStartDate;
+      const durationMatch = Number(a.duration_days) === Number(bDuration);
+      const carPlateMatch = normalizePlate(a.car_plate_number) === normalizePlate(b.cars?.plate) || 
+                            normalizePlate(a.car_plate_number) === normalizePlate(b.cars?.plate_number);
+
+      // If they no longer match ALL criteria, they are invalid links
+      return !(dateMatch && durationMatch && carPlateMatch);
+    });
+
+    if (invalidLinks.length > 0) {
+      // Chunk the updates to avoid URL limits
+      const invalidIds = invalidLinks.map(a => a.id);
+      for (let i = 0; i < invalidIds.length; i += 100) {
+        const chunk = invalidIds.slice(i, i + 100);
+        await supabase
+          .from('agreements')
+          .update({ 
+            booking_id: null,
+            payout_status: 'pending' // Reset payout status
+          })
+          .in('id', chunk);
+      }
+      console.log(`[MatchyScan] Unlinked ${invalidIds.length} previously matched records due to broken criteria.`);
+    }
+  }
+
   // 1. Call the RPC to do the heuristic match
   const { data: rpcData, error: rpcError } = await supabase.rpc('run_heuristic_match', { target_subscriber_id: subscriberId });
   let matchCount = (rpcData as any)?.[0]?.matched_count || 0;
