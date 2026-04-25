@@ -1941,7 +1941,8 @@ export const apiService = {
   async getAgreements(subscriberId: string, agentId?: string, createdBy?: string | string[], startDate?: string, endDate?: string): Promise<Agreement[]> {
     validateSubscriber(subscriberId);
     return withRetry(async () => {
-      let query = supabase.from('agreements').select('*');
+      // 🚀 SPEED FIX: Point this to the lightweight view to strip the Base64 payloads
+      let query = supabase.from('agreements_light').select('*');
       query = applySubscriberFilter(query, subscriberId);
 
       let resolvedAgentId = agentId;

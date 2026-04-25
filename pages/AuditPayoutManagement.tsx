@@ -594,32 +594,47 @@ const AuditPayoutManagement: React.FC = () => {
                             })()}</div>
                               {record.payment_receipt && (
                                 <button
-                                  onClick={() => {
-                                    let allUrls: string[] = [];
+                                  onClick={async () => {
+                                    // LAZY LOAD FIX: Fetch the heavy Base64 image ONLY when clicked
                                     try {
-                                      const parsed = JSON.parse(record.payment_receipt!);
-                                      allUrls = Array.isArray(parsed) ? parsed : [record.payment_receipt!];
-                                    } catch (e) {
-                                      allUrls = [record.payment_receipt!];
-                                    }
-                                    
-                                    if (record.has_pending_changes && record.pending_changes?.payment_receipt) {
+                                      const toastId = toast.loading('Loading receipt...');
+                                      const fullAgreement = await apiService.getAgreementById(record.form_id, subscriberId!);
+                                      toast.dismiss(toastId);
+                                      
+                                      if (!fullAgreement || !fullAgreement.payment_receipt || fullAgreement.payment_receipt === '[]' || fullAgreement.payment_receipt === 'null') {
+                                        toast.error('No receipt found.');
+                                        return;
+                                      }
+
+                                      let allUrls: string[] = [];
                                       try {
-                                        const pendingParsed = typeof record.pending_changes.payment_receipt === 'string' 
-                                            ? JSON.parse(record.pending_changes.payment_receipt)
-                                            : record.pending_changes.payment_receipt;
-                                            
-                                        const pendingUrls = Array.isArray(pendingParsed) ? pendingParsed : [record.pending_changes.payment_receipt];
-                                        allUrls = Array.from(new Set([...allUrls, ...pendingUrls])); // Use Set to deduplicate in case existing receipts are also included
+                                        const parsed = JSON.parse(fullAgreement.payment_receipt);
+                                        allUrls = Array.isArray(parsed) ? parsed : [fullAgreement.payment_receipt];
                                       } catch (e) {
-                                        if (typeof record.pending_changes.payment_receipt === 'string') {
-                                           allUrls = Array.from(new Set([...allUrls, record.pending_changes.payment_receipt]));
+                                        allUrls = [fullAgreement.payment_receipt];
+                                      }
+                                      
+                                      if (fullAgreement.has_pending_changes && fullAgreement.pending_changes?.payment_receipt) {
+                                        try {
+                                          const pendingParsed = typeof fullAgreement.pending_changes.payment_receipt === 'string' 
+                                              ? JSON.parse(fullAgreement.pending_changes.payment_receipt)
+                                              : fullAgreement.pending_changes.payment_receipt;
+                                              
+                                          const pendingUrls = Array.isArray(pendingParsed) ? pendingParsed : [fullAgreement.pending_changes.payment_receipt];
+                                          allUrls = Array.from(new Set([...allUrls, ...pendingUrls])); // Use Set to deduplicate
+                                        } catch (e) {
+                                          if (typeof fullAgreement.pending_changes.payment_receipt === 'string') {
+                                             allUrls = Array.from(new Set([...allUrls, fullAgreement.pending_changes.payment_receipt]));
+                                          }
                                         }
                                       }
+                                      setPreviewUrls(allUrls);
+                                      setCurrentPreviewIndex(0);
+                                      setIsPreviewOpen(true);
+                                    } catch (err) {
+                                      toast.dismiss();
+                                      toast.error('Failed to load receipt image.');
                                     }
-                                    setPreviewUrls(allUrls);
-                                    setCurrentPreviewIndex(0);
-                                    setIsPreviewOpen(true);
                                   }}
                                   className="text-[10px] text-blue-600 font-bold hover:underline flex items-center gap-0.5"
                                 >
