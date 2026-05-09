@@ -100,7 +100,7 @@ const AgreementDashboard: React.FC = () => {
     const dateStr = agreement.start_date;
     const timeStr = agreement.pickup_time || '00:00';
     const formattedTime = timeStr.length === 5 ? `${timeStr}:00` : timeStr;
-    return new Date(`${dateStr}T${formattedTime}+08:00`);
+    return new Date(`${dateStr}T${formattedTime}Z`);
   };
 
   const filteredForms = agreements.filter(a => {
@@ -166,21 +166,21 @@ const AgreementDashboard: React.FC = () => {
           <h1 className="text-3xl font-bold text-slate-900">Digital Agreements</h1>
           <p className="text-slate-500 mt-1">Create and manage legally binding rental agreements.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           {staffRole === 'admin' && (
             <button 
               onClick={() => navigate('branding')}
-              className="bg-white hover:bg-slate-50 text-slate-700 px-6 py-3 rounded-xl font-bold border border-slate-200 flex items-center gap-2 transition-all shadow-sm active:scale-95"
+              className="w-full sm:w-auto justify-center bg-white hover:bg-slate-50 text-slate-700 px-6 py-3 rounded-xl font-bold border border-slate-200 flex items-center gap-2 transition-all shadow-sm active:scale-95"
             >
-              <ImageIcon className="w-5 h-5" />
+              <ImageIcon className="w-5 h-5 flex-shrink-0" />
               Branding
             </button>
           )}
           <button 
             onClick={() => navigate('create')}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-emerald-900/20 active:scale-95"
+            className="w-full sm:w-auto justify-center bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-emerald-900/20 active:scale-95"
           >
-            <Plus className="w-5 h-5" />
+            <Plus className="w-5 h-5 flex-shrink-0" />
             Create Agreement
           </button>
         </div>
@@ -314,7 +314,7 @@ const AgreementDashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 text-slate-500 text-xs font-bold uppercase tracking-wider">
@@ -323,7 +323,7 @@ const AgreementDashboard: React.FC = () => {
                 <th className="px-6 py-4">Handled By</th>
                 <th className="px-6 py-4">Amount</th>
                 <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Date</th>
+                <th className="px-6 py-4">Date & Time</th>
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -414,7 +414,7 @@ const AgreementDashboard: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-slate-500 text-sm">
-                      {formatInMYT(getPickupDateTime(agreement).getTime(), 'dd/MM/yyyy')}
+                      {formatInMYT(getPickupDateTime(agreement).getTime(), 'dd/MM/yyyy, h:mm a')}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
@@ -460,6 +460,111 @@ const AgreementDashboard: React.FC = () => {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden flex flex-col gap-4 p-4 bg-slate-50">
+          {loading ? (
+             <div className="py-12 text-center text-slate-400">
+               <div className="animate-spin w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+               Loading agreements...
+             </div>
+          ) : filteredForms.length === 0 ? (
+             <div className="py-12 text-center text-slate-400">
+               {staffRole === 'agent' ? (
+                 <div className="space-y-2">
+                   <p className="text-slate-600 font-medium">You have no active agreements.</p>
+                   <p className="text-sm">Create a new reservation to get started.</p>
+                 </div>
+               ) : (
+                 "No agreements found across the fleet."
+               )}
+             </div>
+          ) : (
+            currentForms.map((agreement) => {
+              const status = agreement.status?.toLowerCase().trim();
+              const hasReceipt = !!agreement.payment_receipt && agreement.payment_receipt !== '[]' && agreement.payment_receipt !== 'null';
+              const isSigned = status === 'signed' || status === 'completed';
+              const isPaid = hasReceipt;
+              const pickupDate = getPickupDateTime(agreement);
+              const now = getNowMYT();
+              const isFuture = pickupDate.getTime() > now.getTime();
+              const isPast = pickupDate.getTime() <= now.getTime();
+              
+              return (
+                <div key={agreement.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 pb-3 flex flex-col">
+                  <div className="flex justify-between items-start mb-3">
+                    <h3 className="font-bold text-slate-900 text-sm uppercase leading-tight line-clamp-2 md:line-clamp-none pr-3">
+                      {agreement.customer_name || 'Unnamed Customer'}
+                    </h3>
+                    <div className="flex flex-col gap-1 items-end shrink-0">
+                      {(() => {
+                        if (isSigned && isPaid && isFuture) {
+                          return <span className="inline-flex px-3 py-1 rounded-full text-[10px] font-bold tracking-wide bg-indigo-500 text-white shadow-sm">Upcoming</span>;
+                        } else if (isSigned && isPaid && isPast) {
+                          return <span className="inline-flex px-3 py-1 rounded-full text-[10px] font-bold tracking-wide bg-emerald-500 text-white shadow-sm">Completed</span>;
+                        } else if (isSigned && !isPaid) {
+                          return <span className="inline-flex px-3 py-1 rounded-full text-[10px] font-bold tracking-wide bg-blue-500 text-white shadow-sm">Signed</span>;
+                        } else {
+                          return <span className="inline-flex px-3 py-1 rounded-full text-[10px] font-bold tracking-wide bg-amber-100 text-amber-800 shadow-sm">Pending</span>;
+                        }
+                      })()}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-1 text-xs text-slate-700 mb-4 font-medium max-w-xs">
+                    <div className="grid grid-cols-5 text-[11px]">
+                      <span className="col-span-2 text-slate-500">Amount:</span>
+                      <span className="col-span-3">RM {agreement.total_price.toLocaleString()}</span>
+                    </div>
+                    <div className="grid grid-cols-5 text-[11px]">
+                      <span className="col-span-2 text-slate-500">Car Plate:</span>
+                      <span className="col-span-3">{agreement.car_plate_number || 'N/A'}</span>
+                    </div>
+                    <div className="grid grid-cols-5 text-[11px]">
+                      <span className="col-span-2 text-slate-500">Date & Time:</span>
+                      <span className="col-span-3">{formatInMYT(pickupDate.getTime(), 'dd/MM/yyyy, h:mm a')}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end items-center gap-5 pt-3 border-t border-slate-100">
+                    {/* Actions */}
+                    {status === 'pending' ? (
+                      <button 
+                        onClick={() => {
+                          const link = `${window.location.origin}/forms/sign/${agreement.id}`;
+                          navigator.clipboard.writeText(link);
+                          alert('Link generated and copied to clipboard! Share this with the customer.');
+                        }}
+                        className="text-slate-800 hover:text-blue-600 p-1"
+                      >
+                        <LinkIcon className="w-5 h-5 flex-shrink-0" />
+                      </button>
+                    ) : (
+                      <button 
+                        onClick={() => window.open(`${window.location.origin}/forms/sign/${agreement.id}`, '_blank')}
+                        className="text-slate-800 hover:text-emerald-600 p-1"
+                      >
+                        <Download className="w-5 h-5 flex-shrink-0" />
+                      </button>
+                    )}
+                    <button 
+                      onClick={() => navigate(`edit/${agreement.id}`)}
+                      className="text-slate-800 hover:text-amber-600 p-1"
+                    >
+                      <Edit className="w-5 h-5 flex-shrink-0" />
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(agreement.id)}
+                      className="text-red-500 hover:text-red-700 p-1"
+                    >
+                      <Trash2 className="w-5 h-5 flex-shrink-0" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
 
         {/* Pagination */}

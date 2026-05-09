@@ -52,3 +52,10 @@ export const getMYTDateString = (date: Date | string | number): string => {
 export const getMYTTimeString = (date: Date | string | number): string => {
   return formatInMYT(date, "HH:mm");
 };
+
+export const formatTimeMYT = (timeStr: string): string => {
+  if (!timeStr) return '';
+  const formattedTime = timeStr.length === 5 ? `${timeStr}:00` : timeStr;
+  const d = new Date(`1970-01-01T${formattedTime}Z`); // parse as UTC
+  return formatInTimeZone(d, TIMEZONE, 'h:mm a'); // output as MYT
+};

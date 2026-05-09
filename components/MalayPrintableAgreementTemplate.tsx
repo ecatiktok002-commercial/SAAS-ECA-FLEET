@@ -1,6 +1,6 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { formatInMYT, getNowMYT } from '../utils/dateUtils';
+import { formatInMYT, getNowMYT, formatTimeMYT } from '../utils/dateUtils';
 
 interface MalayPrintableAgreementTemplateProps {
   agreementId?: string;
@@ -55,7 +55,7 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
     try {
       const formattedDate = formatInMYT(dateString, 'dd/MM/yyyy');
       if (timeString) {
-        return `${formattedDate} ${timeString}`;
+        return `${formattedDate} ${formatTimeMYT(timeString)}`;
       }
       return formattedDate;
     } catch (e) {

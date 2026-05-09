@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import SignatureCanvas from 'react-signature-canvas';
 import { CheckCircle, Download, AlertCircle, ShieldAlert, Car, Clock, Fuel, AlertTriangle, Printer } from 'lucide-react';
 import { format, isValid } from 'date-fns';
-import { getNowMYT, formatInMYT, utcToMyt } from '../../utils/dateUtils';
+import { getNowMYT, formatInMYT, utcToMyt, formatTimeMYT } from '../../utils/dateUtils';
 import { apiService } from '../../services/apiService';
 
 const safeFormat = (dateStr: string | null | undefined, formatStr: string) => {
@@ -367,11 +367,11 @@ export default function SignAgreement() {
                 </div>
                 <div>
                   <p className="text-[10px] print:text-[7pt] font-bold text-slate-500 uppercase tracking-wider">Pickup Date/Time</p>
-                  <p className="text-sm print:text-[9pt] font-medium text-slate-900">{safeFormat(agreement.start_date, 'dd/MM/yyyy')} {agreement.pickup_time || '-'}</p>
+                  <p className="text-sm print:text-[9pt] font-medium text-slate-900">{safeFormat(agreement.start_date, 'dd/MM/yyyy')} {formatTimeMYT(agreement.pickup_time)}</p>
                 </div>
                 <div>
                   <p className="text-[10px] print:text-[7pt] font-bold text-slate-500 uppercase tracking-wider">Return Date/Time</p>
-                  <p className="text-sm print:text-[9pt] font-medium text-slate-900">{safeFormat(agreement.end_date, 'dd/MM/yyyy')} {agreement.return_time || '-'}</p>
+                  <p className="text-sm print:text-[9pt] font-medium text-slate-900">{safeFormat(agreement.end_date, 'dd/MM/yyyy')} {formatTimeMYT(agreement.return_time)}</p>
                 </div>
                 <div>
                   <p className="text-[10px] print:text-[7pt] font-bold text-slate-500 uppercase tracking-wider">Duration</p>
