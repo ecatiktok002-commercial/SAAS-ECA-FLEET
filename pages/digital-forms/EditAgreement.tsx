@@ -420,9 +420,9 @@ export default function EditAgreement() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans py-10 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50 font-sans py-4 sm:py-10 px-0 sm:px-6 lg:px-8 text-base pb-24 sm:pb-10">
       <div className="max-w-3xl mx-auto">
-        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="px-4 sm:px-0 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center">
             <Link to="/forms" className="text-slate-400 hover:text-slate-900 mr-4 transition-colors">
               <ArrowLeft className="h-5 w-5" />
@@ -482,7 +482,7 @@ export default function EditAgreement() {
           )}
         </div>
 
-        <div className="bg-white shadow-sm rounded-xl border border-slate-200 overflow-hidden mb-24">
+        <div className="bg-white shadow-sm sm:rounded-xl border-y sm:border border-slate-200 overflow-hidden mb-8">
           <form id="edit-agreement-form" onSubmit={handleSubmit} className="p-4 sm:p-8 space-y-8">
             {error && (
               <div className="bg-red-50 text-red-700 p-4 rounded-lg text-sm border border-red-200">

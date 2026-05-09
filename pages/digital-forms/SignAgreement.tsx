@@ -227,8 +227,8 @@ export default function SignAgreement() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 py-4 sm:py-12 px-4 sm:px-6 lg:px-8 font-sans text-base leading-relaxed">
-      <div id="agreement-content" className="max-w-4xl mx-auto bg-white shadow-xl min-h-screen flex flex-col print:shadow-none print:max-w-none">
+    <div className="min-h-screen bg-slate-50 py-4 sm:py-12 px-0 sm:px-6 lg:px-8 font-sans text-base leading-relaxed pb-24 sm:pb-12">
+      <div id="agreement-content" className="max-w-4xl mx-auto bg-white sm:shadow-xl min-h-screen sm:min-h-0 sm:rounded-2xl flex flex-col print:shadow-none print:max-w-none">
         
         {/* Printable Template (Hidden from screen) */}
         {agreement && (
@@ -551,7 +551,7 @@ export default function SignAgreement() {
               </div>
 
               {!agreement?.signature_data && (
-                <div className="mt-8 flex justify-start print:hidden">
+                <div className="mt-8 hidden sm:flex justify-start print:hidden">
                   <button
                     onClick={handleSubmit}
                     disabled={submitting || !agreed}
@@ -588,9 +588,9 @@ export default function SignAgreement() {
         </div>
       </div>
 
-      {/* Sticky Footer */}
+      {/* Sticky Footer for Mobile */}
       {!agreement?.signature_data && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-200 z-50">
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-200 z-50 sm:hidden">
           <button
             onClick={handleSubmit}
             disabled={submitting || !agreed}

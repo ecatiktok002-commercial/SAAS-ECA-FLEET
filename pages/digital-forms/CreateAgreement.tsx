@@ -352,27 +352,29 @@ export default function CreateAgreement() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans py-4 sm:py-10 px-4 sm:px-6 lg:px-8 text-base">
+    <div className="min-h-screen bg-slate-50 font-sans py-4 sm:py-10 px-0 sm:px-6 lg:px-8 text-base pb-24 sm:pb-10">
       <div className="max-w-3xl mx-auto">
-        <div className="mb-6 flex justify-between text-sm font-medium text-slate-500 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-          <button type="button" onClick={() => setCurrentStep(1)} className={`flex items-center gap-2 ${currentStep === 1 ? 'text-slate-900' : ''}`}>
-            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${currentStep === 1 ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>1</span> Customer
+        <div className="px-4 sm:px-0 mb-6 flex justify-between text-xs md:text-sm font-medium text-slate-500 bg-white p-3 md:p-4 sm:rounded-xl shadow-sm border-b sm:border border-slate-200">
+          <button type="button" onClick={() => setCurrentStep(1)} className={`flex items-center gap-1.5 md:gap-2 transition-colors ${currentStep === 1 ? 'text-slate-900' : ''}`}>
+            <span className={`w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center text-xs md:text-sm font-bold ${currentStep === 1 ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>1</span> <span className="hidden sm:inline">Customer</span><span className="sm:hidden">Cust.</span>
           </button>
-          <button type="button" onClick={() => setCurrentStep(2)} className={`flex items-center gap-2 ${currentStep === 2 ? 'text-slate-900' : ''}`}>
-            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${currentStep === 2 ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>2</span> Vehicle
+          <div className="hidden sm:block h-px bg-slate-200 flex-1 mx-4 my-auto"></div>
+          <button type="button" onClick={() => setCurrentStep(2)} className={`flex items-center gap-1.5 md:gap-2 transition-colors ${currentStep === 2 ? 'text-slate-900' : ''}`}>
+            <span className={`w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center text-xs md:text-sm font-bold ${currentStep === 2 ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>2</span> <span className="hidden sm:inline">Vehicle</span><span className="sm:hidden">Vehicle</span>
           </button>
-          <button type="button" onClick={() => setCurrentStep(3)} className={`flex items-center gap-2 ${currentStep === 3 ? 'text-slate-900' : ''}`}>
-            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${currentStep === 3 ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>3</span> Payment
+          <div className="hidden sm:block h-px bg-slate-200 flex-1 mx-4 my-auto"></div>
+          <button type="button" onClick={() => setCurrentStep(3)} className={`flex items-center gap-1.5 md:gap-2 transition-colors ${currentStep === 3 ? 'text-slate-900' : ''}`}>
+            <span className={`w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center text-xs md:text-sm font-bold ${currentStep === 3 ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>3</span> <span className="hidden sm:inline">Payment</span><span className="sm:hidden">Pay</span>
           </button>
         </div>
-        <div className="mb-8 flex items-center">
+        <div className="px-4 sm:px-0 mb-6 flex items-center">
           <Link to="/forms" className="text-slate-400 hover:text-slate-900 mr-4 transition-colors">
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">New Agreement</h1>
         </div>
 
-        <div className="bg-white shadow-sm rounded-xl border border-slate-200 overflow-hidden mb-24">
+        <div className="bg-white shadow-sm sm:rounded-xl border-y sm:border border-slate-200 overflow-hidden mb-8">
           <form id="agreement-form" onSubmit={handleSubmit} className="p-4 sm:p-8 space-y-6">
             {error && (
               <div className="bg-red-50 text-red-700 p-4 rounded-lg text-sm border border-red-200">
@@ -481,7 +483,7 @@ export default function CreateAgreement() {
               </div>
             </div>
             
-            <div className="pt-6 border-t border-slate-100 flex justify-end">
+            <div className="pt-6 border-t border-slate-100 hidden sm:flex justify-end">
               <button
                 type="button"
                 onClick={() => setCurrentStep(2)}
@@ -616,7 +618,7 @@ export default function CreateAgreement() {
                 />
               </div>
               </div>
-              <div className="pt-6 border-t border-slate-100 flex justify-between">
+              <div className="pt-6 border-t border-slate-100 hidden sm:flex justify-between">
                 <button
                   type="button"
                   onClick={() => setCurrentStep(1)}
@@ -676,7 +678,7 @@ export default function CreateAgreement() {
               </div>
             </div>
 
-            <div className="pt-6 border-t border-slate-100 flex justify-between">
+            <div className="pt-6 border-t border-slate-100 hidden sm:flex justify-between">
               <button
                 type="button"
                 onClick={() => setCurrentStep(2)}
