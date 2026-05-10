@@ -92,30 +92,39 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
     .from('bookings')
     .select('*, cars(plate, plate_number)')
     .eq('subscriber_id', subscriberId)
-    .gte('pickup_datetime', monthStartDate)
-    .lte('pickup_datetime', monthEndDate)
+    .gte('pickup_datetime', `${monthStartDate}T00:00:00.000Z`)
+    .lte('pickup_datetime', `${monthEndDate}T23:59:59.999Z`)
     .or('status.neq.cancelled,status.is.null');
 
   if (bookingsError) {
     throw new Error(`Error fetching bookings: ${bookingsError.message}`);
   }
 
-  // 3. Fetch agreements created in this month (to find orphaned agreements)
+  // 3. Fetch all unlinked agreements (to find orphaned agreements and attempt fallback matches)
   const { data: recentAgreements, error: recentAgreementsError } = await supabase
     .from('agreements')
-    // FIX: Explicitly select lightweight columns. DO NOT select payment_receipt or signature_data!
+    // FIX: Explicitly select lightweight columns
     .select('id, booking_id, subscriber_id, start_date, pickup_time, duration_days, car_plate_number, customer_name, reference_number, agent_name, total_price, status, payout_status')
     .eq('subscriber_id', subscriberId)
-    .gte('created_at', monthStartDate)
-    .lte('created_at', monthEndDate);
+    .is('booking_id', null);
 
   if (recentAgreementsError) {
     throw new Error(`Error fetching agreements: ${recentAgreementsError.message}`);
   }
 
+  const normalizeDate = (d?: string | null) => {
+    if (!d) return null;
+    if (d.includes('/')) {
+      const parts = d.split('/');
+      if (parts.length === 3) {
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      }
+    }
+    return d;
+  };
+
   // 4. Client-side Heuristic Match Fallback
-  // If RPC missed some (e.g. due to NULL columns in bookings), try to match them here
-  const unlinkedAgreements = (recentAgreements || []).filter(a => !a.booking_id);
+  const unlinkedAgreements = (recentAgreements || []);
   const unlinkedBookings = (bookings || []).filter(b => {
     // Check if any agreement is already linked to this booking
     // This is a bit expensive but necessary for robustness
@@ -220,8 +229,13 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
     !uniqueAgreements.some(a => a.booking_id === booking.id)
   );
 
-  // 6. Find orphaned agreements: Agreements created this month that do not have a booking_id
-  let orphanedAgreements = (recentAgreements || []).filter(a => !a.booking_id);
+  // 6. Find orphaned agreements: Agreements whose start_date falls in the current month that do not have a booking_id
+  let orphanedAgreements = (recentAgreements || []).filter(a => {
+    if (a.booking_id) return false;
+    const pd = normalizeDate(a.start_date);
+    if (!pd) return false;
+    return pd >= monthStartDate && pd <= monthEndDate;
+  });
 
   return {
     orphanedAgreements,
