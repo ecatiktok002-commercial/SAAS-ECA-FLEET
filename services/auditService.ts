@@ -23,7 +23,7 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
 
       const bStartDate = b.start_date || (b.pickup_datetime ? formatInMYT(b.pickup_datetime, 'yyyy-MM-dd') : null);
       const bDuration = b.duration_days || b.duration;
-      const normalizePlate = (p?: string | null) => (p || '').replace(/\s+/g, '').toLowerCase();
+      const normalizePlate = (p?: string | null) => (p || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
       const normalizeDate = (d?: string | null) => {
         if (!d) return null;
         if (d.includes('/')) {
@@ -35,7 +35,22 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
         return d;
       };
 
-      const dateMatch = normalizeDate(a.start_date) === normalizeDate(bStartDate);
+      const checkDateMatch = (d1?: string | null, d2?: string | null) => {
+        const pd1 = normalizeDate(d1);
+        const pd2 = normalizeDate(d2);
+        if (pd1 === pd2) return true;
+        if (!pd1 || !pd2) return false;
+        try {
+          const dt1 = new Date(pd1);
+          const dt2 = new Date(pd2);
+          if (isValid(dt1) && isValid(dt2)) {
+            return Math.abs(differenceInDays(dt1, dt2)) <= 1;
+          }
+        } catch(e) {}
+        return false;
+      };
+
+      const dateMatch = checkDateMatch(a.start_date, bStartDate);
       const durationMatch = Number(a.duration_days) === Number(bDuration);
       const carPlateMatch = normalizePlate(a.car_plate_number) === normalizePlate(b.cars?.plate) || 
                             normalizePlate(a.car_plate_number) === normalizePlate(b.cars?.plate_number);
@@ -118,7 +133,7 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
         const bStartDate = b.start_date || (b.pickup_datetime ? formatInMYT(b.pickup_datetime, 'yyyy-MM-dd') : null);
         const bDuration = b.duration_days || b.duration;
         
-        const normalizePlate = (p?: string | null) => (p || '').replace(/\s+/g, '').toLowerCase();
+        const normalizePlate = (p?: string | null) => (p || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 
         const normalizeDate = (d?: string | null) => {
           if (!d) return null;
@@ -131,7 +146,23 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
           }
           return d;
         };
-        const dateMatch = normalizeDate(agreement.start_date) === normalizeDate(bStartDate);
+
+        const checkDateMatch = (d1?: string | null, d2?: string | null) => {
+          const pd1 = normalizeDate(d1);
+          const pd2 = normalizeDate(d2);
+          if (pd1 === pd2) return true;
+          if (!pd1 || !pd2) return false;
+          try {
+            const dt1 = new Date(pd1);
+            const dt2 = new Date(pd2);
+            if (isValid(dt1) && isValid(dt2)) {
+              return Math.abs(differenceInDays(dt1, dt2)) <= 1;
+            }
+          } catch(e) {}
+          return false;
+        };
+
+        const dateMatch = checkDateMatch(agreement.start_date, bStartDate);
         const durationMatch = Number(agreement.duration_days) === Number(bDuration);
         const carPlateMatch = normalizePlate(agreement.car_plate_number) === normalizePlate(b.cars?.plate) || 
                               normalizePlate(agreement.car_plate_number) === normalizePlate(b.cars?.plate_number);
