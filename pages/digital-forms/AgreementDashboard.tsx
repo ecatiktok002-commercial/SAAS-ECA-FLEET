@@ -100,7 +100,7 @@ const AgreementDashboard: React.FC = () => {
     const dateStr = agreement.start_date;
     const timeStr = agreement.pickup_time || '00:00';
     const formattedTime = timeStr.length === 5 ? `${timeStr}:00` : timeStr;
-    return new Date(`${dateStr}T${formattedTime}Z`);
+    return new Date(`${dateStr}T${formattedTime}+08:00`);
   };
 
   const filteredForms = agreements.filter(a => {
