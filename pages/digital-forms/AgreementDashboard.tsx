@@ -33,14 +33,27 @@ const AgreementDashboard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'pending' | 'requests' | 'completed' | 'upcoming' | 'signed'>('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [showMonthDropdown, setShowMonthDropdown] = useState(false);
   const itemsPerPage = 10;
   const tableRef = useRef<HTMLDivElement>(null);
+  const totalButtonRef = useRef<HTMLDivElement>(null);
 
   const handleFilterClick = (type: 'all' | 'pending' | 'requests' | 'completed' | 'upcoming' | 'signed') => {
     setFilterType(type);
     setCurrentPage(1);
     tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (totalButtonRef.current && !totalButtonRef.current.contains(event.target as Node)) {
+        setShowMonthDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (subscriberId) {
@@ -103,7 +116,27 @@ const AgreementDashboard: React.FC = () => {
     return new Date(`${dateStr}T${formattedTime}+08:00`);
   };
 
-  const filteredForms = agreements.filter(a => {
+  const availableMonths = React.useMemo(() => {
+    const months = new Set<string>();
+    agreements.forEach(a => {
+      const pickupDate = getPickupDateTime(a);
+      months.add(format(pickupDate, 'yyyy-MM'));
+    });
+    // Sort descending and take top 12
+    return Array.from(months)
+      .sort((a, b) => b.localeCompare(a))
+      .slice(0, 12);
+  }, [agreements]);
+
+  const currentAgreements = React.useMemo(() => {
+    if (selectedMonth === 'all') return agreements;
+    return agreements.filter(a => {
+      const pickupDate = getPickupDateTime(a);
+      return format(pickupDate, 'yyyy-MM') === selectedMonth;
+    });
+  }, [agreements, selectedMonth]);
+
+  const filteredForms = currentAgreements.filter(a => {
     const query = searchQuery.toLowerCase();
     const matchesSearch = (
       a.reference_number?.toLowerCase().includes(query) ||
@@ -189,16 +222,56 @@ const AgreementDashboard: React.FC = () => {
       {/* Stats */}
       <div className={`grid grid-cols-2 md:grid-cols-3 ${staffRole === 'admin' ? 'lg:grid-cols-6' : 'lg:grid-cols-5'} gap-4 mb-8`}>
         <div 
-          onClick={() => handleFilterClick('all')}
-          className={`bg-white p-4 rounded-2xl border shadow-sm cursor-pointer hover:shadow-md transition-all ${filterType === 'all' ? 'border-blue-500 ring-1 ring-blue-500' : 'border-slate-200'}`}
+          ref={totalButtonRef}
+          onClick={() => {
+            handleFilterClick('all');
+            setShowMonthDropdown(!showMonthDropdown);
+          }}
+          className={`relative bg-white p-4 rounded-2xl border shadow-sm cursor-pointer hover:shadow-md transition-all ${filterType === 'all' ? 'border-blue-500 ring-1 ring-blue-500' : 'border-slate-200'}`}
         >
-          <div className="flex items-center gap-2 mb-2">
-            <div className="bg-blue-50 p-1.5 rounded-lg text-blue-600">
-              <FileText className="w-4 h-4" />
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="bg-blue-50 p-1.5 rounded-lg text-blue-600">
+                <FileText className="w-4 h-4" />
+              </div>
+              <span className="text-xs font-medium text-slate-500">Total</span>
             </div>
-            <span className="text-xs font-medium text-slate-500">Total</span>
+            {selectedMonth !== 'all' && (
+              <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                {format(new Date(selectedMonth + '-01'), 'MMM yyyy')}
+              </span>
+            )}
           </div>
-          <div className="text-xl font-bold text-slate-900">{agreements.length}</div>
+          <div className="text-xl font-bold text-slate-900">{currentAgreements.length}</div>
+          
+          {/* Month Dropdown */}
+          {showMonthDropdown && availableMonths.length > 0 && (
+            <div className="absolute top-[calc(100%+8px)] left-0 w-48 bg-white border border-slate-200 rounded-xl shadow-lg z-50 py-1 overflow-hidden">
+              <div 
+                className={`px-4 py-2 text-sm cursor-pointer hover:bg-slate-50 ${selectedMonth === 'all' ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-700'}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedMonth('all');
+                  setShowMonthDropdown(false);
+                }}
+              >
+                All Time
+              </div>
+              {availableMonths.map(m => (
+                <div
+                  key={m}
+                  className={`px-4 py-2 text-sm cursor-pointer hover:bg-slate-50 ${selectedMonth === m ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-700'}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedMonth(m);
+                    setShowMonthDropdown(false);
+                  }}
+                >
+                  {format(new Date(m + '-01'), 'MMMM yyyy')}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div 
@@ -212,7 +285,7 @@ const AgreementDashboard: React.FC = () => {
             <span className="text-xs font-medium text-slate-500">Upcoming</span>
           </div>
           <div className="text-xl font-bold text-slate-900">
-            {agreements.filter(a => {
+            {currentAgreements.filter(a => {
               const status = a.status?.toLowerCase().trim();
               const hasReceipt = !!a.payment_receipt && a.payment_receipt !== '[]' && a.payment_receipt !== 'null';
               const isSigned = status === 'signed' || status === 'completed';
@@ -234,7 +307,7 @@ const AgreementDashboard: React.FC = () => {
             <span className="text-xs font-medium text-slate-500">Completed</span>
           </div>
           <div className="text-xl font-bold text-slate-900">
-            {agreements.filter(a => {
+            {currentAgreements.filter(a => {
               const status = a.status?.toLowerCase().trim();
               const hasReceipt = !!a.payment_receipt && a.payment_receipt !== '[]' && a.payment_receipt !== 'null';
               const isSigned = status === 'signed' || status === 'completed';
@@ -256,7 +329,7 @@ const AgreementDashboard: React.FC = () => {
             <span className="text-xs font-medium text-slate-500">Signed</span>
           </div>
           <div className="text-xl font-bold text-slate-900">
-            {agreements.filter(a => {
+            {currentAgreements.filter(a => {
               const status = a.status?.toLowerCase().trim();
               const hasReceipt = !!a.payment_receipt && a.payment_receipt !== '[]' && a.payment_receipt !== 'null';
               const isSigned = status === 'signed' || status === 'completed';
@@ -277,7 +350,7 @@ const AgreementDashboard: React.FC = () => {
             <span className="text-xs font-medium text-slate-500">Pending</span>
           </div>
           <div className="text-xl font-bold text-slate-900">
-            {agreements.filter(a => a.status?.toLowerCase().trim() === 'pending').length}
+            {currentAgreements.filter(a => a.status?.toLowerCase().trim() === 'pending').length}
           </div>
         </div>
 
@@ -293,7 +366,7 @@ const AgreementDashboard: React.FC = () => {
               <span className="text-xs font-medium text-slate-500">Requests</span>
             </div>
             <div className="text-xl font-bold text-slate-900">
-              {agreements.filter(a => a.has_pending_changes).length}
+              {currentAgreements.filter(a => a.has_pending_changes).length}
             </div>
           </div>
         )}
