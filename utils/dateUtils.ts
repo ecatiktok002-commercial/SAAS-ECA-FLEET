@@ -59,3 +59,35 @@ export const formatTimeMYT = (timeStr: string): string => {
   const d = new Date(`1970-01-01T${formattedTime}Z`); // parse as UTC
   return formatInTimeZone(d, TIMEZONE, 'h:mm a'); // output as MYT
 };
+
+export const getAgreementPickupDateTime = (agreement: any): Date => {
+  let dateStr = agreement.start_date;
+  if (!dateStr) {
+    return new Date(agreement.created_at); // Fallback
+  }
+
+  // Convert DD/MM/YYYY to YYYY-MM-DD if needed
+  if (dateStr.includes('/')) {
+    const parts = dateStr.split('/');
+    if (parts.length === 3) {
+      dateStr = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    }
+  }
+
+  const timeStr = agreement.pickup_time || '12:00';
+  let formattedTime = timeStr;
+  const timeMatch = timeStr.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+  if (timeMatch) {
+    let hours = parseInt(timeMatch[1], 10);
+    const minutes = timeMatch[2];
+    const modifier = timeMatch[3];
+    
+    if (modifier) {
+      if (modifier.toUpperCase() === 'PM' && hours < 12) hours += 12;
+      if (modifier.toUpperCase() === 'AM' && hours === 12) hours = 0;
+    }
+    formattedTime = `${hours.toString().padStart(2, '0')}:${minutes}:00`;
+  }
+
+  return new Date(`${dateStr}T${formattedTime}+08:00`);
+};

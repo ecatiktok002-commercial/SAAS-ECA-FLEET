@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/apiService';
 import { parseBookingDate, getBookingEndTime } from '../services/bookingService';
-import { getNowMYT, utcToMyt, formatInMYT } from '../utils/dateUtils';
+import { getNowMYT, utcToMyt, formatInMYT, getAgreementPickupDateTime, getMYTDateString } from '../utils/dateUtils';
 import { 
   Users, Car, CalendarCheck, DollarSign, FileText, AlertTriangle, 
   TrendingUp, TrendingDown, Clock, ArrowRight, Plus, Zap, AlertCircle, CheckCircle2,
@@ -134,10 +134,10 @@ const AdminDashboard: React.FC = () => {
       };
     });
 
-    // 1. Sales Metrics (Completed/Signed Agreements)
+    // 1. Sales Metrics (Completed Agreements)
     const completedAgreements = agreements.filter(a => {
       const status = a.status?.toLowerCase().trim();
-      return status === 'completed' || (status === 'signed' && !!a.payment_receipt);
+      return status === 'completed';
     });
     
     let salesToday = 0;
@@ -146,16 +146,17 @@ const AdminDashboard: React.FC = () => {
     let salesThisMonth = 0;
     
     completedAgreements.forEach(a => {
-      const createdDate = a.created_at.split('T')[0];
+      const pickupDateObj = getAgreementPickupDateTime(a);
+      const matchDateStr = getMYTDateString(pickupDateObj);
       const price = a.total_price || 0;
-      if (createdDate === todayStr) salesToday += price;
-      if (createdDate >= startOfWeekStr) salesThisWeek += price;
-      if (createdDate >= startOfLastWeekStr && createdDate < startOfWeekStr) salesLastWeek += price;
-      if (createdDate >= startOfMonthStr) salesThisMonth += price;
+      if (matchDateStr === todayStr) salesToday += price;
+      if (matchDateStr >= startOfWeekStr) salesThisWeek += price;
+      if (matchDateStr >= startOfLastWeekStr && matchDateStr < startOfWeekStr) salesLastWeek += price;
+      if (matchDateStr >= startOfMonthStr) salesThisMonth += price;
 
       // Populate past 6 months
       for (const monthData of past6MonthsSales) {
-        if (createdDate >= monthData.startStr && createdDate <= monthData.endStr) {
+        if (matchDateStr >= monthData.startStr && matchDateStr <= monthData.endStr) {
           monthData.sales += price;
           break;
         }
@@ -233,10 +234,15 @@ const AdminDashboard: React.FC = () => {
     // 5. Agent Leaderboard (This month)
     const agentMap = new Map<string, { name: string, total: number }>();
     completedAgreements.forEach(a => {
-      const createdDate = a.created_at.split('T')[0];
-      if (createdDate >= startOfMonthStr) {
-        const key = a.created_by || a.agent_name || 'Unknown';
-        const current = agentMap.get(key) || { name: a.agent_name || 'Unknown', total: 0 };
+      const matchDateStr = getMYTDateString(getAgreementPickupDateTime(a));
+      if (matchDateStr >= startOfMonthStr) {
+        const rawName = a.agent_name?.trim() || 'Unknown';
+        const rawId = a.agent_id || a.created_by || '';
+        
+        let targetName = rawName !== 'Unknown' ? rawName : rawId;
+        const key = targetName.toLowerCase();
+        
+        const current = agentMap.get(key) || { name: targetName, total: 0 };
         current.total += (a.total_price || 0);
         agentMap.set(key, current);
       }

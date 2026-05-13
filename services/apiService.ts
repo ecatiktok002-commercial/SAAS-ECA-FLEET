@@ -1981,7 +1981,9 @@ export const apiService = {
       }
 
       if (startDate) {
-        query = query.gte('created_at', startDate);
+        const bufferDate = new Date(startDate);
+        bufferDate.setDate(bufferDate.getDate() - 120);
+        query = query.gte('created_at', bufferDate.toISOString());
       }
       if (endDate) {
         query = query.lte('created_at', endDate);

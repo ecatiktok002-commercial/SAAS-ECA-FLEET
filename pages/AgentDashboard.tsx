@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/apiService';
 import { parseBookingDate, getBookingEndTime } from '../services/bookingService';
-import { getNowMYT, utcToMyt, formatInMYT } from '../utils/dateUtils';
+import { getNowMYT, utcToMyt, formatInMYT, getAgreementPickupDateTime, getMYTDateString } from '../utils/dateUtils';
 import { 
   Car, DollarSign, AlertTriangle, 
   TrendingUp, TrendingDown, Clock, ArrowRight, CheckCircle2,
@@ -132,10 +132,17 @@ const AgentDashboard: React.FC = () => {
     const lastMonthKey = format(lastMonth, 'yyyy-MM');
     let lastMonthEarnings = 0;
 
-    // 1. Sales Metrics (Completed/Signed Agreements)
-    const completedAgreements = agreements.filter(a => {
+    // Filter to strictly their own agreements for sales metrics (matching Admin logic)
+    // We group by what Admin uses: agent_id (primary) or created_by
+    const ownAgreements = agreements.filter(a => {
+      const key = a.agent_id || a.created_by || a.agent_name;
+      return key === userId || key === currentStaff?.name || key === userUid || key === currentStaff?.id;
+    });
+
+    // 1. Sales Metrics (Completed Agreements)
+    const completedAgreements = ownAgreements.filter(a => {
       const status = a.status?.toLowerCase().trim();
-      return status === 'completed' || (status === 'signed' && !!a.payment_receipt);
+      return status === 'completed';
     });
     
     let salesToday = 0;
@@ -144,16 +151,16 @@ const AgentDashboard: React.FC = () => {
     let salesThisMonth = 0;
     
     completedAgreements.forEach(a => {
-      const createdDate = a.created_at.split('T')[0];
+      const matchDateStr = getMYTDateString(getAgreementPickupDateTime(a));
       const price = Number(a.total_price) || 0;
-      if (createdDate === todayStr) salesToday += price;
-      if (createdDate >= startOfWeekStr) salesThisWeek += price;
-      if (createdDate >= startOfLastWeekStr && createdDate < startOfWeekStr) salesLastWeek += price;
-      if (createdDate >= startOfMonthStr) salesThisMonth += price;
+      if (matchDateStr === todayStr) salesToday += price;
+      if (matchDateStr >= startOfWeekStr) salesThisWeek += price;
+      if (matchDateStr >= startOfLastWeekStr && matchDateStr < startOfWeekStr) salesLastWeek += price;
+      if (matchDateStr >= startOfMonthStr) salesThisMonth += price;
 
       // Populate past 6 months
       for (const monthData of past6MonthsSales) {
-        if (createdDate >= monthData.startStr && createdDate <= monthData.endStr) {
+        if (matchDateStr >= monthData.startStr && matchDateStr <= monthData.endStr) {
           monthData.sales += price;
           break;
         }
@@ -254,7 +261,8 @@ const AgentDashboard: React.FC = () => {
 
     const monthGroups: { [key: string]: Agreement[] } = {};
     completedAgreements.forEach(a => {
-      const monthKey = a.created_at.substring(0, 7);
+      const pickupDateObj = getAgreementPickupDateTime(a);
+      const monthKey = getMYTDateString(pickupDateObj).substring(0, 7);
       if (!monthGroups[monthKey]) monthGroups[monthKey] = [];
       monthGroups[monthKey].push(a);
     });
@@ -264,7 +272,7 @@ const AgentDashboard: React.FC = () => {
     
     Object.keys(monthGroups).forEach(monthKey => {
       const monthAgreements = monthGroups[monthKey].sort((a, b) => 
-        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        getAgreementPickupDateTime(a).getTime() - getAgreementPickupDateTime(b).getTime()
       );
 
       let runningTotal = 0;
@@ -277,12 +285,14 @@ const AgentDashboard: React.FC = () => {
           lastMonthEarnings += commission;
         }
 
-        const dateStr = a.created_at.split('T')[0];
-        if (dateStr === todayStr) {
+        const pickupDateObj = getAgreementPickupDateTime(a);
+        const matchDateStr = getMYTDateString(pickupDateObj);
+        
+        if (matchDateStr === todayStr) {
           earnedToday += commission;
         }
 
-        const date = new Date(a.created_at);
+        const date = pickupDateObj;
         const weekStart = new Date(date);
         weekStart.setDate(date.getDate() - date.getDay());
         const weekNum = Math.ceil(weekStart.getDate() / 7);
