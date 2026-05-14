@@ -56,8 +56,11 @@ export const getMYTTimeString = (date: Date | string | number): string => {
 export const formatTimeMYT = (timeStr: string): string => {
   if (!timeStr) return '';
   const formattedTime = timeStr.length === 5 ? `${timeStr}:00` : timeStr;
-  const d = new Date(`1970-01-01T${formattedTime}Z`); // parse as UTC
-  return formatInTimeZone(d, TIMEZONE, 'h:mm a'); // output as MYT
+  
+  // Create a date object with the specified time but with MYT explicit offset
+  // We don't want date-fns-tz to offset a UTC time, we just want to format the literal time.
+  const d = new Date(`1970-01-01T${formattedTime}+08:00`); 
+  return formatInTimeZone(d, TIMEZONE, 'h:mm a'); 
 };
 
 export const getAgreementPickupDateTime = (agreement: any): Date => {
