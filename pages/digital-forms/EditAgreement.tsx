@@ -7,6 +7,7 @@ import { apiService } from '../../services/apiService';
 import * as auditService from '../../services/auditService';
 import { useAuth } from '../../context/AuthContext';
 import { openDataURL } from '../../utils/fileUtils';
+import toast from 'react-hot-toast';
 
 export default function EditAgreement() {
   const { id } = useParams();
@@ -45,6 +46,17 @@ export default function EditAgreement() {
   const [removedExistingReceipts, setRemovedExistingReceipts] = useState<string[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
 
   const triggerHighlight = (type: 'date' | 'time') => {
     if (type === 'date') {
@@ -265,7 +277,7 @@ export default function EditAgreement() {
       const totalCount = existingReceipts.length + paymentReceipts.length + newFiles.length;
       
       if (totalCount > 5) {
-        alert('Total receipts (existing + new) cannot exceed 5.');
+        toast.error('Total receipts (existing + new) cannot exceed 5.');
         const allowedNewCount = 5 - (existingReceipts.length + paymentReceipts.length);
         if (allowedNewCount <= 0) {
           e.target.value = '';
@@ -365,7 +377,7 @@ export default function EditAgreement() {
       }
 
       if (Object.keys(updates).length === 0) {
-        alert('No changes detected.');
+        toast.error('No changes detected.');
         setLoading(false);
         return;
       }
@@ -398,9 +410,9 @@ export default function EditAgreement() {
       await apiService.updateAgreement(id, subscriberId, finalPayload);
       
       if (requestAmendmentMode && !isAdmin) {
-        alert('Amendment requested successfully!');
+        toast.success('Amendment requested successfully!');
       } else {
-        alert('Agreement updated successfully!');
+        toast.success('Agreement updated successfully!');
       }
 
       navigate('/forms');
@@ -442,18 +454,24 @@ export default function EditAgreement() {
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={async () => {
-                  if (!window.confirm('Approve these changes?')) return;
-                  try {
-                    setLoading(true);
-                    await auditService.approveAmendment(id!, subscriberId!);
-                    alert('Changes approved and booking synced!');
-                    navigate('/forms');
-                  } catch (e: any) {
-                    alert(e.message);
-                  } finally {
-                    setLoading(false);
-                  }
+                onClick={() => {
+                  setConfirmDialog({
+                    isOpen: true,
+                    title: 'Approve Changes',
+                    message: 'Approve these changes and sync with booking?',
+                    onConfirm: async () => {
+                      try {
+                        setLoading(true);
+                        await auditService.approveAmendment(id!, subscriberId!);
+                        toast.success('Changes approved and booking synced!');
+                        navigate('/forms');
+                      } catch (e: any) {
+                        toast.error(e.message);
+                      } finally {
+                        setLoading(false);
+                      }
+                    }
+                  });
                 }}
                 className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 transition-colors"
               >
@@ -461,18 +479,24 @@ export default function EditAgreement() {
               </button>
               <button
                 type="button"
-                onClick={async () => {
-                  if (!window.confirm('Reject these changes?')) return;
-                  try {
-                    setLoading(true);
-                    await auditService.rejectAmendment(id!, subscriberId!);
-                    alert('Changes rejected!');
-                    navigate('/forms');
-                  } catch (e: any) {
-                    alert(e.message);
-                  } finally {
-                    setLoading(false);
-                  }
+                onClick={() => {
+                  setConfirmDialog({
+                    isOpen: true,
+                    title: 'Reject Changes',
+                    message: 'Are you sure you want to reject these changes?',
+                    onConfirm: async () => {
+                      try {
+                        setLoading(true);
+                        await auditService.rejectAmendment(id!, subscriberId!);
+                        toast.success('Changes rejected!');
+                        navigate('/forms');
+                      } catch (e: any) {
+                        toast.error(e.message);
+                      } finally {
+                        setLoading(false);
+                      }
+                    }
+                  });
                 }}
                 className="inline-flex items-center px-4 py-2 border border-red-200 shadow-sm text-sm font-medium rounded-lg text-red-700 bg-white hover:bg-red-50 transition-colors"
               >
@@ -769,9 +793,14 @@ export default function EditAgreement() {
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    if (window.confirm('Are you sure you want to remove this receipt?')) {
-                                      removeExistingReceipt(index);
-                                    }
+                                    setConfirmDialog({
+                                      isOpen: true,
+                                      title: 'Remove Receipt',
+                                      message: 'Are you sure you want to remove this receipt?',
+                                      onConfirm: () => {
+                                        removeExistingReceipt(index);
+                                      }
+                                    });
                                   }}
                                   className="inline-flex items-center px-3 py-1.5 border border-transparent shadow-sm text-xs font-medium rounded-lg text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
                                 >
@@ -939,6 +968,34 @@ export default function EditAgreement() {
                 className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Confirm Modal */}
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden">
+            <div className="p-6">
+              <h3 className="text-lg font-bold text-slate-900 mb-2">{confirmDialog.title}</h3>
+              <p className="text-slate-600">{confirmDialog.message}</p>
+            </div>
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+                className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                  confirmDialog.onConfirm();
+                }}
+                className="px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm"
+              >
+                Confirm
               </button>
             </div>
           </div>
