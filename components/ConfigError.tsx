@@ -33,16 +33,12 @@ const ConfigError: React.FC = () => {
         </div>
 
         <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 mb-8">
-          <p className="text-[10px] font-bold text-blue-700 uppercase tracking-widest mb-2">Your Credentials (Copy these):</p>
-          <div className="space-y-2 font-mono text-[10px] text-blue-900 break-all">
-            <div className="flex flex-col gap-1">
-              <span className="opacity-50">URL:</span>
-              <span className="bg-white/50 p-1 rounded select-all">https://czurhanyrjgeicnbrnev.supabase.co</span>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="opacity-50">KEY:</span>
-              <span className="bg-white/50 p-1 rounded select-all">eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6dXJoYW55cmpnZWljbmJybmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4NTExMDEsImV4cCI6MjA4NzQyNzEwMX0.LV4hsQEazpbv8AcLDrEASg8s3uGKmvMJ0FrvMOX6AWQ</span>
-            </div>
+          <p className="text-[10px] font-bold text-blue-700 uppercase tracking-widest mb-2">Instructions:</p>
+          <div className="space-y-2 text-sm text-blue-900">
+            <p>1. Open your Supabase Dashboard.</p>
+            <p>2. Navigate to Project Settings &gt; API.</p>
+            <p>3. Copy your project URL to <code className="font-mono bg-blue-100 px-1 rounded">VITE_SUPABASE_URL</code>.</p>
+            <p>4. Copy your project anon key to <code className="font-mono bg-blue-100 px-1 rounded">VITE_SUPABASE_ANON_KEY</code>.</p>
           </div>
         </div>
 

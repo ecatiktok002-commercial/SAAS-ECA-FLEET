@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, ExternalLink, WifiOff, Copy, Check } from 'lucide-react';
+import { AlertTriangle, ExternalLink, WifiOff } from 'lucide-react';
 import { SUPABASE_URL, SUPABASE_KEY } from '../services/supabase';
 
 const SupabaseConnectionBanner: React.FC = () => {
   const [isUnreachable, setIsUnreachable] = useState(false);
-  const [copied, setCopied] = useState(false);
-
   useEffect(() => {
     const checkConnection = async () => {
       if (!SUPABASE_URL || !SUPABASE_KEY || SUPABASE_URL.includes('placeholder')) return;
@@ -30,12 +28,6 @@ const SupabaseConnectionBanner: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const copyUrl = () => {
-    navigator.clipboard.writeText(SUPABASE_URL);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   if (!isUnreachable) return null;
 
   return (
@@ -56,19 +48,8 @@ const SupabaseConnectionBanner: React.FC = () => {
           </p>
 
           <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 mb-6">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Target URL:</p>
-            <div className="flex items-center justify-between gap-2">
-              <code className="text-[11px] text-slate-700 break-all font-mono bg-white px-2 py-1 rounded border border-slate-200 flex-1">
-                {SUPABASE_URL}
-              </code>
-              <button 
-                onClick={copyUrl}
-                className="p-2 hover:bg-white rounded-lg transition-colors text-slate-400 hover:text-slate-600"
-                title="Copy URL"
-              >
-                {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-              </button>
-            </div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Notice:</p>
+            <p className="text-[11px] text-slate-700">Please check your internet connection or if the Supabase project is active.</p>
           </div>
           
           <div className="space-y-3">
@@ -92,7 +73,7 @@ const SupabaseConnectionBanner: React.FC = () => {
                   <p className="text-xs font-bold text-amber-900 mb-1">How to fix:</p>
                   <ul className="text-[10px] text-amber-800 leading-normal list-disc ml-4 space-y-1">
                     <li>Log in to Supabase and ensure your project is <strong>Active</strong> (not paused).</li>
-                    <li>Verify the URL above matches your project URL in Settings.</li>
+                    <li>Verify your Supabase project URL in Settings.</li>
                     <li>Check if your network/firewall is blocking <code>supabase.co</code>.</li>
                   </ul>
                 </div>

@@ -73,10 +73,10 @@ if (typeof window !== 'undefined' && isConfigured && !SUPABASE_URL.includes('pla
       }
     })
     .catch((err) => {
-      console.error(`Supabase Connectivity Error: Could not reach ${SUPABASE_URL}. Error: ${err.message}`);
+      console.error(`Supabase Connectivity Error: Could not reach database. Error: ${err.message}`);
       console.error('This usually means the project is paused in Supabase or your network is blocking the connection.');
       if (typeof window !== 'undefined') {
-        (window as any).supabaseConnectionError = err.message;
+        (window as any).supabaseConnectionError = 'Network or connection error. Please check your internet connection.';
       }
     });
 }
