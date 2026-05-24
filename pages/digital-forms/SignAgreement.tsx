@@ -460,9 +460,9 @@ export default function SignAgreement() {
                   </div>
                   <div>
                     <ul className="space-y-0.5 print:space-y-0 text-[11px] print:text-[6.5pt] text-slate-600 list-disc ml-4 print:ml-3 print:leading-tight">
-                      <li>Minyak mesti sama (Same Level) atau RM10/bar.</li>
-                      <li>Kekal bersih (Caj cuci RM20).</li>
-                      <li>Kalau Cancel kurang dari 12 jam = Deposit Forfiet.</li>
+                      <li>Minyak pulang mesti sama atau caj RM10/bar.</li>
+                      <li>Kereta pulang kotor caj cuci RM20.</li>
+                      <li>Kansel saat akhir (kurang dari 8 jam) = Deposit Forfiet.</li>
                     </ul>
                   </div>
                 </div>
