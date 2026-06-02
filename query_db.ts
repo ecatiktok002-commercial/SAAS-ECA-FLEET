@@ -19,15 +19,15 @@ if (fs.existsSync(envPath)) {
 const supabase = createClient(url, key);
 
 async function run() {
-  const { data: viewData, error: vErr } = await supabase
-    .from('subscriber_audit_view')
-    .select('*')
-    .ilike('customer_name', '%MUHAMMAD HADI LUQMAN%');
+  const { data: aData, error: aErr } = await supabase
+    .from('agreements')
+    .select('*, bookings(*, cars(*))')
+    .ilike('customer_name', '%MOHD ZAINURY%');
     
-  if (vErr) {
-    console.error(vErr);
+  if (aErr) {
+    console.error('ERROR', aErr);
   } else {
-    console.log("VIEW DATA:", JSON.stringify(viewData, null, 2));
+    console.log("AGREEMENTS:", JSON.stringify(aData, null, 2));
   }
 }
 

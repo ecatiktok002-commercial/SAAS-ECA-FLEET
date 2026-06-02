@@ -21,44 +21,9 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
       const b = a.bookings;
       if (!b) return true; // Booking deleted
 
-      const bStartDate = b.start_date || (b.pickup_datetime ? formatInMYT(b.pickup_datetime, 'yyyy-MM-dd') : null);
-      const bDuration = b.duration_days || b.duration;
-      const normalizePlate = (p?: string | null) => (p || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-      const normalizeDate = (d?: string | null) => {
-        if (!d) return null;
-        if (d.includes('/')) {
-          const parts = d.split('/');
-          if (parts.length === 3) {
-            return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-          }
-        }
-        return d;
-      };
-
-      const checkDateMatch = (d1?: string | null, d2?: string | null) => {
-        const pd1 = normalizeDate(d1);
-        const pd2 = normalizeDate(d2);
-        if (pd1 === pd2) return true;
-        if (!pd1 || !pd2) return false;
-        try {
-          const dt1 = new Date(pd1);
-          const dt2 = new Date(pd2);
-          if (isValid(dt1) && isValid(dt2)) {
-            return Math.abs(differenceInDays(dt1, dt2)) <= 1;
-          }
-        } catch(e) {}
-        return false;
-      };
-
-      const dateMatch = checkDateMatch(a.start_date, bStartDate);
-      const durationMatch = Number(a.duration_days) === Number(bDuration);
-      const carPlateMatch = normalizePlate(a.car_plate_number) === normalizePlate(b.cars?.plate) || 
-                            normalizePlate(a.car_plate_number) === normalizePlate(b.cars?.plate_number);
-
-      // If they no longer match ALL criteria, they are invalid links
-      if (!(dateMatch && durationMatch && carPlateMatch)) {
-         return true;
-      }
+      // Removed strict date/duration/plate mismatch unlinking.
+      // If a booking is updated to a different duration or plate, it should be marked as "Discrepancy" in the UI
+      // rather than forcefully unlinked which frustrates the user and breaks manual linking.
       return false;
     });
 
@@ -140,7 +105,7 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
         if (isAlreadyLinked) return false;
 
         const bStartDate = b.start_date || (b.pickup_datetime ? formatInMYT(b.pickup_datetime, 'yyyy-MM-dd') : null);
-        const bDuration = b.duration_days || b.duration;
+        const bDuration = b.duration_days ?? b.duration;
         
         const normalizePlate = (p?: string | null) => (p || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 
