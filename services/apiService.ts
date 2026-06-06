@@ -1038,6 +1038,17 @@ export const apiService = {
                     updatePayload.car_model = carModel;
                 }
 
+              // Update Digital Forms
+              const { error: dfError } = await supabase
+                .from('digital_forms')
+                .update(updatePayload)
+                .eq('booking_id', id)
+                .eq('subscriber_id', targetSubscriberId);
+                
+              if (dfError) {
+                  console.error('Error updating linked digital form:', dfError);
+              }
+
               // Update Agreements
               const { error: agError } = await supabase
                 .from('agreements')
