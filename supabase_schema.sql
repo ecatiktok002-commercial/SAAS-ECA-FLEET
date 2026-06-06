@@ -8,7 +8,6 @@
 -- DROP TABLE IF EXISTS handover_records CASCADE;
 -- DROP TABLE IF EXISTS logs CASCADE;
 -- DROP TABLE IF EXISTS expenses CASCADE;
--- DROP TABLE IF EXISTS digital_forms CASCADE;
 -- DROP TABLE IF EXISTS agreements CASCADE;
 -- DROP TABLE IF EXISTS bookings CASCADE;
 -- DROP TABLE IF EXISTS members CASCADE;
@@ -32,9 +31,6 @@
 -- ALTER TABLE agreements ADD COLUMN IF NOT EXISTS signature_data TEXT;
 -- ALTER TABLE agreements ADD COLUMN IF NOT EXISTS signed_at TIMESTAMP WITH TIME ZONE;
 -- ALTER TABLE agreements ADD COLUMN IF NOT EXISTS created_by TEXT;
--- ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS signature_data TEXT;
--- ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS signed_at TIMESTAMP WITH TIME ZONE;
--- ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS created_by TEXT;
 -- ALTER TABLE bookings ADD COLUMN IF NOT EXISTS created_by TEXT;
 -- ALTER TABLE expenses ADD COLUMN IF NOT EXISTS created_by TEXT;
 --
@@ -59,7 +55,6 @@
 -- ALTER TABLE members ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES companies(id) ON DELETE CASCADE;
 -- ALTER TABLE bookings ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES companies(id) ON DELETE CASCADE;
 -- ALTER TABLE agreements ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES companies(id) ON DELETE CASCADE;
--- ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES companies(id) ON DELETE CASCADE;
 -- ALTER TABLE expenses ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES companies(id) ON DELETE CASCADE;
 -- ALTER TABLE logs ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES companies(id) ON DELETE CASCADE;
 -- ALTER TABLE handover_records ADD COLUMN IF NOT EXISTS subscriber_id UUID REFERENCES subscribers(id) ON DELETE CASCADE;
@@ -327,48 +322,6 @@ ALTER TABLE agreements ADD COLUMN IF NOT EXISTS is_receipt_verified BOOLEAN DEFA
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS has_pending_changes BOOLEAN DEFAULT FALSE;
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS pending_changes JSONB;
 
--- 7. Digital Forms
-CREATE TABLE IF NOT EXISTS digital_forms (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  subscriber_id UUID NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
-  agent_id UUID, -- The staff member who created it
-  agent_name TEXT,
-  customer_name TEXT NOT NULL,
-  identity_number TEXT,
-  customer_phone TEXT,
-  billing_address TEXT,
-  emergency_contact_name TEXT,
-  emergency_contact_relation TEXT,
-  car_plate_number TEXT,
-  car_model TEXT,
-  start_date DATE,
-  end_date DATE,
-  total_price NUMERIC NOT NULL DEFAULT 0,
-  deposit NUMERIC DEFAULT 0,
-  duration_days INTEGER,
-  pickup_time TIME,
-  return_time TIME,
-  need_einvoice BOOLEAN DEFAULT FALSE,
-  payment_receipt TEXT,
-  signature_data TEXT,
-  status TEXT DEFAULT 'pending',
-  signed_at TIMESTAMP WITH TIME ZONE,
-  created_by TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  booking_id UUID REFERENCES bookings(id) ON DELETE SET NULL,
-  commission_earned NUMERIC DEFAULT 0,
-  payout_status TEXT DEFAULT 'pending',
-  is_receipt_verified BOOLEAN DEFAULT FALSE
-);
-
--- Ensure columns exist if table was already created
-ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS booking_id UUID REFERENCES bookings(id) ON DELETE SET NULL;
-ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS commission_earned NUMERIC DEFAULT 0;
-ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS payout_status TEXT DEFAULT 'pending';
-ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS is_receipt_verified BOOLEAN DEFAULT FALSE;
-ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS has_pending_changes BOOLEAN DEFAULT FALSE;
-ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS pending_changes JSONB;
-
 -- 8. Expenses
 CREATE TABLE IF NOT EXISTS expenses (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -431,11 +384,8 @@ ALTER TABLE customers ADD COLUMN IF NOT EXISTS emergency_contact_name TEXT;
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS emergency_contact_relation TEXT;
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS acquired_by_agent TEXT;
 
--- Add customer_id to agreements and digital_forms
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS customer_id UUID REFERENCES customers(id) ON DELETE SET NULL;
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS reference_number TEXT;
-ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS customer_id UUID REFERENCES customers(id) ON DELETE SET NULL;
-ALTER TABLE digital_forms ADD COLUMN IF NOT EXISTS reference_number TEXT;
 
 -- 12. Marketing Events
 CREATE TABLE IF NOT EXISTS marketing_events (
@@ -460,7 +410,6 @@ ALTER TABLE cars ENABLE ROW LEVEL SECURITY;
 ALTER TABLE members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE agreements ENABLE ROW LEVEL SECURITY;
-ALTER TABLE digital_forms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE handover_records ENABLE ROW LEVEL SECURITY;
@@ -636,8 +585,6 @@ CREATE POLICY "Public sign pending agreements" ON agreements
 
 -- 7. Digital Forms
 -- Subscriber can see all. Agent can only see their own forms.
-DROP POLICY IF EXISTS "Digital forms access" ON digital_forms;
-CREATE POLICY "Digital forms access" ON digital_forms 
   FOR ALL USING (
     auth.uid() = subscriber_id -- Subscriber
     OR 
@@ -646,12 +593,8 @@ CREATE POLICY "Digital forms access" ON digital_forms
     (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
   );
 
-DROP POLICY IF EXISTS "Public read digital forms" ON digital_forms;
-CREATE POLICY "Public read digital forms" ON digital_forms
   FOR SELECT USING (status IN ('pending', 'signed', 'completed'));
 
-DROP POLICY IF EXISTS "Public sign pending digital forms" ON digital_forms;
-CREATE POLICY "Public sign pending digital forms" ON digital_forms
   FOR UPDATE USING (status = 'pending') WITH CHECK (status IN ('pending', 'signed', 'completed'));
 
 -- 8. Expenses
@@ -817,9 +760,7 @@ FOR EACH ROW
 EXECUTE FUNCTION sync_agreement_to_customer();
 
 -- Same for digital forms
-DROP TRIGGER IF EXISTS tr_sync_digital_form_to_customer ON digital_forms;
 CREATE TRIGGER tr_sync_digital_form_to_customer
-BEFORE INSERT OR UPDATE OF identity_number ON digital_forms
 FOR EACH ROW
 EXECUTE FUNCTION sync_agreement_to_customer();
 
@@ -853,7 +794,6 @@ WITH completed_records AS (
         created_at,
         status,
         payment_receipt
-    FROM digital_forms 
     WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL AND payment_receipt != ''))
       AND COALESCE(start_date, created_at::date) <= CURRENT_DATE
 ),
@@ -946,7 +886,6 @@ BEGIN
   
   UPDATE public.bookings SET agent_id = p_new_id WHERE agent_id IN (SELECT id FROM public.staff_members WHERE access_id = p_uid);
   UPDATE public.agreements SET agent_id = p_new_id WHERE agent_id IN (SELECT id FROM public.staff_members WHERE access_id = p_uid);
-  UPDATE public.digital_forms SET agent_id = p_new_id WHERE agent_id IN (SELECT id FROM public.staff_members WHERE access_id = p_uid);
   UPDATE public.logs SET user_id = p_new_id WHERE user_id IN (SELECT id FROM public.staff_members WHERE access_id = p_uid);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
@@ -1183,7 +1122,6 @@ FROM (
     WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL AND payment_receipt != ''))
       AND COALESCE(start_date, created_at::date) <= CURRENT_DATE
     UNION ALL
-    SELECT subscriber_id, customer_name, customer_phone, identity_number, agent_name, created_at FROM digital_forms
     WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL AND payment_receipt != ''))
       AND COALESCE(start_date, created_at::date) <= CURRENT_DATE
 ) combined_data
@@ -1200,7 +1138,6 @@ AND a.subscriber_id = c.subscriber_id
 AND a.customer_id IS NULL;
 
 -- Update existing digital forms with customer_id
-UPDATE digital_forms f
 SET customer_id = c.id
 FROM customers c
 WHERE f.identity_number = c.ic_passport 
@@ -1472,9 +1409,6 @@ CREATE TRIGGER tr_protect_agreements_tampering
 BEFORE UPDATE ON agreements
 FOR EACH ROW EXECUTE FUNCTION protect_public_form_tampering();
 
-DROP TRIGGER IF EXISTS tr_protect_digital_forms_tampering ON digital_forms;
-CREATE TRIGGER tr_protect_digital_forms_tampering
-BEFORE UPDATE ON digital_forms
 FOR EACH ROW EXECUTE FUNCTION protect_public_form_tampering();
 
 -- ============================================================================

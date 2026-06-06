@@ -68,6 +68,10 @@ const BookingModal: React.FC<BookingModalProps> = ({
   const [pendingAction, setPendingAction] = useState<{ type: 'save' | 'delete' | 'delete_handover' | 'delete_handover_photo', data?: any } | null>(null);
   const [selectedStaffMember, setSelectedStaffMember] = useState<StaffMember | null>(null);
 
+  // Digital Form Mapping State
+  const [linkedAgreement, setLinkedAgreement] = useState<any | null>(null);
+  const [isMatchingForm, setIsMatchingForm] = useState(false);
+
   // Fetch signed URLs when viewing a record
   useEffect(() => {
     if (viewingRecord && viewingRecord.photos_url && viewingRecord.photos_url.length > 0) {
@@ -119,8 +123,11 @@ const BookingModal: React.FC<BookingModalProps> = ({
   useEffect(() => {
     if (editingBooking && subscriberId) {
       apiService.getHandoverRecords(editingBooking.id, subscriberId).then(setHandoverRecords);
+      // Fetch Linked Agreement
+      apiService.getLinkedAgreementForBooking(editingBooking.id, subscriberId).then(setLinkedAgreement).catch(() => setLinkedAgreement(null));
     } else {
       setHandoverRecords([]);
+      setLinkedAgreement(null);
     }
   }, [editingBooking, subscriberId, isHandoverOpen]);
 
@@ -785,14 +792,43 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   </svg>
                   Generate Digital Form (Locked)
                 </button>
+              ) : linkedAgreement ? (
+                <button 
+                  type="button" 
+                  onClick={() => navigate(`/forms/edit/${linkedAgreement.id || linkedAgreement.form_id}`)}
+                  className="w-full py-4 bg-emerald-600 rounded-xl text-white font-bold uppercase text-xs tracking-widest hover:bg-emerald-700 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                  View Form
+                </button>
               ) : (
                 <button 
                   type="button" 
-                  onClick={() => navigate(`/forms/create?booking_id=${editingBooking.id}`)}
+                  disabled={isMatchingForm}
+                  onClick={async () => {
+                    if (subscriptionTier === 'tier_3' && subscriberId) {
+                      setIsMatchingForm(true);
+                      try {
+                        const { supabase } = await import('../services/supabase');
+                        await supabase.rpc('run_heuristic_match', { target_subscriber_id: subscriberId });
+                        const match = await apiService.getLinkedAgreementForBooking(editingBooking.id, subscriberId);
+                        if (match) {
+                           setLinkedAgreement(match);
+                           toast.success('Digital Form Automatically Matched!');
+                           setIsMatchingForm(false);
+                           return; // stays on Calendar, button changes to View Form
+                        }
+                      } catch (e) {
+                         console.error(e);
+                      }
+                      setIsMatchingForm(false);
+                    }
+                    navigate(`/forms/create?booking_id=${editingBooking.id}`);
+                  }}
                   className="w-full py-4 bg-blue-600 rounded-xl text-white font-bold uppercase text-xs tracking-widest hover:bg-blue-700 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                  Generate Digital Form
+                  {isMatchingForm ? 'Matching...' : 'Generate Digital Form'}
                 </button>
               )
             )}

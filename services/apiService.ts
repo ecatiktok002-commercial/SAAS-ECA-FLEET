@@ -1012,53 +1012,43 @@ export const apiService = {
         }
         if (!data || data.length === 0) throw new Error('Update failed');
 
-        // Sync Booking changes to Digital Forms and Agreements (Always sync)
+        // Sync Booking changes to Digital Forms and Agreements (Only for Tier 3)
         try {
-          const { data: carData } = await supabase
-            .from('cars')
-            .select('plate_number, make, model')
-            .eq('id', finalBooking.car_id)
+          const { data: subData } = await supabase
+            .from('subscribers')
+            .select('tier')
+            .eq('id', targetSubscriberId)
             .single();
 
-          if (carData) {
-            const carModel = `${carData.make} ${carData.model}`.trim();
-            
-            // We use the updated booking data returned from the DB to ensure we have the latest values
-            const updatedBooking = data[0];
-            const bookingStartDate = updatedBooking.start_date;
-            const bookingDuration = updatedBooking.duration_days || updatedBooking.duration;
-            const bookingPickupTime = updatedBooking.pickup_time;
-            
-            const calculatedEndDate = updatedBooking.end_date || format(addDays(parseISO(bookingStartDate), bookingDuration), 'yyyy-MM-dd');
-            
-            const updatePayload: any = {
-              car_plate_number: carData.plate_number,
-              car_model: carModel,
-              start_date: bookingStartDate,
-              pickup_time: bookingPickupTime,
-              end_date: calculatedEndDate,
-              return_time: updatedBooking.return_time || bookingPickupTime,
-              duration_days: bookingDuration
-            };
+          if (subData && subData.tier === 'tier_3') {
+            const { data: carData } = await supabase
+              .from('cars')
+              .select('plate, plate_number, make, model')
+              .eq('id', finalBooking.car_id)
+              .single();
 
-            // Only update total_price if it was explicitly provided in the update
-            if (finalBooking.total_price !== undefined) {
-              updatePayload.total_price = finalBooking.total_price;
+            if (carData) {
+              const carModel = `${carData.make} ${carData.model}`.trim();
+              
+                const updatePayload: any = {};
+                if (carData.plate || carData.plate_number) {
+                    updatePayload.car_plate_number = carData.plate || carData.plate_number;
+                }
+                if (carModel) {
+                    updatePayload.car_model = carModel;
+                }
+
+              // Update Agreements
+              const { error: agError } = await supabase
+                .from('agreements')
+                .update(updatePayload)
+                .eq('booking_id', id)
+                .eq('subscriber_id', targetSubscriberId);
+                
+              if (agError) {
+                  console.error('Error updating linked agreement:', agError);
+              }
             }
-
-            // Update Digital Forms
-            await supabase
-              .from('digital_forms')
-              .update(updatePayload)
-              .eq('booking_id', id)
-              .eq('subscriber_id', targetSubscriberId);
-
-            // Update Agreements
-            await supabase
-              .from('agreements')
-              .update(updatePayload)
-              .eq('booking_id', id)
-              .eq('subscriber_id', targetSubscriberId);
           }
         } catch (syncError) {
           console.error('Failed to sync booking changes to forms/agreements:', syncError);
@@ -2014,6 +2004,24 @@ export const apiService = {
       
       if (error) {
         logSupabaseError('getAgreementById', error);
+        return null;
+      }
+      return data;
+    });
+  },
+
+  async getLinkedAgreementForBooking(bookingId: string, subscriberId: string): Promise<any | null> {
+    return withRetry(async () => {
+      const { data, error } = await supabase
+        .from('agreements')
+        .select('id')
+        .eq('booking_id', bookingId)
+        .eq('subscriber_id', subscriberId)
+        .limit(1)
+        .maybeSingle();
+      
+      if (error) {
+        console.error('getLinkedAgreementForBooking error:', error);
         return null;
       }
       return data;
