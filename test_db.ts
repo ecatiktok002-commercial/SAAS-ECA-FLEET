@@ -8,10 +8,7 @@ const supabase = createClient(
 );
 
 async function check() {
-  const { data } = await supabase.from('bookings')
-    .select('id, car_id, start_date, pickup_time, actual_end_time, end_time, duration_days, cars(name, plate)')
-    .order('created_at', { ascending: false })
-    .limit(5);
+  const { data } = await supabase.from('bookings').select('id, start_date, duration_days, actual_end_time').limit(5);
   console.log("bookings:", data);
 }
 check();

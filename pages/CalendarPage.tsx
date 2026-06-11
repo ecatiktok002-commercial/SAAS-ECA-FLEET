@@ -143,21 +143,20 @@ const CalendarPage: React.FC = () => {
   useEffect(() => {
     if (!currentUserId || !currentSubscriberId) return;
 
-    const channel = supabase.channel('fleet-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `subscriber_id=eq.${currentSubscriberId}` }, (payload) => {
+      const channel = supabase.channel('fleet-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `subscriber_id=eq.${currentSubscriberId}` }, async (payload) => {
         if (payload.eventType === 'INSERT') {
-          const newBooking = payload.new as Booking;
-          
-          setBookings((prev) => {
-            if (prev.some(b => b.id === payload.new.id)) return prev;
-            return [...prev, newBooking];
-          });
+          try {
+             const mappedBooking = await apiService.getBookings(currentSubscriberId);
+             setBookings(mappedBooking || []);
+          } catch(e) {}
         }
         else if (payload.eventType === 'DELETE') setBookings((prev) => prev.filter((b) => b.id !== payload.old.id));
         else if (payload.eventType === 'UPDATE') {
-          const updatedBooking = payload.new as Booking;
-          
-          setBookings((prev) => prev.map((b) => (b.id === payload.new.id ? updatedBooking : b)));
+          try {
+             const mappedBooking = await apiService.getBookings(currentSubscriberId);
+             setBookings(mappedBooking || []);
+          } catch(e) {}
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cars', filter: `subscriber_id=eq.${currentSubscriberId}` }, (payload) => {
