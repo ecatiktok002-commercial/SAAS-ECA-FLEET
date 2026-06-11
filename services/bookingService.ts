@@ -31,14 +31,15 @@ export const getBookingEndTime = (b: Booking): number => {
 export const validateBooking = (newBooking: Omit<Booking, 'id'>, existingBookings: Booking[]): boolean => {
   const newStart = parseBookingDate(newBooking.start_date, newBooking.pickup_time);
   
-  // FRONTEND FIX: Ignore DB end_time to prevent NaN crashes. Calculate strictly via duration.
-  const newEnd = newStart + ((newBooking.duration_days || 0) * 24 * 60 * 60 * 1000);
+  // FRONTEND FIX: Use getBookingEndTime to properly accommodate actual_end_time for early returns
+  // For newBooking (which is Omit<Booking, 'id'>) we can cast to any for getBookingEndTime
+  const newEnd = getBookingEndTime(newBooking as any);
 
   const carBookings = existingBookings.filter(b => b.car_id === newBooking.car_id);
 
   for (const b of carBookings) {
     const bStart = parseBookingDate(b.start_date, b.pickup_time);
-    const bEnd = bStart + ((b.duration_days || 0) * 24 * 60 * 60 * 1000);
+    const bEnd = getBookingEndTime(b);
 
     if (newStart < bEnd && newEnd > bStart) {
       return false; 
@@ -183,7 +184,7 @@ export const optimizeBookings = (bookings: Booking[], cars: Car[]): Booking[] =>
         let maxEnd = 0;
         carLockedBookings.forEach(b => {
             const bStart = parseBookingDate(b.start_date, b.pickup_time);
-            const bEnd = bStart + ((b.duration_days || 0) * 24 * 60 * 60 * 1000);
+            const bEnd = getBookingEndTime(b);
             if (bEnd > maxEnd) maxEnd = bEnd;
         });
         
@@ -193,7 +194,7 @@ export const optimizeBookings = (bookings: Booking[], cars: Car[]): Booking[] =>
     // 4. Re-assign Optimizable Bookings
     optimizableBookings.forEach(booking => {
       const bStart = parseBookingDate(booking.start_date, booking.pickup_time);
-      const bEnd = bStart + ((booking.duration_days || 0) * 24 * 60 * 60 * 1000);
+      const bEnd = getBookingEndTime(booking);
 
       // Find the "best" car for this booking.
       // Best = The car that becomes free closest to booking start time (without overlap).
@@ -250,7 +251,7 @@ export const getAvailableCars = (date: Date, bookings: Booking[], cars: Car[]): 
     const carBookings = bookings.filter(b => b.car_id === car.id);
     const hasOverlap = carBookings.some(b => {
       const bStart = parseBookingDate(b.start_date, b.pickup_time);
-      const bEnd = bStart + ((b.duration_days || 0) * 24 * 60 * 60 * 1000);
+      const bEnd = getBookingEndTime(b);
       return checkStart < bEnd && checkEnd > bStart;
     });
     return !hasOverlap;
@@ -274,13 +275,13 @@ export const assignTracks = (bookings: Booking[]): Booking[] => {
   for (const b of sorted) {
     let track = 0;
     const bStart = parseBookingDate(b.start_date, b.pickup_time);
-    const bEnd = bStart + ((b.duration_days || 0) * 24 * 60 * 60 * 1000);
+    const bEnd = getBookingEndTime(b);
 
     while (true) {
       const conflict = assigned.some(other => {
         if (other.track !== track) return false;
         const otherStart = parseBookingDate(other.start_date, other.pickup_time);
-        const otherEnd = otherStart + ((other.duration_days || 0) * 24 * 60 * 60 * 1000);
+        const otherEnd = getBookingEndTime(other);
         return bStart < otherEnd && bEnd > otherStart;
       });
 
@@ -300,7 +301,7 @@ export const isBookingOnDate = (booking: Booking, date: Date): boolean => {
   const endOfDay = startOfDay + (24 * 60 * 60 * 1000);
   
   const bookingStart = parseBookingDate(booking.start_date, booking.pickup_time);
-  const bookingEnd = bookingStart + ((booking.duration_days || 0) * 24 * 60 * 60 * 1000);
+  const bookingEnd = getBookingEndTime(booking);
   
   return bookingStart < endOfDay && bookingEnd > startOfDay;
 };
@@ -312,7 +313,7 @@ export const getBookingSegmentData = (booking: Booking, date: Date) => {
   const dayEnd = dayStart + (24 * 60 * 60 * 1000);
   
   const bStart = parseBookingDate(booking.start_date, booking.pickup_time);
-  const bEnd = bStart + ((booking.duration_days || 0) * 24 * 60 * 60 * 1000);
+  const bEnd = getBookingEndTime(booking);
 
   const intersectionStart = Math.max(dayStart, bStart);
   const intersectionEnd = Math.min(dayEnd, bEnd);
