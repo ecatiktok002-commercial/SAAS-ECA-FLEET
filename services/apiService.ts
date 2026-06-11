@@ -903,7 +903,14 @@ export const apiService = {
     return data.some(b => {
       const bStart = new Date(b.pickup_datetime).getTime();
       const bDuration = b.duration || 0;
-      const bEnd = b.actual_end_time ? new Date(b.actual_end_time).getTime() : bStart + (bDuration * 24 * 60 * 60 * 1000);
+      let bEnd;
+      if (b.actual_end_time) {
+        const timeStr = typeof b.actual_end_time === 'string' ? b.actual_end_time.replace(' ', 'T') : b.actual_end_time;
+        bEnd = new Date(timeStr).getTime();
+      }
+      if (!bEnd || isNaN(bEnd)) {
+        bEnd = bStart + (bDuration * 24 * 60 * 60 * 1000);
+      }
       return (bStart < newEnd && bEnd > newStart);
     });
   },

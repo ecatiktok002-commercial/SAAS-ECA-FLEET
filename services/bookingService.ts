@@ -11,19 +11,24 @@ export const parseBookingDate = (dateStr: string, timeStr?: string): number => {
 
 export const getBookingEndTime = (b: Booking): number => {
   if (b.actual_end_time) {
-    return new Date(b.actual_end_time).getTime();
+    // Ensure cross-browser safety (e.g. Safari doesn't like spaces in ISO strings)
+    const timeStr = typeof b.actual_end_time === 'string' ? b.actual_end_time.replace(' ', 'T') : b.actual_end_time;
+    const t = new Date(timeStr).getTime();
+    if (!isNaN(t)) {
+      return t;
+    }
   }
 
   const startMs = parseBookingDate(b.start_date, b.pickup_time);
 
   if (b.return_time) {
     const calcEndDateMs =
-      startMs + (b.duration_days || 0) * 24 * 60 * 60 * 1000;
+      startMs + (b.duration_days || (b as any).duration || 0) * 24 * 60 * 60 * 1000;
     const endDateStr = getMYTDateString(calcEndDateMs);
     return parseBookingDate(endDateStr, b.return_time);
   }
 
-  return startMs + (b.duration_days || 0) * 24 * 60 * 60 * 1000;
+  return startMs + (b.duration_days || (b as any).duration || 0) * 24 * 60 * 60 * 1000;
 };
 
 /**
