@@ -290,6 +290,7 @@ CREATE TABLE IF NOT EXISTS agreements (
   billing_address TEXT,
   emergency_contact_name TEXT,
   emergency_contact_relation TEXT,
+  rental_purpose TEXT,
   car_plate_number TEXT,
   car_model TEXT,
   start_date DATE,
@@ -318,6 +319,7 @@ ALTER TABLE agreements ADD COLUMN IF NOT EXISTS photos_url TEXT[];
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS booking_id UUID REFERENCES bookings(id) ON DELETE SET NULL;
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS commission_earned NUMERIC DEFAULT 0;
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS payout_status TEXT DEFAULT 'pending';
+ALTER TABLE agreements ADD COLUMN IF NOT EXISTS rental_purpose TEXT;
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS is_receipt_verified BOOLEAN DEFAULT FALSE;
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS has_pending_changes BOOLEAN DEFAULT FALSE;
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS pending_changes JSONB;
@@ -636,6 +638,10 @@ CREATE POLICY "Handover records access" ON handover_records
     OR
     (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
   );
+
+DROP POLICY IF EXISTS "Public read handover records" ON handover_records;
+CREATE POLICY "Public read handover records" ON handover_records
+  FOR SELECT USING (true);
 
 -- 11. Customers (CRM)
 DROP POLICY IF EXISTS "Customers access" ON customers;

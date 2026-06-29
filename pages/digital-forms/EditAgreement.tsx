@@ -23,6 +23,8 @@ export default function EditAgreement() {
     billing_address: '',
     emergency_contact_name: '',
     emergency_contact_relation: '',
+    rental_purpose: '',
+    custom_rental_purpose: '',
     car_plate_number: '',
     car_model: '',
     start_date: '',
@@ -135,6 +137,8 @@ export default function EditAgreement() {
           billing_address: data.billing_address || '',
           emergency_contact_name: data.emergency_contact_name || '',
           emergency_contact_relation: data.emergency_contact_relation || '',
+          rental_purpose: data.rental_purpose || '',
+          custom_rental_purpose: '',
           car_plate_number: data.car_plate_number || '',
           car_model: data.car_model || '',
           start_date: data.start_date || '',
@@ -189,11 +193,11 @@ export default function EditAgreement() {
     fetchAgreement();
   }, [id, subscriberId, staffRole, userUid]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     let newFormData = { ...formData };
 
-    const excludedFields = ['email', 'password'];
+    const excludedFields = ['email', 'password', 'rental_purpose'];
     let processedValue = value;
     if (typeof value === 'string' && !excludedFields.includes(name)) {
       processedValue = value.toUpperCase();
@@ -351,6 +355,7 @@ export default function EditAgreement() {
       if (formData.billing_address !== agreement.billing_address) updates.billing_address = formData.billing_address;
       if (formData.emergency_contact_name !== agreement.emergency_contact_name) updates.emergency_contact_name = formData.emergency_contact_name;
       if (formData.emergency_contact_relation !== agreement.emergency_contact_relation) updates.emergency_contact_relation = formData.emergency_contact_relation;
+      if (formData.rental_purpose !== agreement.rental_purpose) updates.rental_purpose = formData.rental_purpose;
       if (formData.car_plate_number !== agreement.car_plate_number) updates.car_plate_number = formData.car_plate_number;
       if (formData.car_model !== agreement.car_model) updates.car_model = formData.car_model;
       if (formData.start_date !== agreement.start_date) updates.start_date = formData.start_date;
@@ -603,6 +608,25 @@ export default function EditAgreement() {
                   onChange={handleChange}
                   className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm disabled:bg-slate-100 disabled:text-slate-500 uppercase"
                 />
+              </div>
+
+              <div className="sm:col-span-2 mt-2">
+                {renderLabel('Tujuan Sewa / Purpose of Rental', 'rental_purpose')}
+                <select
+                  name="rental_purpose"
+                  required
+                  disabled={isLocked}
+                  value={formData.rental_purpose}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm disabled:bg-slate-100 disabled:text-slate-500 uppercase bg-white"
+                >
+                  <option value="">-- SELECT PURPOSE --</option>
+                  <option value="Leisure / Recreation">Leisure / Recreation</option>
+                  <option value="Holiday / Road Trip">Holiday / Road Trip</option>
+                  <option value="Visit Family / Friends">Visit Family / Friends</option>
+                  <option value="Outstation Travel">Outstation Travel</option>
+                  <option value="Business Meeting / Event">Business Meeting / Event</option>
+                </select>
               </div>
 
               <div className="sm:col-span-2 flex items-center mt-2">

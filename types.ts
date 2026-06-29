@@ -126,6 +126,7 @@ export interface Agreement {
   billing_address?: string;
   emergency_contact_name?: string;
   emergency_contact_relation?: string;
+  rental_purpose?: string;
   car_plate_number?: string;
   car_model?: string;
   start_date?: string;

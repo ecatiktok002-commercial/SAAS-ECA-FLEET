@@ -21,6 +21,8 @@ export default function CreateAgreement() {
     billing_address: '',
     emergency_contact_name: '',
     emergency_contact_relation: '',
+    rental_purpose: '',
+    custom_rental_purpose: '',
     car_plate_number: '',
     car_model: '',
     start_date: '',
@@ -162,11 +164,11 @@ export default function CreateAgreement() {
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     let newFormData = { ...formData };
 
-    const excludedFields = ['email', 'password'];
+    const excludedFields = ['email', 'password', 'rental_purpose'];
     let processedValue = value;
     if (typeof value === 'string' && !excludedFields.includes(name)) {
       processedValue = value.toUpperCase();
@@ -325,6 +327,7 @@ export default function CreateAgreement() {
         billing_address: formData.billing_address,
         emergency_contact_name: formData.emergency_contact_name,
         emergency_contact_relation: formData.emergency_contact_relation,
+        rental_purpose: formData.rental_purpose,
         car_plate_number: formData.car_plate_number,
         car_model: formData.car_model,
         start_date: formData.start_date,
@@ -466,6 +469,24 @@ export default function CreateAgreement() {
                   onChange={handleChange}
                   className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm uppercase"
                 />
+              </div>
+
+              <div className="sm:col-span-2 mt-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Tujuan Sewa / Purpose of Rental</label>
+                <select
+                  name="rental_purpose"
+                  required
+                  value={formData.rental_purpose}
+                  onChange={handleChange}
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm uppercase bg-white"
+                >
+                  <option value="">-- SELECT PURPOSE --</option>
+                  <option value="Leisure / Recreation">Leisure / Recreation</option>
+                  <option value="Holiday / Road Trip">Holiday / Road Trip</option>
+                  <option value="Visit Family / Friends">Visit Family / Friends</option>
+                  <option value="Outstation Travel">Outstation Travel</option>
+                  <option value="Business Meeting / Event">Business Meeting / Event</option>
+                </select>
               </div>
 
               <div className="sm:col-span-2 flex items-center mt-2 mb-4">

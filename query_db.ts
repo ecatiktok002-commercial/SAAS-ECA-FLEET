@@ -4,14 +4,15 @@ dotenv.config();
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL || '',
-  process.env.VITE_SUPABASE_ANON_KEY || ''
+  process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ''
 );
 
 async function check() {
-  const { data } = await supabase.from('bookings')
-    .select('id, car_id, start_date, pickup_time, actual_end_time, end_time, duration_days, cars(name, plate)')
-    .order('created_at', { ascending: false })
-    .limit(5);
-  console.log("bookings:", data);
+  const { data, error } = await supabase.rpc('exec_sql', { sql: `
+    DROP POLICY IF EXISTS "Public read handover records" ON handover_records;
+    CREATE POLICY "Public read handover records" ON handover_records
+      FOR SELECT USING (true);
+  `});
+  console.log("Result:", data, error);
 }
 check();

@@ -11,6 +11,7 @@ interface MalayPrintableAgreementTemplateProps {
     address?: string;
     emergencyContactName?: string;
     emergencyContactPhone?: string;
+    rentalPurpose?: string;
   };
   vehicle?: {
     model?: string;
@@ -111,6 +112,10 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
                     <td className="border border-black p-2 font-semibold">Hubungan / Tel</td>
                     <td className="border border-black p-2 break-words">{customer.emergencyContactPhone || '-'}</td>
                   </tr>
+                  <tr>
+                    <td className="border border-black p-2 font-semibold">Tujuan Sewa</td>
+                    <td className="border border-black p-2 break-words" colSpan={3}>{customer.rentalPurpose || '-'}</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -171,10 +176,12 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
             <div className="mb-6 text-[10px] leading-tight text-justify">
               <h3 className="font-bold bg-gray-200 p-1 border border-black uppercase text-sm mb-2">D. Terma & Syarat (Ringkasan)</h3>
               <div className="border border-black p-2">
-                <p className="mb-1">1. <strong>Pematuhan Undang-Undang:</strong> Kenderaan ini tidak boleh digunakan untuk sebarang aktiviti haram atau menyalahi undang-undang Malaysia. Penyewa bertanggungjawab sepenuhnya ke atas sebarang saman, kompaun, atau tindakan undang-undang yang terbit semasa tempoh sewaan.</p>
-                <p className="mb-1">2. <strong>Kerosakan & Kemusnahan:</strong> Penyewa bertanggungjawab atas sebarang kerosakan, kemalangan, atau kehilangan kenderaan (kecurian) semasa tempoh sewaan. Kos baik pulih akan ditolak daripada deposit keselamatan, dan baki kos (jika ada) wajib ditanggung oleh penyewa.</p>
-                <p className="mb-1">3. <strong>Lewat Pulang:</strong> Denda akan dikenakan jika kenderaan tidak dipulangkan pada tarikh dan masa yang telah dipersetujui tanpa notis awal.</p>
-                <p>4. <strong>Kebersihan:</strong> Kenderaan mesti dipulangkan dalam keadaan bersih. Denda pembersihan akan dikenakan jika kenderaan dipulangkan dalam keadaan kotor yang melampau atau berbau (seperti asap rokok/durian).</p>
+                <p className="mb-1">1. <strong>Tujuan Penggunaan:</strong> Kenderaan ini hanya digunakan untuk tujuan perjalanan, pelancongan, rekreasi, percutian, lawatan keluarga/rakan atau perjalanan tidak berbayar. Kenderaan ini tidak boleh digunakan untuk e-hailing, Grab, penghantaran makanan/barang, membawa penumpang berbayar, courier, perlumbaan, aktiviti haram, towing, sub-rental, pinjam kepada pihak ketiga, atau kegunaan di luar syarat.</p>
+                <p className="mb-1">2. <strong>Pematuhan Undang-Undang:</strong> Kenderaan ini tidak boleh digunakan untuk sebarang aktiviti haram atau menyalahi undang-undang Malaysia. Penyewa bertanggungjawab sepenuhnya ke atas sebarang saman, kompaun, atau tindakan undang-undang yang terbit semasa tempoh sewaan.</p>
+                <p className="mb-1">3. <strong>Kerosakan & Kemusnahan:</strong> Penyewa bertanggungjawab atas sebarang kerosakan, kemalangan, atau kehilangan kenderaan (kecurian) semasa tempoh sewaan. Kos baik pulih akan ditolak daripada deposit keselamatan, dan baki kos (jika ada) wajib ditanggung oleh penyewa.</p>
+                <p className="mb-1">4. <strong>Lewat Pulang:</strong> Denda akan dikenakan jika kenderaan tidak dipulangkan pada tarikh dan masa yang telah dipersetujui tanpa notis awal.</p>
+                <p className="mb-1">5. <strong>Kebersihan:</strong> Kenderaan mesti dipulangkan dalam keadaan bersih. Denda pembersihan akan dikenakan jika kenderaan dipulangkan dalam keadaan kotor yang melampau atau berbau (seperti asap rokok/durian).</p>
+                <p>6. <strong>Persetujuan PDPA:</strong> Selaras dengan Akta Perlindungan Data Peribadi 2010 (PDPA), penyewa bersetuju dan membenarkan pihak syarikat untuk mengumpul, menyimpan, dan memproses data peribadi (salinan IC, lesen, gambar, rekod sewaan) untuk tujuan rekod perniagaan dan undang-undang.</p>
               </div>
             </div>
 
@@ -218,10 +225,10 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
           {beforePhotos && beforePhotos.length > 0 && (
             <div className="p-10 min-h-[1123px] flex flex-col mt-4 break-before-page relative">
               <h2 className="text-lg font-bold border-b border-black pb-2 mb-6 uppercase">LAMPIRAN: Keadaan Kenderaan (Sebelum Sewaan)</h2>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-8">
                 {beforePhotos.map((photoUrl, index) => (
                   <div key={index} className="border border-gray-300 p-2 text-center break-inside-avoid">
-                    <img src={photoUrl} alt={`Car condition ${index + 1}`} className="w-full h-48 object-cover mb-2" crossOrigin="anonymous" />
+                    <img src={photoUrl} alt={`Car condition ${index + 1}`} className="w-full h-auto max-h-[800px] object-contain mb-2" crossOrigin="anonymous" />
                     <p className="text-xs font-bold">Gambar {index + 1}</p>
                   </div>
                 ))}

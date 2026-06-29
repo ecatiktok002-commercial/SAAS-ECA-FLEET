@@ -4,6 +4,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import { CheckCircle, Download, AlertCircle, ShieldAlert, Car, Clock, Fuel, AlertTriangle, Printer } from 'lucide-react';
 import { format, isValid } from 'date-fns';
 import { getNowMYT, formatInMYT, utcToMyt, formatTimeMYT } from '../../utils/dateUtils';
+import { supabase } from '../../services/supabase';
 import { apiService } from '../../services/apiService';
 
 const safeFormat = (dateStr: string | null | undefined, formatStr: string) => {
@@ -17,6 +18,7 @@ export default function SignAgreement() {
   const { id } = useParams<{ id: string }>();
   const [agreement, setAgreement] = useState<any>(null);
   const [company, setCompany] = useState<any>(null);
+  const [handoverPhotos, setHandoverPhotos] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [agreed, setAgreed] = useState(false);
@@ -39,6 +41,19 @@ export default function SignAgreement() {
         if (agreementData.subscriber_id) {
           const companyData = await apiService.getCompanyById(agreementData.subscriber_id);
           setCompany(companyData);
+        }
+
+        if (agreementData.booking_id) {
+          // Fetch handover photos using public read policy
+          const { data: records } = await supabase
+            .from('handover_records')
+            .select('photos_url')
+            .eq('booking_id', agreementData.booking_id);
+            
+          if (records && records.length > 0) {
+            const photos = records.flatMap((r: any) => r.photos_url).filter(Boolean);
+            setHandoverPhotos(photos);
+          }
         }
 
         const status = agreementData.status?.toLowerCase().trim();
@@ -240,7 +255,8 @@ export default function SignAgreement() {
               phone: agreement.customer_phone || agreement.phone_number,
               address: agreement.billing_address || agreement.customer_address,
               emergencyContactName: agreement.emergency_contact_name,
-              emergencyContactPhone: agreement.emergency_contact_relation
+              emergencyContactPhone: agreement.emergency_contact_relation,
+              rentalPurpose: agreement.rental_purpose
             }}
             vehicle={{
               model: agreement.car_model || agreement.vehicle_name,
@@ -264,7 +280,7 @@ export default function SignAgreement() {
               contact: company?.contact
             }}
             signatureImg={agreement.signature_data}
-            beforePhotos={agreement.photos_url}
+            beforePhotos={[...(agreement.photos_url || []), ...handoverPhotos]}
             paymentReceipts={(() => {
               if (!agreement.payment_receipt) return [];
               try {
@@ -346,6 +362,10 @@ export default function SignAgreement() {
                   <p className="text-[10px] print:text-[7pt] font-bold text-slate-500 uppercase tracking-wider">Hubungan</p>
                   <p className="text-sm print:text-[9pt] font-medium text-slate-900">{agreement.emergency_contact_relation || '-'}</p>
                 </div>
+                <div className="col-span-2">
+                  <p className="text-[10px] print:text-[7pt] font-bold text-slate-500 uppercase tracking-wider">Tujuan Sewa</p>
+                  <p className="text-sm print:text-[9pt] font-medium text-slate-900">{agreement.rental_purpose || '-'}</p>
+                </div>
                 <div>
                   <p className="text-[10px] print:text-[7pt] font-bold text-slate-500 uppercase tracking-wider">E-invoice</p>
                   <p className="text-sm print:text-[9pt] font-medium text-slate-900">{agreement.need_einvoice ? 'Ya' : 'Tidak'}</p>
@@ -408,21 +428,17 @@ export default function SignAgreement() {
             <h2 className="text-base print:text-[9pt] font-bold text-slate-900 uppercase tracking-wide print:mb-1 border-b border-slate-200 print:border-slate-300 pb-1 print:pb-1 mb-3">Terma & Syarat</h2>
             
             <div className="space-y-3">
-              {/* Warning Banner */}
-              <div className="bg-red-50 border border-red-200 p-3 print:p-1.5 rounded-xl print:rounded-none shadow-sm print:shadow-none print:flex print:items-center">
-                <div className="flex items-center mb-1 print:mb-0 print:mr-2">
-                  <ShieldAlert className="h-5 w-5 print:h-3 print:w-3 text-red-600 mr-2 print:mr-1" />
-                  <h3 className="text-sm print:text-[7pt] font-bold text-red-900 uppercase tracking-wide print:whitespace-nowrap">PEMATUHAN UNDANG-UNDANG & PENYALAHGUNAAN:</h3>
-                </div>
-                <ul className="space-y-1 print:space-y-0 text-xs print:text-[7pt] text-red-800 font-medium ml-7 print:ml-0 list-disc print:list-none print:flex print:space-x-3">
-                  <li>• Aktiviti Haram dilarang keras.</li>
-                  <li>• Tiada Liabiliti Syarikat atas salah laku penyewa.</li>
-                  <li>• Tanggungjawab Penuh penyewa atas saman/jenayah.</li>
-                </ul>
+              <div className="bg-white p-4 print:p-2 rounded-xl print:rounded-none border border-slate-200 print:border-black shadow-sm print:shadow-none text-xs print:text-[8pt] text-slate-700 print:text-black text-justify">
+                <p className="mb-2">1. <strong>Tujuan Penggunaan:</strong> Kenderaan ini hanya digunakan untuk tujuan perjalanan, pelancongan, rekreasi, percutian, lawatan keluarga/rakan atau perjalanan tidak berbayar. Kenderaan ini tidak boleh digunakan untuk e-hailing, Grab, penghantaran makanan/barang, membawa penumpang berbayar, courier, perlumbaan, aktiviti haram, towing, sub-rental, pinjam kepada pihak ketiga, atau kegunaan di luar syarat.</p>
+                <p className="mb-2">2. <strong>Pematuhan Undang-Undang:</strong> Kenderaan ini tidak boleh digunakan untuk sebarang aktiviti haram atau menyalahi undang-undang Malaysia. Penyewa bertanggungjawab sepenuhnya ke atas sebarang saman, kompaun, atau tindakan undang-undang yang terbit semasa tempoh sewaan.</p>
+                <p className="mb-2">3. <strong>Kerosakan & Kemusnahan:</strong> Penyewa bertanggungjawab atas sebarang kerosakan, kemalangan, atau kehilangan kenderaan (kecurian) semasa tempoh sewaan. Kos baik pulih akan ditolak daripada deposit keselamatan, dan baki kos (jika ada) wajib ditanggung oleh penyewa.</p>
+                <p className="mb-2">4. <strong>Lewat Pulang:</strong> Denda akan dikenakan jika kenderaan tidak dipulangkan pada tarikh dan masa yang telah dipersetujui tanpa notis awal.</p>
+                <p className="mb-2">5. <strong>Kebersihan:</strong> Kenderaan mesti dipulangkan dalam keadaan bersih. Denda pembersihan akan dikenakan jika kenderaan dipulangkan dalam keadaan kotor yang melampau atau berbau (seperti asap rokok/durian).</p>
+                <p>6. <strong>Persetujuan PDPA:</strong> Selaras dengan Akta Perlindungan Data Peribadi 2010 (PDPA), penyewa bersetuju dan membenarkan pihak syarikat untuk mengumpul, menyimpan, dan memproses data peribadi seperti salinan Kad Pengenalan (IC), Lesen Memandu, gambar, dan rekod sewaan untuk tujuan pengesahan, rekod perniagaan, dan perlindungan undang-undang.</p>
               </div>
 
               {/* Rules Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-4 gap-3 print:gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-4 gap-3 print:gap-2 mt-4">
                 <div className="bg-white p-3 print:p-1.5 rounded-xl print:rounded-none border border-slate-200 print:border-slate-300 shadow-sm print:shadow-none flex items-start print:block">
                   <div className="bg-slate-100 print:bg-transparent p-2 print:p-0 rounded-lg mr-3 print:mr-0 print:mb-0.5">
                     <Car className="h-5 w-5 print:h-3 print:w-3 text-slate-700 print:inline print:mr-1" />
