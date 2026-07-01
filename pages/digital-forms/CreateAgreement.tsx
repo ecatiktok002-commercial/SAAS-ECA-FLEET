@@ -251,9 +251,9 @@ export default function CreateAgreement() {
       const newFiles = Array.from(e.target.files);
       setPaymentReceipts(prev => {
         const totalCount = prev.length + newFiles.length;
-        if (totalCount > 5) {
-          alert('You can only upload a maximum of 5 receipts.');
-          const allowedNewCount = 5 - prev.length;
+        if (totalCount > 10) {
+          alert('You can only upload a maximum of 10 receipts.');
+          const allowedNewCount = 10 - prev.length;
           if (allowedNewCount <= 0) return prev;
           return [...prev, ...newFiles.slice(0, allowedNewCount)];
         }
@@ -677,7 +677,7 @@ export default function CreateAgreement() {
                       </label>
                       <p className="pl-1">or drag and drop</p>
                     </div>
-                    <p className="text-xs text-slate-500">PNG, JPG, PDF up to 10MB (Max 5 files)</p>
+                    <p className="text-xs text-slate-500">PNG, JPG, PDF up to 10MB (Max 10 files)</p>
                     {paymentReceipts.length > 0 && (
                       <div className="mt-4 space-y-2">
                         {paymentReceipts.map((file, index) => (

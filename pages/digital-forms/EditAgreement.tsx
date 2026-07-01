@@ -280,9 +280,9 @@ export default function EditAgreement() {
       const newFiles = Array.from(e.target.files);
       const totalCount = existingReceipts.length + paymentReceipts.length + newFiles.length;
       
-      if (totalCount > 5) {
-        toast.error('Total receipts (existing + new) cannot exceed 5.');
-        const allowedNewCount = 5 - (existingReceipts.length + paymentReceipts.length);
+      if (totalCount > 10) {
+        toast.error('Total receipts (existing + new) cannot exceed 10.');
+        const allowedNewCount = 10 - (existingReceipts.length + paymentReceipts.length);
         if (allowedNewCount <= 0) {
           e.target.value = '';
           return;
@@ -778,7 +778,7 @@ export default function EditAgreement() {
 
               <div className="sm:col-span-2">
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-medium text-slate-700">Payment Receipts (Max 5)</label>
+                  <label className="block text-sm font-medium text-slate-700">Payment Receipts (Max 10)</label>
                   {agreement?.has_pending_changes && agreement?.pending_changes?.payment_receipt && (
                     <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-100">
                       Requested: New Additional Photo/PDF
@@ -900,7 +900,7 @@ export default function EditAgreement() {
                     </div>
                   )}
 
-                  {(existingReceipts.length + paymentReceipts.length) < 5 && !isLocked && (
+                  {(existingReceipts.length + paymentReceipts.length) < 10 && !isLocked && (
                     <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-lg hover:bg-slate-50 transition-colors">
                       <div className="space-y-1 text-center">
                         <Upload className="mx-auto h-12 w-12 text-slate-400" />
@@ -914,7 +914,7 @@ export default function EditAgreement() {
                           </label>
                           <p className="pl-1">or drag and drop</p>
                         </div>
-                        <p className="text-xs text-slate-500">PNG, JPG, PDF up to 10MB (Max 5 total)</p>
+                        <p className="text-xs text-slate-500">PNG, JPG, PDF up to 10MB (Max 10 total)</p>
                       </div>
                     </div>
                   )}
