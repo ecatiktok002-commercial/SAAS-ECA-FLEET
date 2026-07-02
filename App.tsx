@@ -21,6 +21,7 @@ const SubscriberManager = lazy(() => import('./pages/SubscriberManager'));
 const SignAgreement = lazy(() => import('./pages/digital-forms/SignAgreement'));
 const UpgradePlanPage = lazy(() => import('./pages/UpgradePlanPage'));
 const PublicHandoverPage = lazy(() => import('./pages/PublicHandoverPage'));
+const VehicleRevenueReport = lazy(() => import('./pages/VehicleRevenueReport'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -165,6 +166,11 @@ const AppRoutes: React.FC = () => {
           {/* Fleet Guardian: Tier 3 only */}
           <Route path="fleet" element={
             <StrictTierGate allowedTiers={[3]} allowStaff={false}><FleetGuardianPage /></StrictTierGate>
+          } />
+
+          {/* Revenue Report: Tier 3 only */}
+          <Route path="revenue" element={
+            <StrictTierGate allowedTiers={[3]} allowStaff={false}><VehicleRevenueReport /></StrictTierGate>
           } />
 
           {/* Vehicle Management: Tier 3 only */}

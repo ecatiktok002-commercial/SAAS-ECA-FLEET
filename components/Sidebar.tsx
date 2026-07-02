@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Calendar, FileText, Users, Car, Settings, LogOut, ChevronLeft, ChevronRight, X, Lock, FileCheck } from 'lucide-react';
+import { LayoutDashboard, Calendar, FileText, Users, Car, Settings, LogOut, ChevronLeft, ChevronRight, X, Lock, FileCheck, BarChart3 } from 'lucide-react';
 import UpsellModal from './UpsellModal';
 
 interface SidebarProps {
@@ -45,6 +45,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
         icon: <LayoutDashboard className="w-5 h-5" />,
         allowedTiers: [3],
         adminOnly: false
+      },
+      {
+        name: 'Vehicle Revenue',
+        path: '/revenue',
+        icon: <BarChart3 className="w-5 h-5" />,
+        allowedTiers: [3],
+        adminOnly: true
       },
       { 
         name: 'Audit & Payout', 
