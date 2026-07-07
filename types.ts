@@ -40,6 +40,7 @@ export interface Member {
   billing_address?: string;
   emergency_contact_name?: string;
   emergency_contact_relation?: string;
+  usage?: string;
   staff_id?: string;
   subscriber_id?: string;
   is_subscriber?: boolean;
@@ -126,6 +127,7 @@ export interface Agreement {
   billing_address?: string;
   emergency_contact_name?: string;
   emergency_contact_relation?: string;
+  usage?: string;
   rental_purpose?: string;
   car_plate_number?: string;
   car_model?: string;
@@ -165,6 +167,7 @@ export interface DigitalForm {
   billing_address?: string;
   emergency_contact_name?: string;
   emergency_contact_relation?: string;
+  usage?: string;
   car_plate_number?: string;
   car_model?: string;
   start_date?: string;

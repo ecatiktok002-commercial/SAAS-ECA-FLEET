@@ -1,0 +1,1 @@
+ALTER TABLE agreements ADD COLUMN IF NOT EXISTS usage TEXT;

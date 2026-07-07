@@ -26,6 +26,7 @@ export default function EditAgreement() {
     emergency_contact_relation: '',
     rental_purpose: '',
     custom_rental_purpose: '',
+    usage: '',
     car_plate_number: '',
     car_model: '',
     start_date: '',
@@ -143,6 +144,7 @@ export default function EditAgreement() {
           emergency_contact_relation: data.emergency_contact_relation || '',
           rental_purpose: data.rental_purpose || '',
           custom_rental_purpose: '',
+          usage: data.usage || '',
           car_plate_number: data.car_plate_number || '',
           car_model: data.car_model || '',
           start_date: data.start_date || '',
@@ -217,7 +219,7 @@ export default function EditAgreement() {
     const { name, value, type } = e.target;
     let newFormData = { ...formData };
 
-    const excludedFields = ['email', 'password', 'rental_purpose'];
+    const excludedFields = ['email', 'password', 'rental_purpose', 'usage'];
     let processedValue = value;
     if (typeof value === 'string' && !excludedFields.includes(name)) {
       processedValue = value.toUpperCase();
@@ -399,6 +401,7 @@ export default function EditAgreement() {
       if (formData.emergency_contact_name !== agreement.emergency_contact_name) updates.emergency_contact_name = formData.emergency_contact_name;
       if (formData.emergency_contact_relation !== agreement.emergency_contact_relation) updates.emergency_contact_relation = formData.emergency_contact_relation;
       if (formData.rental_purpose !== agreement.rental_purpose) updates.rental_purpose = formData.rental_purpose;
+      if (formData.usage !== agreement.usage) updates.usage = formData.usage;
       if (formData.car_plate_number !== agreement.car_plate_number) updates.car_plate_number = formData.car_plate_number;
       if (formData.car_model !== agreement.car_model) updates.car_model = formData.car_model;
       if (formData.start_date !== agreement.start_date) updates.start_date = formData.start_date;
@@ -733,34 +736,6 @@ export default function EditAgreement() {
               </div>
 
               <div>
-                {renderLabel('Rental Price (RM)', 'total_price')}
-                <input
-                  type="number"
-                  step="0.01"
-                  name="total_price"
-                  required
-                  disabled={isLocked}
-                  value={formData.total_price}
-                  onChange={handleChange}
-                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm disabled:bg-slate-100 disabled:text-slate-500"
-                />
-              </div>
-
-              <div>
-                {renderLabel('Deposit (RM)', 'deposit')}
-                <input
-                  type="number"
-                  step="0.01"
-                  name="deposit"
-                  required
-                  disabled={isLocked}
-                  value={formData.deposit}
-                  onChange={handleChange}
-                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm disabled:bg-slate-100 disabled:text-slate-500"
-                />
-              </div>
-
-              <div>
                 {renderLabel('Start Date', 'start_date')}
                 <input
                   type="date"
@@ -831,6 +806,50 @@ export default function EditAgreement() {
                       ? 'border-emerald-500 ring-2 ring-emerald-500 bg-emerald-50' 
                       : 'border-slate-300 focus:border-slate-900 focus:ring-slate-900'
                   }`}
+                />
+              </div>
+
+              <div>
+                {renderLabel('Usage', 'usage')}
+                <select
+                  name="usage"
+                  required
+                  disabled={isLocked}
+                  value={formData.usage}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm bg-white disabled:bg-slate-100 disabled:text-slate-500"
+                >
+                  <option value="">-- SELECT USAGE --</option>
+                  <option value="Within KL/Selangor (200km limit/day)">Within KL/Selangor (200km limit/day)</option>
+                  <option value="Outstation (500km limit/day)">Outstation (500km limit/day)</option>
+                </select>
+              </div>
+
+              <div>
+                {renderLabel('Rental Price (RM)', 'total_price')}
+                <input
+                  type="number"
+                  step="0.01"
+                  name="total_price"
+                  required
+                  disabled={isLocked}
+                  value={formData.total_price}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm disabled:bg-slate-100 disabled:text-slate-500"
+                />
+              </div>
+
+              <div>
+                {renderLabel('Deposit (RM)', 'deposit')}
+                <input
+                  type="number"
+                  step="0.01"
+                  name="deposit"
+                  required
+                  disabled={isLocked}
+                  value={formData.deposit}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm disabled:bg-slate-100 disabled:text-slate-500"
                 />
               </div>
 

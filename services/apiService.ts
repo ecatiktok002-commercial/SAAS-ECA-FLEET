@@ -1834,7 +1834,7 @@ export const apiService = {
     return withRetry(async () => {
       const { data, error } = await supabase
         .from('subscribers')
-        .select('id, name, brand_name, tier, is_active, status, is_trial, expiry_date, created_at, address, contact')
+        .select('id, name, brand_name, tier, is_active, status, is_trial, expiry_date, created_at, address')
         .order('name', { ascending: true });
       
       if (error) {

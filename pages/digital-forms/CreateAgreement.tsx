@@ -23,6 +23,7 @@ export default function CreateAgreement() {
     emergency_contact_name: '',
     emergency_contact_relation: '',
     rental_purpose: '',
+    usage: '',
     custom_rental_purpose: '',
     car_plate_number: '',
     car_model: '',
@@ -170,7 +171,7 @@ export default function CreateAgreement() {
     const { name, value, type } = e.target;
     let newFormData = { ...formData };
 
-    const excludedFields = ['email', 'password', 'rental_purpose'];
+    const excludedFields = ['email', 'password', 'rental_purpose', 'usage'];
     let processedValue = value;
     if (typeof value === 'string' && !excludedFields.includes(name)) {
       processedValue = value.toUpperCase();
@@ -353,6 +354,7 @@ export default function CreateAgreement() {
         emergency_contact_name: formData.emergency_contact_name,
         emergency_contact_relation: formData.emergency_contact_relation,
         rental_purpose: formData.rental_purpose,
+        usage: formData.usage,
         car_plate_number: formData.car_plate_number,
         car_model: formData.car_model,
         start_date: formData.start_date,
@@ -580,128 +582,55 @@ export default function CreateAgreement() {
 
             {currentStep === 2 && (
               <>
+            
             <div className="bg-slate-50 p-3 rounded-lg font-medium text-slate-900 mb-4">Rental Details</div>
             <div className="grid grid-cols-1 gap-y-4 gap-x-6 sm:grid-cols-2">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Car Plate Number</label>
-                <input
-                  type="text"
-                  name="car_plate_number"
-                  required
-                  value={formData.car_plate_number}
-                  onChange={handleChange}
-                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm uppercase"
-                />
+                <input type="text" name="car_plate_number" required value={formData.car_plate_number} onChange={handleChange} className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm uppercase" />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Model Name</label>
-                <input
-                  type="text"
-                  name="car_model"
-                  required
-                  value={formData.car_model}
-                  onChange={handleChange}
-                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm uppercase"
-                />
+                <input type="text" name="car_model" required value={formData.car_model} onChange={handleChange} className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm uppercase" />
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Rental Price (RM)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  name="total_price"
-                  required
-                  value={formData.total_price}
-                  onChange={handleChange}
-                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Deposit (RM)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  name="deposit"
-                  required
-                  value={formData.deposit}
-                  onChange={handleChange}
-                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
-                />
-              </div>
-
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
-                <input
-                  type="date"
-                  name="start_date"
-                  required
-                  value={formData.start_date}
-                  onChange={handleChange}
-                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
-                />
+                <input type="date" name="start_date" required value={formData.start_date} onChange={handleChange} className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm" />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">End Date</label>
-                <input
-                  type="date"
-                  name="end_date"
-                  required
-                  value={formData.end_date}
-                  onChange={handleChange}
-                  className={`h-11 block w-full rounded-lg shadow-sm sm:text-sm transition-colors duration-300 ${
-                    highlightReturnDate 
-                      ? 'border-emerald-500 ring-2 ring-emerald-500 bg-emerald-50' 
-                      : 'border-slate-300 focus:border-slate-900 focus:ring-slate-900'
-                  }`}
-                />
+                <input type="date" name="end_date" required value={formData.end_date} onChange={handleChange} className={`h-11 block w-full rounded-lg shadow-sm sm:text-sm transition-colors duration-300 ${highlightReturnDate ? 'border-emerald-500 ring-2 ring-emerald-500 bg-emerald-50' : 'border-slate-300 focus:border-slate-900 focus:ring-slate-900'}`} />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Duration (Days)</label>
-                <input
-                  type="number"
-                  name="duration_days"
-                  required
-                  min="1"
-                  value={formData.duration_days}
-                  onChange={handleChange}
-                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
-                />
+                <input type="number" name="duration_days" required min="1" value={formData.duration_days} onChange={handleChange} className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm" />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Pickup Time</label>
-                <input
-                  type="time"
-                  name="pickup_time"
-                  required
-                  value={formData.pickup_time}
-                  onChange={handleChange}
-                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
-                />
+                <input type="time" name="pickup_time" required value={formData.pickup_time} onChange={handleChange} className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm" />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Return Time</label>
-                <input
-                  type="time"
-                  name="return_time"
-                  required
-                  value={formData.return_time}
-                  onChange={handleChange}
-                  className={`h-11 block w-full rounded-lg shadow-sm sm:text-sm transition-colors duration-300 ${
-                    highlightReturnTime 
-                      ? 'border-emerald-500 ring-2 ring-emerald-500 bg-emerald-50' 
-                      : 'border-slate-300 focus:border-slate-900 focus:ring-slate-900'
-                  }`}
-                />
+                <input type="time" name="return_time" required value={formData.return_time} onChange={handleChange} className={`h-11 block w-full rounded-lg shadow-sm sm:text-sm transition-colors duration-300 ${highlightReturnTime ? 'border-emerald-500 ring-2 ring-emerald-500 bg-emerald-50' : 'border-slate-300 focus:border-slate-900 focus:ring-slate-900'}`} />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Usage</label>
+                <select name="usage" required value={formData.usage} onChange={handleChange} className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm bg-white">
+                  <option value="">-- SELECT USAGE --</option>
+                  <option value="Within KL/Selangor (200km limit/day)">Within KL/Selangor (200km limit/day)</option>
+                  <option value="Outstation (500km limit/day)">Outstation (500km limit/day)</option>
+                </select>
               </div>
-              <div className="pt-6 border-t border-slate-100 hidden sm:flex justify-between">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Rental Price (RM)</label>
+                <input type="number" step="0.01" name="total_price" required value={formData.total_price} onChange={handleChange} className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Deposit (RM)</label>
+                <input type="number" step="0.01" name="deposit" required value={formData.deposit} onChange={handleChange} className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm" />
+              </div>
+            </div>
+            <div className="pt-6 border-t border-slate-100 hidden sm:flex justify-between">
                 <button
                   type="button"
                   onClick={() => setCurrentStep(1)}

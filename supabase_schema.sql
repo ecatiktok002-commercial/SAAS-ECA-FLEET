@@ -1405,3 +1405,4 @@ USING (
 CREATE INDEX IF NOT EXISTS idx_agreements_sub_date ON agreements(subscriber_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_bookings_sub_date ON bookings(subscriber_id, pickup_datetime);
 CREATE INDEX IF NOT EXISTS idx_agreements_booking_id ON agreements(booking_id);
+ALTER TABLE agreements ADD COLUMN IF NOT EXISTS usage TEXT;
