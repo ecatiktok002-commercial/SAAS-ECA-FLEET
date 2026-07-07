@@ -1,6 +1,27 @@
 
 import { Booking, Car, Member, LogEntry, Expense, StaffMember, Agreement, DigitalForm, Company, MarketingEvent, AuditRecord, PayoutHistory } from '../types';
 import { supabase } from './supabase';
+
+// Countermeasure for DB crashes: prevent HUGE base64 payloads
+const validatePayloadSize = (payload: any) => {
+  let totalSize = 0;
+  const fields = ['payment_receipt', 'signature_data', 'photos_url', 'ic_license_photos'];
+  for (const field of fields) {
+    if (payload[field]) {
+      const val = payload[field];
+      if (typeof val === 'string') {
+        totalSize += val.length;
+      } else if (Array.isArray(val)) {
+        totalSize += val.join('').length;
+      }
+    }
+  }
+  // If base64 payload is > 10MB (approx 10,000,000 chars), reject to prevent Supabase 522 Timeout
+  if (totalSize > 10000000) {
+    throw new Error('Payload size exceeded. Please compress your images before uploading. Maximum total size is 7MB.');
+  }
+};
+
 import { parseBookingDate } from './bookingService';
 import { mytToUtc, formatInMYT, getNowMYT } from '../utils/dateUtils';
 import { format, addDays, parseISO } from 'date-fns';
@@ -1813,7 +1834,7 @@ export const apiService = {
     return withRetry(async () => {
       const { data, error } = await supabase
         .from('subscribers')
-        .select('*')
+        .select('id, name, brand_name, tier, is_active, status, is_trial, expiry_date, created_at, address, contact')
         .order('name', { ascending: true });
       
       if (error) {
@@ -1962,7 +1983,7 @@ export const apiService = {
     const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       // 🚀 SPEED FIX: Point this to the lightweight view to strip the Base64 payloads
-      let query = supabase.from('agreements_light').select('*');
+      let query = supabase.from('agreements').select('id, reference_number, subscriber_id, agent_id, agent_name, customer_id, customer_name, identity_number, customer_phone, billing_address, emergency_contact_name, emergency_contact_relation, rental_purpose, car_plate_number, car_model, start_date, end_date, total_price, deposit, duration_days, pickup_time, return_time, need_einvoice, status, signed_at, created_at, booking_id, is_receipt_verified, payout_status, commission_earned, has_pending_changes');
       query = applySubscriberFilter(query, targetSubscriberId);
 
       let resolvedAgentId = agentId;
@@ -2060,6 +2081,10 @@ export const apiService = {
 
   async createAgreement(agreement: Omit<Agreement, 'id' | 'created_at'>, subscriberId: string): Promise<Agreement> {
     const targetSubscriberId = await getTenantId();
+    
+    // Countermeasure: check size before retries
+    validatePayloadSize(agreement);
+
     return withRetry(async () => {
       let finalAgreement: any = { ...agreement };
       finalAgreement.subscriber_id = targetSubscriberId;
@@ -2144,6 +2169,9 @@ export const apiService = {
   },
 
   async updateAgreement(id: string, subscriberId: string | null | undefined, updates: Partial<Agreement>): Promise<void> {
+    // Countermeasure: check size before retries
+    validatePayloadSize(updates);
+
     let targetSubscriberId: string | undefined;
     try {
       targetSubscriberId = await getTenantId();
@@ -2285,7 +2313,7 @@ export const apiService = {
     validateSubscriber(subscriberId);
     const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
-      let query = supabase.from('digital_forms').select('*');
+      let query = supabase.from('digital_forms').select('id, subscriber_id, agent_id, agent_name, customer_id, customer_name, identity_number, customer_phone, billing_address, emergency_contact_name, emergency_contact_relation, car_plate_number, car_model, start_date, end_date, total_price, deposit, duration_days, pickup_time, return_time, need_einvoice, status, signed_at, created_by, created_at, booking_id, commission_earned, payout_status, is_receipt_verified, has_pending_changes');
       query = applySubscriberFilter(query, targetSubscriberId);
 
       let resolvedAgentId = agentId;
@@ -2506,17 +2534,20 @@ export const apiService = {
     return withRetry(async () => {
       let query = supabase
         .from('subscriber_audit_view')
-        .select('*');
+        .select('form_id, subscriber_id, agent_id, agent_name, customer_name, car_plate_number, form_price, form_start, form_end, commission_earned, payout_status, is_receipt_verified, status, reference_number, created_at, booking_id, booking_price, booking_start, booking_duration, booking_start_date, booking_end_date, booking_pickup_time, booking_return_time, has_discrepancy, is_dates_matched, discrepancy_reason, has_pending_changes, pending_changes');
       
       query = applySubscriberFilter(query, targetSubscriberId);
 
-      const { data, error } = await query;
+      const { data, error } = await query.order('form_id', { ascending: false }).limit(200);
       
       if (error) {
         logSupabaseError('getAuditRecords', error);
         throw new Error('Failed to fetch audit records');
       }
-      return data || [];
+      return (data || []).map(d => ({
+        ...d,
+        payment_receipt: ['upcoming', 'completed', 'reconciled'].includes(d.status) ? 'exists' : null
+      }));
     });
   },
 
