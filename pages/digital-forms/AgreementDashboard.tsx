@@ -158,20 +158,20 @@ const AgreementDashboard: React.FC = () => {
     const status = a.status?.toLowerCase().trim();
     const hasReceipt = !!a.payment_receipt && a.payment_receipt !== '[]' && a.payment_receipt !== 'null';
     const isSigned = status === 'signed' || status === 'completed';
-    const isPaid = hasReceipt;
+    const isPaid = true; // Original rule doesn't mandate receipt for completed
     const pickupDate = getPickupDateTime(a);
     const now = getNowMYT();
     const isFuture = pickupDate.getTime() > now.getTime();
     const isPast = pickupDate.getTime() <= now.getTime();
 
     if (filterType === 'upcoming') {
-      return isSigned && isPaid && isFuture;
+      return status === 'completed' && isFuture;
     }
     if (filterType === 'completed') {
-      return isSigned && isPaid && isPast;
+      return status === 'completed' && isPast;
     }
     if (filterType === 'signed') {
-      return isSigned && !isPaid;
+      return status === 'signed';
     }
 
     return true;
@@ -289,9 +289,9 @@ const AgreementDashboard: React.FC = () => {
               const status = a.status?.toLowerCase().trim();
               const hasReceipt = !!a.payment_receipt && a.payment_receipt !== '[]' && a.payment_receipt !== 'null';
               const isSigned = status === 'signed' || status === 'completed';
-              const isPaid = hasReceipt;
+              const isPaid = true; // Original rule doesn't mandate receipt for completed
               const isFuture = getPickupDateTime(a).getTime() > getNowMYT().getTime();
-              return isSigned && isPaid && isFuture;
+              return status === 'completed' && isFuture;
             }).length}
           </div>
         </div>
@@ -311,9 +311,9 @@ const AgreementDashboard: React.FC = () => {
               const status = a.status?.toLowerCase().trim();
               const hasReceipt = !!a.payment_receipt && a.payment_receipt !== '[]' && a.payment_receipt !== 'null';
               const isSigned = status === 'signed' || status === 'completed';
-              const isPaid = hasReceipt;
+              const isPaid = true; // Original rule doesn't mandate receipt for completed
               const isPast = getPickupDateTime(a).getTime() <= getNowMYT().getTime();
-              return isSigned && isPaid && isPast;
+              return status === 'completed' && isPast;
             }).length}
           </div>
         </div>
@@ -333,8 +333,8 @@ const AgreementDashboard: React.FC = () => {
               const status = a.status?.toLowerCase().trim();
               const hasReceipt = !!a.payment_receipt && a.payment_receipt !== '[]' && a.payment_receipt !== 'null';
               const isSigned = status === 'signed' || status === 'completed';
-              const isPaid = hasReceipt;
-              return isSigned && !isPaid;
+              const isPaid = true; // Original rule doesn't mandate receipt for completed
+              return status === 'signed';
             }).length}
           </div>
         </div>
@@ -442,27 +442,27 @@ const AgreementDashboard: React.FC = () => {
                           const status = agreement.status?.toLowerCase().trim();
                           const hasReceipt = !!agreement.payment_receipt && agreement.payment_receipt !== '[]' && agreement.payment_receipt !== 'null';
                           const isSigned = status === 'signed' || status === 'completed';
-                          const isPaid = hasReceipt;
+                          const isPaid = true; // Original rule doesn't mandate receipt for completed
                           const pickupDate = getPickupDateTime(agreement);
                           const now = getNowMYT();
                           const isFuture = pickupDate.getTime() > now.getTime();
                           const isPast = pickupDate.getTime() <= now.getTime();
                           
-                          if (isSigned && isPaid && isFuture) {
+                          if (status === 'completed' && isFuture) {
                             return (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">
                                 <Clock className="w-3 h-3" />
                                 Upcoming
                               </span>
                             );
-                          } else if (isSigned && isPaid && isPast) {
+                          } else if (status === 'completed' && isPast) {
                             return (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
                                 <CheckCircle2 className="w-3 h-3" />
                                 Completed
                               </span>
                             );
-                          } else if (isSigned && !isPaid) {
+                          } else if (status === 'signed') {
                             return (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
                                 <CheckCircle2 className="w-3 h-3" />
@@ -558,7 +558,7 @@ const AgreementDashboard: React.FC = () => {
               const status = agreement.status?.toLowerCase().trim();
               const hasReceipt = !!agreement.payment_receipt && agreement.payment_receipt !== '[]' && agreement.payment_receipt !== 'null';
               const isSigned = status === 'signed' || status === 'completed';
-              const isPaid = hasReceipt;
+              const isPaid = true; // Original rule doesn't mandate receipt for completed
               const pickupDate = getPickupDateTime(agreement);
               const now = getNowMYT();
               const isFuture = pickupDate.getTime() > now.getTime();
@@ -572,11 +572,11 @@ const AgreementDashboard: React.FC = () => {
                     </h3>
                     <div className="flex flex-col gap-1 items-end shrink-0">
                       {(() => {
-                        if (isSigned && isPaid && isFuture) {
+                        if (status === 'completed' && isFuture) {
                           return <span className="inline-flex px-3 py-1 rounded-full text-[10px] font-bold tracking-wide bg-indigo-500 text-white shadow-sm">Upcoming</span>;
-                        } else if (isSigned && isPaid && isPast) {
+                        } else if (status === 'completed' && isPast) {
                           return <span className="inline-flex px-3 py-1 rounded-full text-[10px] font-bold tracking-wide bg-emerald-500 text-white shadow-sm">Completed</span>;
-                        } else if (isSigned && !isPaid) {
+                        } else if (status === 'signed') {
                           return <span className="inline-flex px-3 py-1 rounded-full text-[10px] font-bold tracking-wide bg-blue-500 text-white shadow-sm">Signed</span>;
                         } else {
                           return <span className="inline-flex px-3 py-1 rounded-full text-[10px] font-bold tracking-wide bg-amber-100 text-amber-800 shadow-sm">Pending</span>;

@@ -2246,26 +2246,7 @@ export const apiService = {
         }
       }
 
-      // ROLLBACK & RESTORE LOGIC FOR PAYMENT RECEIPTS:
-      const isRemovingReceipt = finalUpdates.payment_receipt === null || finalUpdates.payment_receipt === '' || finalUpdates.payment_receipt === '[]' || finalUpdates.payment_receipt === 'null';
-      const isAddingReceipt = finalUpdates.payment_receipt && finalUpdates.payment_receipt !== '' && finalUpdates.payment_receipt !== '[]' && finalUpdates.payment_receipt !== 'null';
-
-      if (isRemovingReceipt && currentStatus === 'completed') {
-        // Downgrade to 'signed' if receipt is removed from a completed agreement
-        finalUpdates.status = 'signed';
-      } else if (isAddingReceipt && currentStatus === 'signed') {
-        // If adding a receipt back to a signed agreement, mark as completed
-        finalUpdates.status = 'completed';
-      }
-
-      // Ensure we don't set status to 'completed' if there is no valid receipt
-      if (finalUpdates.status === 'completed') {
-        const receiptToCheck = finalUpdates.payment_receipt !== undefined ? finalUpdates.payment_receipt : currentAgreement?.payment_receipt;
-        const hasValidReceipt = !!receiptToCheck && receiptToCheck !== '' && receiptToCheck !== '[]' && receiptToCheck !== 'null';
-        if (!hasValidReceipt) {
-          finalUpdates.status = 'signed';
-        }
-      }
+      // Original rule: we don't strictly downgrade to signed based on IC/License or Receipt absence anymore.
 
       let query = supabase
         .from('agreements')
