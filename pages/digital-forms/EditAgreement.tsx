@@ -4,6 +4,7 @@ import { ArrowLeft, Save, Upload, CheckCircle2, Eye, Trash2 } from 'lucide-react
 import { addDays, differenceInDays, parseISO, format, isValid } from 'date-fns';
 import { getNowMYT, formatInMYT, utcToMyt } from '../../utils/dateUtils';
 import { apiService } from '../../services/apiService';
+import { uploadAgreementImage } from '../../services/storageService';
 import * as auditService from '../../services/auditService';
 import { useAuth } from '../../context/AuthContext';
 import { openDataURL } from '../../utils/fileUtils';
@@ -365,13 +366,7 @@ export default function EditAgreement() {
       let receiptData = undefined;
       
       if (paymentReceipts.length > 0 || removedExistingReceipts.length > 0) {
-        const newReceiptDataArray = await Promise.all(paymentReceipts.map(file => {
-          return new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(file);
-          });
-        }));
+        const newReceiptDataArray = await Promise.all(paymentReceipts.map(file => uploadAgreementImage(subscriberId, file, 'receipts')));
         
         const finalReceipts = [...existingReceipts, ...newReceiptDataArray];
         
@@ -426,13 +421,7 @@ export default function EditAgreement() {
       // Handle receipt update
       let icLicenseDataArray = undefined;
       if (icLicensePhotos.length > 0 || removedExistingIcLicense.length > 0) {
-        const newIcLicenseDataArray = await Promise.all(icLicensePhotos.map(file => {
-          return new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(file);
-          });
-        }));
+        const newIcLicenseDataArray = await Promise.all(icLicensePhotos.map(file => uploadAgreementImage(subscriberId, file, 'ic_license')));
         const finalIcLicense = [...existingIcLicense, ...newIcLicenseDataArray];
         if (finalIcLicense.length > 0) {
           icLicenseDataArray = finalIcLicense;

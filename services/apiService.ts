@@ -500,11 +500,12 @@ export const apiService = {
 
   async getCars(subscriberId: string): Promise<Car[]> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       let query = supabase.from('cars').select('*');
-      query = applySubscriberFilter(query, subscriberId);
+      query = applySubscriberFilter(query, targetSubscriberId);
 
-      const { data, error } = await query;
+      const { data, error } = await query.order('created_at', { ascending: false }).limit(500);
       
       if (error) {
         logSupabaseError('getCars', error);
@@ -615,9 +616,10 @@ export const apiService = {
   // Members
   async getMembers(subscriberId: string, staffId?: string): Promise<Member[]> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       let query = supabase.from('members').select('*');
-      query = applySubscriberFilter(query, subscriberId);
+      query = applySubscriberFilter(query, targetSubscriberId);
 
       if (staffId) {
         let resolvedStaffId = staffId;
@@ -768,6 +770,7 @@ export const apiService = {
 
   async searchMemberByIdentity(identityNumber: string, subscriberId: string): Promise<Member | null> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       const unformatted = identityNumber.replace(/\D/g, '');
       const formatted = unformatted.length === 12 
@@ -794,9 +797,10 @@ export const apiService = {
   // Bookings
   async getBookings(subscriberId: string, startDate?: string, endDate?: string, agentId?: string): Promise<Booking[]> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       let query = supabase.from('bookings').select('*');
-      query = applySubscriberFilter(query, subscriberId);
+      query = applySubscriberFilter(query, targetSubscriberId);
 
       if (agentId) {
         let resolvedAgentId = agentId;
@@ -822,7 +826,7 @@ export const apiService = {
         query = query.lte('pickup_datetime', endDate);
       }
 
-      const { data, error } = await query;
+      const { data, error } = await query.order('pickup_datetime', { ascending: false }).limit(500);
       
       if (error) {
         logSupabaseError('getBookings', error);
@@ -839,13 +843,14 @@ export const apiService = {
 
   async getBookingById(id: string, subscriberId: string): Promise<Booking | null> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       let query = supabase
         .from('bookings')
         .select('*')
         .eq('id', id);
       
-      query = applySubscriberFilter(query, subscriberId);
+      query = applySubscriberFilter(query, targetSubscriberId);
       
       const { data, error } = await query.single();
       
@@ -1183,9 +1188,10 @@ export const apiService = {
   // Expenses
   async getExpenses(subscriberId: string): Promise<Expense[]> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       let query = supabase.from('expenses').select('*');
-      query = applySubscriberFilter(query, subscriberId);
+      query = applySubscriberFilter(query, targetSubscriberId);
 
       const { data, error } = await query.order('date', { ascending: false });
       
@@ -1256,12 +1262,13 @@ export const apiService = {
   // Logs
   async getLogs(subscriberId: string, page: number = 0, pageSize: number = 20): Promise<LogEntry[]> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       const from = page * pageSize;
       const to = from + pageSize - 1;
 
       let query = supabase.from('logs').select('*');
-      query = applySubscriberFilter(query, subscriberId);
+      query = applySubscriberFilter(query, targetSubscriberId);
 
       const { data, error } = await query
         .order('timestamp', { ascending: false })
@@ -1310,10 +1317,11 @@ export const apiService = {
   // Handover Records
   async deleteHandoverRecord(recordId: string, subscriberId: string): Promise<void> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       // 1. Get the record to find the photos
       let query = supabase.from('handover_records').select('photos_url');
-      query = applySubscriberFilter(query, subscriberId);
+      query = applySubscriberFilter(query, targetSubscriberId);
       const { data: recordData, error: fetchError } = await query.eq('id', recordId).single();
 
       if (fetchError) {
@@ -1355,10 +1363,11 @@ export const apiService = {
 
   async deleteHandoverPhoto(recordId: string, photoUrl: string, subscriberId: string): Promise<void> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       // 1. Get the record to find the photos
       let query = supabase.from('handover_records').select('photos_url');
-      query = applySubscriberFilter(query, subscriberId);
+      query = applySubscriberFilter(query, targetSubscriberId);
       const { data: recordData, error: fetchError } = await query.eq('id', recordId).single();
 
       if (fetchError) {
@@ -1400,9 +1409,10 @@ export const apiService = {
 
   async getHandoverRecords(bookingId: string, subscriberId: string): Promise<any[]> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       let query = supabase.from('handover_records').select('*');
-      query = applySubscriberFilter(query, subscriberId);
+      query = applySubscriberFilter(query, targetSubscriberId);
 
       const { data, error } = await query
         .eq('booking_id', bookingId)
@@ -1418,9 +1428,10 @@ export const apiService = {
 
   async getLogisticCredits(staffId: string, subscriberId: string): Promise<any[]> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       let query = supabase.from('handover_records').select('*, cars(plate)');
-      query = applySubscriberFilter(query, subscriberId);
+      query = applySubscriberFilter(query, targetSubscriberId);
 
       const { data, error } = await query
         .eq('staff_id', staffId)
@@ -1467,9 +1478,10 @@ export const apiService = {
   // Staff Members
   async getStaffMembers(subscriberId: string): Promise<StaffMember[]> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       // We need to find the slug for this subscriberId (UUID)
-      const { data: subData } = await supabase.from('subscribers').select('name').eq('id', subscriberId).single();
+      const { data: subData } = await supabase.from('subscribers').select('name').eq('id', targetSubscriberId).single();
       const slug = subData?.name;
 
       // 1. Get from new 'staff' table (all staff, to check active status)
@@ -1525,9 +1537,10 @@ export const apiService = {
 
   async getStaffMemberByUid(uid: string, subscriberId: string): Promise<StaffMember | null> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       // 1. Try 'staff' table (Virtual Login)
-      const { data: subData } = await supabase.from('subscribers').select('name').eq('id', subscriberId).single();
+      const { data: subData } = await supabase.from('subscribers').select('name').eq('id', targetSubscriberId).single();
       const slug = subData?.name || subscriberId;
 
       const { data: virtualStaff, error: virtualError } = await supabase
@@ -1587,9 +1600,10 @@ export const apiService = {
 
   async getStaffMemberByName(name: string, subscriberId: string): Promise<StaffMember | null> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       // We need to find the slug for this subscriberId (UUID)
-      const { data: subData } = await supabase.from('subscribers').select('name').eq('id', subscriberId).single();
+      const { data: subData } = await supabase.from('subscribers').select('name').eq('id', targetSubscriberId).single();
       const slug = subData?.name || subscriberId;
 
       let query = supabase
@@ -1945,10 +1959,11 @@ export const apiService = {
   // Agreements
   async getAgreements(subscriberId: string, agentId?: string, createdBy?: string | string[], startDate?: string, endDate?: string): Promise<Agreement[]> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       // 🚀 SPEED FIX: Point this to the lightweight view to strip the Base64 payloads
       let query = supabase.from('agreements_light').select('*');
-      query = applySubscriberFilter(query, subscriberId);
+      query = applySubscriberFilter(query, targetSubscriberId);
 
       let resolvedAgentId = agentId;
       const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
@@ -1994,7 +2009,7 @@ export const apiService = {
         query = query.lte('created_at', endDate);
       }
 
-      const { data, error } = await query.order('created_at', { ascending: false });
+      const { data, error } = await query.order('created_at', { ascending: false }).limit(500);
       
       if (error) {
         logSupabaseError('getAgreements', error);
@@ -2268,9 +2283,10 @@ export const apiService = {
   // Digital Forms
   async getDigitalForms(subscriberId: string, agentId?: string, createdBy?: string | string[]): Promise<DigitalForm[]> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       let query = supabase.from('digital_forms').select('*');
-      query = applySubscriberFilter(query, subscriberId);
+      query = applySubscriberFilter(query, targetSubscriberId);
 
       let resolvedAgentId = agentId;
       const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
@@ -2307,7 +2323,7 @@ export const apiService = {
         }
       }
 
-      const { data, error } = await query.order('created_at', { ascending: false });
+      const { data, error } = await query.order('created_at', { ascending: false }).limit(500);
       
       if (error) {
         logSupabaseError('getDigitalForms', error);
@@ -2357,6 +2373,7 @@ export const apiService = {
 
   async getCustomerByIC(subscriberId: string, ic: string): Promise<any | null> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       const unformatted = ic.replace(/\D/g, '');
       const formatted = unformatted.length === 12 
@@ -2368,7 +2385,7 @@ export const apiService = {
         .select('*')
         .in('ic_passport', [ic, unformatted, formatted]);
       
-      query = applySubscriberFilter(query, subscriberId);
+      query = applySubscriberFilter(query, targetSubscriberId);
 
       const { data, error } = await query.limit(1).maybeSingle();
       
@@ -2382,12 +2399,13 @@ export const apiService = {
 
   async getCustomersCRM(subscriberId: string, options?: { page?: number, pageSize?: number, searchTerm?: string }): Promise<{ data: any[], count: number }> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       let query = supabase
         .from('customer_crm_view')
         .select('id, full_name, phone_number, ic_passport, total_bookings, last_rental_date, acquired_by_agent, status', { count: 'exact' });
       
-      query = applySubscriberFilter(query, subscriberId);
+      query = applySubscriberFilter(query, targetSubscriberId);
 
       if (options?.searchTerm) {
         const term = `%${options.searchTerm}%`;
@@ -2484,12 +2502,13 @@ export const apiService = {
   // Marketing Events
   async getAuditRecords(subscriberId: string): Promise<AuditRecord[]> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       let query = supabase
         .from('subscriber_audit_view')
         .select('*');
       
-      query = applySubscriberFilter(query, subscriberId);
+      query = applySubscriberFilter(query, targetSubscriberId);
 
       const { data, error } = await query;
       
@@ -2569,12 +2588,13 @@ export const apiService = {
 
   async getPayoutHistory(subscriberId: string): Promise<PayoutHistory[]> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       let query = supabase
         .from('payout_history')
         .select('*');
       
-      query = applySubscriberFilter(query, subscriberId);
+      query = applySubscriberFilter(query, targetSubscriberId);
 
       const { data, error } = await query
         .order('created_at', { ascending: false });
@@ -2745,12 +2765,13 @@ export const apiService = {
 
   async getMarketingEvents(subscriberId: string): Promise<MarketingEvent[]> {
     validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       let query = supabase
         .from('marketing_events')
         .select('*');
       
-      query = applySubscriberFilter(query, subscriberId);
+      query = applySubscriberFilter(query, targetSubscriberId);
 
       const { data, error } = await query
         .order('created_at', { ascending: false });

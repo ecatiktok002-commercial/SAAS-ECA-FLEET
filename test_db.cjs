@@ -1,4 +1,7 @@
-import { supabase } from './services/supabase';
+const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
+
+const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY);
 
 async function test() {
   const { data, error } = await supabase.from('agreements_light').select('id, subscriber_id').limit(1);

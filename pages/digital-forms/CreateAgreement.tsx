@@ -4,6 +4,7 @@ import { ArrowLeft, Save, Upload, CheckCircle2, X, Trash2 } from 'lucide-react';
 import { addDays, differenceInDays, parseISO, format, isValid } from 'date-fns';
 import { getNowMYT, formatInMYT, utcToMyt, getMYTTimeString } from '../../utils/dateUtils';
 import { apiService } from '../../services/apiService';
+import { uploadAgreementImage } from '../../services/storageService';
 import { parseBookingDate } from '../../services/bookingService';
 import { useAuth } from '../../context/AuthContext';
 
@@ -298,25 +299,17 @@ export default function CreateAgreement() {
     try {
       let receiptData = null;
       if (paymentReceipts.length > 0) {
-        const receiptDataArray = await Promise.all(paymentReceipts.map(file => {
-          return new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(file);
-          });
-        }));
-        receiptData = JSON.stringify(receiptDataArray);
+        const receiptUrls = await Promise.all(
+          paymentReceipts.map(file => uploadAgreementImage(subscriberId, file, 'receipts'))
+        );
+        receiptData = JSON.stringify(receiptUrls);
       }
       
       let icLicenseDataArray: string[] | undefined = undefined;
       if (icLicensePhotos.length > 0) {
-        icLicenseDataArray = await Promise.all(icLicensePhotos.map(file => {
-          return new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(file);
-          });
-        }));
+        icLicenseDataArray = await Promise.all(
+          icLicensePhotos.map(file => uploadAgreementImage(subscriberId, file, 'ic_license'))
+        );
       }
 
       // Get current staff name if available

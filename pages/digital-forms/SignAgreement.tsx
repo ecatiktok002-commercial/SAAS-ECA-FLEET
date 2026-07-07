@@ -6,6 +6,7 @@ import { format, isValid } from 'date-fns';
 import { getNowMYT, formatInMYT, utcToMyt, formatTimeMYT } from '../../utils/dateUtils';
 import { supabase } from '../../services/supabase';
 import { apiService } from '../../services/apiService';
+import { uploadAgreementImage } from '../../services/storageService';
 
 const safeFormat = (dateStr: string | null | undefined, formatStr: string) => {
   if (!dateStr) return 'N/A';
@@ -87,7 +88,12 @@ export default function SignAgreement() {
 
     setSubmitting(true);
     try {
-      const signatureData = sigCanvas.current?.getCanvas().toDataURL('image/png');
+      const signatureBase64 = sigCanvas.current?.getCanvas().toDataURL('image/png');
+      const res = await fetch(signatureBase64!);
+      const blob = await res.blob();
+      const file = new File([blob], 'signature.png', { type: 'image/png' });
+      const signatureData = await uploadAgreementImage(agreement.subscriber_id, file, 'signatures');
+
       const now = getNowMYT();
       const signedAt = now.toISOString();
       
