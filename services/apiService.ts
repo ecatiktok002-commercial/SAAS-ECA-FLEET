@@ -2451,6 +2451,28 @@ export const apiService = {
     });
   },
 
+  async getCustomerDocuments(customerId: string): Promise<string[]> {
+    return withRetry(async () => {
+      const { data, error } = await supabase
+        .from('agreements')
+        .select('ic_license_photos')
+        .eq('customer_id', customerId)
+        .not('ic_license_photos', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        console.error('Error fetching customer documents:', error);
+        return [];
+      }
+
+      if (data && data.length > 0 && data[0].ic_license_photos) {
+        return data[0].ic_license_photos;
+      }
+      return [];
+    });
+  },
+
   // Marketing Events
   async getAuditRecords(subscriberId: string): Promise<AuditRecord[]> {
     validateSubscriber(subscriberId);

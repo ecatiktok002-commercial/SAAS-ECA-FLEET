@@ -38,6 +38,9 @@ export default function EditAgreement() {
   });
   const [paymentReceipts, setPaymentReceipts] = useState<File[]>([]);
   const [existingReceipts, setExistingReceipts] = useState<string[]>([]);
+  const [icLicensePhotos, setIcLicensePhotos] = useState<File[]>([]);
+  const [existingIcLicense, setExistingIcLicense] = useState<string[]>([]);
+  const [removedExistingIcLicense, setRemovedExistingIcLicense] = useState<string[]>([]);
   const [pendingReceipts, setPendingReceipts] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -150,6 +153,22 @@ export default function EditAgreement() {
           return_time: data.return_time || '',
           need_einvoice: data.need_einvoice || false,
         });
+
+        // Parse existing IC & License photos
+        if (data.ic_license_photos) {
+          try {
+            const parsed = typeof data.ic_license_photos === 'string' ? JSON.parse(data.ic_license_photos) : data.ic_license_photos;
+            if (Array.isArray(parsed)) {
+              setExistingIcLicense(parsed);
+            } else {
+              setExistingIcLicense(Array.isArray(data.ic_license_photos) ? data.ic_license_photos : [data.ic_license_photos as unknown as string]);
+            }
+          } catch (e) {
+            setExistingIcLicense(Array.isArray(data.ic_license_photos) ? data.ic_license_photos : [data.ic_license_photos as unknown as string]);
+          }
+        } else {
+          setExistingIcLicense([]);
+        }
 
         // Parse existing receipts
         if (data.payment_receipt) {
@@ -275,6 +294,35 @@ export default function EditAgreement() {
     setFormData(newFormData);
   };
 
+  const handleICFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files);
+      const totalCount = existingIcLicense.length + icLicensePhotos.length + newFiles.length;
+      if (totalCount > 4) {
+        toast.error('Total IC/License photos (existing + new) cannot exceed 4.');
+        const allowedNewCount = 4 - (existingIcLicense.length + icLicensePhotos.length);
+        if (allowedNewCount <= 0) {
+          e.target.value = '';
+          return;
+        }
+        setIcLicensePhotos(prev => [...prev, ...newFiles.slice(0, allowedNewCount)]);
+      } else {
+        setIcLicensePhotos(prev => [...prev, ...newFiles]);
+      }
+      e.target.value = '';
+    }
+  };
+
+  const removeNewICFile = (index: number) => {
+    setIcLicensePhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const removeExistingICFile = (index: number) => {
+    const removedFile = existingIcLicense[index];
+    setRemovedExistingIcLicense(prev => [...prev, removedFile]);
+    setExistingIcLicense(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
@@ -376,6 +424,27 @@ export default function EditAgreement() {
       if (customerId !== agreement.customer_id) updates.customer_id = customerId;
 
       // Handle receipt update
+      let icLicenseDataArray = undefined;
+      if (icLicensePhotos.length > 0 || removedExistingIcLicense.length > 0) {
+        const newIcLicenseDataArray = await Promise.all(icLicensePhotos.map(file => {
+          return new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+          });
+        }));
+        const finalIcLicense = [...existingIcLicense, ...newIcLicenseDataArray];
+        if (finalIcLicense.length > 0) {
+          icLicenseDataArray = finalIcLicense;
+        } else {
+          icLicenseDataArray = null;
+        }
+      }
+
+      if (icLicenseDataArray !== undefined) {
+        updates.ic_license_photos = icLicenseDataArray;
+      }
+
       if (receiptData !== undefined) {
         updates.payment_receipt = receiptData;
         updates.updated_at = getNowMYT().toISOString();
@@ -787,6 +856,22 @@ export default function EditAgreement() {
                 </div>
                 
                 <div className="space-y-4">
+                  {existingIcLicense.length === 0 && icLicensePhotos.length === 0 && !isLocked && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 flex items-start space-x-3">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-medium text-amber-800">Reminder: Documents Required</h3>
+                        <div className="mt-1 text-sm text-amber-700">
+                          <p>Please upload the IC and Driving License photos. These are required for the agreement but were not uploaded initially.</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {existingReceipts.length > 0 && (
                     <div className="grid grid-cols-1 gap-4">
                       {existingReceipts.map((receipt, index) => (
@@ -921,6 +1006,122 @@ export default function EditAgreement() {
                 </div>
               </div>
             </div>
+
+              <div className="sm:col-span-2">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-slate-700">IC / License Photos (Max 4)</label>
+                  {existingIcLicense.length === 0 && icLicensePhotos.length === 0 && (
+                    <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                      Pending Upload
+                    </span>
+                  )}
+                </div>
+                
+                <div className="space-y-4">
+                  {existingIcLicense.length === 0 && icLicensePhotos.length === 0 && !isLocked && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 flex items-start space-x-3">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-medium text-amber-800">Reminder: Documents Required</h3>
+                        <div className="mt-1 text-sm text-amber-700">
+                          <p>Please upload the IC and Driving License photos. These are required for the agreement but were not uploaded initially.</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {existingIcLicense.length > 0 && (
+                    <div className="grid grid-cols-1 gap-4">
+                      {existingIcLicense.map((photo, index) => (
+                        <div key={`existing-ic-${index}`} className="bg-slate-50 rounded-xl border border-slate-200 p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="bg-emerald-100 p-2 rounded-lg">
+                                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900">IC/License #{index + 1}</p>
+                                <p className="text-xs text-slate-500">Existing file</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <button
+                                type="button"
+                                onClick={() => openDataURL(photo)}
+                                className="inline-flex items-center px-3 py-1.5 border border-slate-300 shadow-sm text-xs font-medium rounded-lg text-slate-700 bg-white hover:bg-slate-50 transition-colors"
+                              >
+                                <Eye className="w-3.5 h-3.5 mr-1.5" />
+                                View
+                              </button>
+                              {!isLocked && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeExistingICFile(index)}
+                                  className="inline-flex items-center px-3 py-1.5 border border-transparent shadow-sm text-xs font-medium rounded-lg text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                                  Remove
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {icLicensePhotos.length > 0 && (
+                    <div className="grid grid-cols-1 gap-4">
+                      {icLicensePhotos.map((file, index) => (
+                        <div key={`new-ic-${index}`} className="bg-emerald-50 rounded-xl border border-emerald-100 p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="bg-emerald-100 p-2 rounded-lg">
+                                <Upload className="w-5 h-5 text-emerald-600" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold text-emerald-900 truncate max-w-[200px]">{file.name}</p>
+                                <p className="text-xs text-emerald-600">New file to upload</p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeNewICFile(index)}
+                              className="inline-flex items-center px-3 py-1.5 border border-transparent shadow-sm text-xs font-medium rounded-lg text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {(existingIcLicense.length + icLicensePhotos.length) < 4 && !isLocked && (
+                    <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-lg hover:bg-slate-50 transition-colors">
+                      <div className="space-y-1 text-center">
+                        <Upload className="mx-auto h-12 w-12 text-slate-400" />
+                        <div className="flex text-sm text-slate-600 justify-center">
+                          <label
+                            htmlFor="ic-file-upload"
+                            className={`relative cursor-pointer bg-white rounded-lg font-medium text-slate-900 hover:text-slate-700 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-slate-900 ${isLocked ? 'pointer-events-none opacity-50' : ''}`}
+                          >
+                            <span>Upload IC/License files</span>
+                            <input id="ic-file-upload" name="ic-file-upload" type="file" className="sr-only" onChange={handleICFileChange} accept="image/*,.pdf" disabled={isLocked} multiple />
+                          </label>
+                          <p className="pl-1">or drag and drop</p>
+                        </div>
+                        <p className="text-xs text-slate-500">PNG, JPG, PDF up to 10MB (Max 4 total)</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
 
             <div className="pt-6 border-t border-slate-100 hidden sm:flex justify-end space-x-3">
               <Link

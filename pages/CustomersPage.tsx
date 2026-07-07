@@ -9,6 +9,10 @@ import * as XLSX from 'xlsx';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 
+import Lightbox from "yet-another-react-lightbox";
+import "yet-another-react-lightbox/styles.css";
+import Zoom from "yet-another-react-lightbox/plugins/zoom";
+
 interface CustomerCRM {
   id: string;
   full_name: string;
@@ -27,6 +31,26 @@ const CustomersPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
   const queryClient = useQueryClient();
+  const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
+  const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
+  const [isDocsLoading, setIsDocsLoading] = useState(false);
+  const [currentDocIndex, setCurrentDocIndex] = useState(0);
+
+  const handleViewDocs = async (customerId: string) => {
+    setIsDocsLoading(true);
+    setIsDocsModalOpen(true);
+    setCurrentDocIndex(0);
+    try {
+      const docs = await apiService.getCustomerDocuments(customerId);
+      setSelectedDocs(docs);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to load documents');
+      setSelectedDocs([]);
+    } finally {
+      setIsDocsLoading(false);
+    }
+  };
 
   // Debounce search term
   useEffect(() => {
@@ -236,7 +260,7 @@ const CustomersPage: React.FC = () => {
                       className={`hover:bg-slate-50 transition-colors group ${customer.full_name ? '' : 'opacity-30'}`}
                     >
                       <td className="px-6 py-4">
-                        <div className="font-bold text-slate-900">{customer.full_name || '-'}</div>
+                        <button onClick={() => handleViewDocs(customer.id)} className="font-bold text-slate-900 hover:text-emerald-600 hover:underline text-left">{customer.full_name || '-'}</button>
                       </td>
                       <td className="px-6 py-4">
                         <div className="font-mono text-sm text-slate-700">{customer.ic_passport || '-'}</div>
@@ -349,6 +373,41 @@ const CustomersPage: React.FC = () => {
           </div>
         </div>
       </main>
+      {isDocsLoading && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white p-4 rounded-lg shadow-xl flex items-center space-x-3">
+            <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-sm font-medium text-slate-700">Loading documents...</p>
+          </div>
+        </div>
+      )}
+      {isDocsModalOpen && selectedDocs.length === 0 && !isDocsLoading && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" onClick={() => setIsDocsModalOpen(false)}>
+          <div className="bg-white p-6 rounded-xl shadow-xl max-w-sm w-full text-center" onClick={e => e.stopPropagation()}>
+            <div className="w-12 h-12 bg-slate-100 text-slate-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Search className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">No Documents Found</h3>
+            <p className="text-sm text-slate-500 mb-6">This customer doesn't have any IC or License photos uploaded yet.</p>
+            <button
+              onClick={() => setIsDocsModalOpen(false)}
+              className="w-full py-2 bg-slate-900 text-white font-medium rounded-lg hover:bg-slate-800 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+      {isDocsModalOpen && selectedDocs.length > 0 && !isDocsLoading && (
+        <Lightbox
+          open={isDocsModalOpen}
+          close={() => setIsDocsModalOpen(false)}
+          index={currentDocIndex}
+          slides={selectedDocs.map(url => ({ src: url }))}
+          plugins={[Zoom]}
+          controller={{ closeOnBackdropClick: true }}
+        />
+      )}
     </div>
   );
 };
