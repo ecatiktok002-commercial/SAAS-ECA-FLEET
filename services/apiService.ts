@@ -1880,7 +1880,8 @@ export const apiService = {
           address: settings.company_address,
           logo_url: settings.company_logo_url,
           ssm_logo_url: settings.ssm_logo_url,
-          spdp_logo_url: settings.spdp_logo_url
+          spdp_logo_url: settings.spdp_logo_url,
+          signature_url: settings.signature_logo_url
         })
         .eq('id', targetSubscriberId);
       

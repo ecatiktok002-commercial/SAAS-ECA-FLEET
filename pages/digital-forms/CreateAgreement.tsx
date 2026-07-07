@@ -36,6 +36,7 @@ export default function CreateAgreement() {
     booking_id: bookingId || '',
   });
   const [paymentReceipts, setPaymentReceipts] = useState<File[]>([]);
+  const [icLicensePhotos, setIcLicensePhotos] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [highlightReturnDate, setHighlightReturnDate] = useState(false);
@@ -259,13 +260,33 @@ export default function CreateAgreement() {
         }
         return [...prev, ...newFiles];
       });
-      // Reset input value to allow re-selecting the same file
       e.target.value = '';
     }
   };
 
   const removeFile = (index: number) => {
     setPaymentReceipts(prev => prev.filter((_, i) => i !== index));
+  };
+  
+  const handleICFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files);
+      setIcLicensePhotos(prev => {
+        const totalCount = prev.length + newFiles.length;
+        if (totalCount > 4) {
+          alert('You can only upload a maximum of 4 IC/License photos.');
+          const allowedNewCount = 4 - prev.length;
+          if (allowedNewCount <= 0) return prev;
+          return [...prev, ...newFiles.slice(0, allowedNewCount)];
+        }
+        return [...prev, ...newFiles];
+      });
+      e.target.value = '';
+    }
+  };
+
+  const removeICFile = (index: number) => {
+    setIcLicensePhotos(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -285,6 +306,17 @@ export default function CreateAgreement() {
           });
         }));
         receiptData = JSON.stringify(receiptDataArray);
+      }
+      
+      let icLicenseDataArray: string[] | undefined = undefined;
+      if (icLicensePhotos.length > 0) {
+        icLicenseDataArray = await Promise.all(icLicensePhotos.map(file => {
+          return new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+          });
+        }));
       }
 
       // Get current staff name if available
@@ -339,6 +371,7 @@ export default function CreateAgreement() {
         return_time: formData.return_time,
         need_einvoice: formData.need_einvoice,
         payment_receipt: receiptData,
+        ic_license_photos: icLicenseDataArray,
         status: 'pending',
         booking_id: formData.booking_id || null
       };
@@ -502,6 +535,42 @@ export default function CreateAgreement() {
                   Adakah Perlu E-invoice: Ya
                 </label>
               </div>
+
+              <div className="sm:col-span-2 mb-4">
+                <label className="block text-sm font-medium text-slate-700 mb-1">IC / License Photos (Optional)</label>
+                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-lg hover:bg-slate-50 transition-colors">
+                  <div className="space-y-1 text-center w-full">
+                    <div className="flex justify-center text-sm text-slate-600">
+                      <label
+                        htmlFor="ic-upload"
+                        className="relative cursor-pointer bg-white rounded-lg font-medium text-slate-900 hover:text-slate-700 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-slate-900"
+                      >
+                        <span>Upload IC/License files</span>
+                        <input id="ic-upload" name="ic-upload" type="file" className="sr-only" onChange={handleICFileChange} accept="image/*,.pdf" multiple />
+                      </label>
+                      <p className="pl-1">or drag and drop</p>
+                    </div>
+                    <p className="text-xs text-slate-500">PNG, JPG, PDF up to 10MB (Max 4 files)</p>
+                    {icLicensePhotos.length > 0 && (
+                      <div className="mt-4 space-y-2">
+                        {icLicensePhotos.map((file, index) => (
+                          <div key={index} className="flex items-center justify-between bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-100">
+                            <span className="text-sm font-medium text-emerald-700 truncate max-w-[200px]">{file.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeICFile(index)}
+                              className="text-emerald-600 hover:text-emerald-800 p-1"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
             </div>
             
             <div className="pt-6 border-t border-slate-100 hidden sm:flex justify-end">

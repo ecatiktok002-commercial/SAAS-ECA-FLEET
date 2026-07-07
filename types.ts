@@ -140,6 +140,7 @@ export interface Agreement {
   payment_receipt?: string;
   signature_data?: string;
   photos_url?: string[];
+  ic_license_photos?: string[];
   status: 'pending' | 'signed' | 'completed' | 'reconciled';
   signed_at?: string;
   details?: string;
@@ -246,6 +247,7 @@ export interface Company {
   logo_url?: string;
   ssm_logo_url?: string;
   spdp_logo_url?: string;
+  signature_url?: string;
   address?: string;
   contact?: string;
   created_at: string;

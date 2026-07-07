@@ -86,7 +86,9 @@ async function processWipe(supabase: any, photos: any, table: string, id: string
     if (paths.length > 0) {
       await supabase.storage.from('handover_images').remove(paths);
     }
-    await supabase.from(table).update({ photos_url: null }).eq('id', id);
+    let updates: any = { photos_url: null };
+    if (table === 'agreements') updates.ic_license_photos = null;
+    await supabase.from(table).update(updates).eq('id', id);
     return paths.length;
   } catch { return -1; }
 }

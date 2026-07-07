@@ -147,6 +147,7 @@ ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS logo_url TEXT;
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS ssm_logo_url TEXT;
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS spdp_logo_url TEXT;
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS signature_url TEXT;
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMP WITH TIME ZONE;
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS subscription_start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW();
 
@@ -323,6 +324,7 @@ ALTER TABLE agreements ADD COLUMN IF NOT EXISTS rental_purpose TEXT;
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS is_receipt_verified BOOLEAN DEFAULT FALSE;
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS has_pending_changes BOOLEAN DEFAULT FALSE;
 ALTER TABLE agreements ADD COLUMN IF NOT EXISTS pending_changes JSONB;
+ALTER TABLE agreements ADD COLUMN IF NOT EXISTS ic_license_photos TEXT[];
 
 -- 8. Expenses
 CREATE TABLE IF NOT EXISTS expenses (
@@ -580,25 +582,11 @@ CREATE POLICY "Agreements access" ON agreements
 DROP POLICY IF EXISTS "Public read agreements" ON agreements;
 CREATE POLICY "Public read agreements" ON agreements
   FOR SELECT USING (status IN ('pending', 'signed', 'completed'));
-
 DROP POLICY IF EXISTS "Public sign pending agreements" ON agreements;
 CREATE POLICY "Public sign pending agreements" ON agreements
   FOR UPDATE USING (status = 'pending') WITH CHECK (status IN ('pending', 'signed', 'completed'));
-
 -- 7. Digital Forms
--- Subscriber can see all. Agent can only see their own forms.
-  FOR ALL USING (
-    auth.uid() = subscriber_id -- Subscriber
-    OR 
-    (agent_id = auth.uid() AND subscriber_id = current_subscriber_id()) -- Agent
-    OR
-    (auth.jwt() ->> 'email' = 'superadmin@ecafleet.com') -- Superadmin
-  );
-
-  FOR SELECT USING (status IN ('pending', 'signed', 'completed'));
-
-  FOR UPDATE USING (status = 'pending') WITH CHECK (status IN ('pending', 'signed', 'completed'));
-
+-- 8. Expenses
 -- 8. Expenses
 -- Subscriber can see all. Agent can see expenses for cars they are managing.
 DROP POLICY IF EXISTS "Expenses access" ON expenses;
@@ -765,11 +753,6 @@ BEFORE INSERT OR UPDATE OF identity_number ON agreements
 FOR EACH ROW
 EXECUTE FUNCTION sync_agreement_to_customer();
 
--- Same for digital forms
-CREATE TRIGGER tr_sync_digital_form_to_customer
-FOR EACH ROW
-EXECUTE FUNCTION sync_agreement_to_customer();
-
 -- CRM View with Data Isolation Guardrail
 -- Updated to only include customers with at least one "Completed" booking
 -- "Completed" is defined as status='completed' OR (status='signed' AND payment_receipt IS NOT NULL AND payment_receipt != '')
@@ -787,19 +770,6 @@ WITH completed_records AS (
         status,
         payment_receipt
     FROM agreements 
-    WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL AND payment_receipt != ''))
-      AND COALESCE(start_date, created_at::date) <= CURRENT_DATE
-    UNION ALL
-    SELECT 
-        id,
-        customer_id, 
-        subscriber_id, 
-        agent_name, 
-        start_date,
-        end_date,
-        created_at,
-        status,
-        payment_receipt
     WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL AND payment_receipt != ''))
       AND COALESCE(start_date, created_at::date) <= CURRENT_DATE
 ),
@@ -1127,9 +1097,6 @@ FROM (
     SELECT subscriber_id, customer_name, customer_phone, identity_number, agent_name, created_at FROM agreements
     WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL AND payment_receipt != ''))
       AND COALESCE(start_date, created_at::date) <= CURRENT_DATE
-    UNION ALL
-    WHERE (status = 'completed' OR (status = 'signed' AND payment_receipt IS NOT NULL AND payment_receipt != ''))
-      AND COALESCE(start_date, created_at::date) <= CURRENT_DATE
 ) combined_data
 WHERE identity_number IS NOT NULL
 ORDER BY subscriber_id, identity_number, created_at ASC
@@ -1142,13 +1109,6 @@ FROM customers c
 WHERE a.identity_number = c.ic_passport 
 AND a.subscriber_id = c.subscriber_id
 AND a.customer_id IS NULL;
-
--- Update existing digital forms with customer_id
-SET customer_id = c.id
-FROM customers c
-WHERE f.identity_number = c.ic_passport 
-AND f.subscriber_id = c.subscriber_id
-AND f.customer_id IS NULL;
 
 -- Function to link a newly signed-up auth user to an existing subscriber record
 CREATE OR REPLACE FUNCTION link_subscriber_auth(p_name TEXT, p_new_id UUID)
@@ -1415,7 +1375,6 @@ CREATE TRIGGER tr_protect_agreements_tampering
 BEFORE UPDATE ON agreements
 FOR EACH ROW EXECUTE FUNCTION protect_public_form_tampering();
 
-FOR EACH ROW EXECUTE FUNCTION protect_public_form_tampering();
 
 -- ============================================================================
 -- INDEXES FOR PERFORMANCE
@@ -1431,6 +1390,7 @@ CREATE INDEX IF NOT EXISTS idx_handover_records_booking ON handover_records(book
 DROP POLICY IF EXISTS "Handover photos access" ON storage.objects;
 
 -- Only allow access if the first folder in the path matches their subscriber_id
+DROP POLICY IF EXISTS "Tenant isolated storage access" ON storage.objects;
 CREATE POLICY "Tenant isolated storage access"
 ON storage.objects FOR ALL
 USING (

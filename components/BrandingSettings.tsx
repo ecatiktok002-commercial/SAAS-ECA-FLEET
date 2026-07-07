@@ -9,6 +9,7 @@ export default function BrandingSettings() {
     company_logo_url: '',
     ssm_logo_url: '',
     spdp_logo_url: '',
+    signature_logo_url: '',
     company_name: 'ECA GROUP TRAVEL & TOURS SDN BHD',
     company_address: '011-55582106 | NO 21-B, JALAN SUARASA 8/3, BANDAR TUN HUSSEIN ONN, 43200 CHERAS, SELANGOR'
   });
@@ -30,6 +31,7 @@ export default function BrandingSettings() {
           company_logo_url: data.logo_url || '',
           ssm_logo_url: data.ssm_logo_url || '',
           spdp_logo_url: data.spdp_logo_url || '',
+          signature_logo_url: data.signature_url || '',
           company_name: data.brand_name || data.name || 'ECA GROUP TRAVEL & TOURS SDN BHD',
           company_address: data.address || '011-55582106 | NO 21-B, JALAN SUARASA 8/3, BANDAR TUN HUSSEIN ONN, 43200 CHERAS, SELANGOR'
         });
@@ -138,7 +140,7 @@ export default function BrandingSettings() {
         <div className="p-6">
           <h2 className="text-lg font-bold text-slate-900 mb-6">Logos & Certificates</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             {/* Main Company Logo */}
             <div className="border border-slate-200 rounded-xl p-4 flex flex-col items-center justify-center text-center">
               <h3 className="text-sm font-bold text-slate-900 mb-2">Main Company Logo</h3>
@@ -207,6 +209,30 @@ export default function BrandingSettings() {
                 </div>
               </div>
             </div>
+            
+            {/* Wakil Syarikat Signature */}
+            <div className="border border-slate-200 rounded-xl p-4 flex flex-col items-center justify-center text-center">
+              <h3 className="text-sm font-bold text-slate-900 mb-2">Company Signature</h3>
+              <p className="text-xs text-slate-500 mb-4">Auto-inserted as Wakil Syarikat sign.</p>
+              
+              <div className="w-full h-32 bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg mb-4 flex items-center justify-center overflow-hidden relative group">
+                {settings.signature_logo_url ? (
+                  <img src={settings.signature_logo_url} alt="Company Signature" className="max-h-full max-w-full object-contain p-2" />
+                ) : (
+                  <div className="text-slate-400 flex flex-col items-center">
+                    <ImageIcon className="w-8 h-8 mb-2 opacity-50" />
+                    <span className="text-xs">No signature</span>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <label className="cursor-pointer bg-white text-slate-900 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center">
+                    <Upload className="w-3 h-3 mr-1" /> Upload New
+                    <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'signature_logo_url')} />
+                  </label>
+                </div>
+              </div>
+            </div>
+            
           </div>
         </div>
       </div>

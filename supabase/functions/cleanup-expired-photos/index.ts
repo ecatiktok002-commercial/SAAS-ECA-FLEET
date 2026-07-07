@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
 
         const { error: updateError } = await supabase
           .from('agreements')
-          .update({ photos_url: null })
+          .update({ photos_url: null, ic_license_photos: null })
           .eq('id', record.id);
 
         if (updateError) {

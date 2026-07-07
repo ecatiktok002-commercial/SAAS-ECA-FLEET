@@ -275,6 +275,7 @@ export default function SignAgreement() {
               logoUrl: company?.logo_url,
               ssmLogoUrl: company?.ssm_logo_url,
               spdpLogoUrl: company?.spdp_logo_url,
+              signatureUrl: company?.signature_url,
               companyName: company?.brand_name || company?.name,
               address: company?.address,
               contact: company?.contact
