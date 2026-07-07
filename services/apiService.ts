@@ -2467,7 +2467,15 @@ export const apiService = {
       }
 
       if (data && data.length > 0 && data[0].ic_license_photos) {
-        return data[0].ic_license_photos;
+        const photos = data[0].ic_license_photos;
+        if (typeof photos === 'string') {
+          try {
+            return JSON.parse(photos);
+          } catch (e) {
+            return [photos];
+          }
+        }
+        return Array.isArray(photos) ? photos : [photos];
       }
       return [];
     });

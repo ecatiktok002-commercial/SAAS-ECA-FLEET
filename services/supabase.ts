@@ -18,8 +18,8 @@ const cleanEnvVar = (value: string | undefined): string => {
 
 // Support both VITE_ and NEXT_PUBLIC_ prefixes for environment variables, plus process.env from vite define
 // HARDCODED FALLBACKS: Added to ensure the app works in standalone browser view without manual settings.
-const FALLBACK_URL = 'https://czurhanyrjgeicnbrnev.supabase.co';
-const FALLBACK_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6dXJoYW55cmpnZWljbmJybmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4NTExMDEsImV4cCI6MjA4NzQyNzEwMX0.LV4hsQEazpbv8AcLDrEASg8s3uGKmvMJ0FrvMOX6AWQ';
+const FALLBACK_URL = '';
+const FALLBACK_KEY = '';
 
 const rawUrl = cleanEnvVar(
   import.meta.env.VITE_SUPABASE_URL || 

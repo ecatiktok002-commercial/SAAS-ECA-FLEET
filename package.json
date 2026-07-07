@@ -21,6 +21,7 @@
     "dotenv": "^17.4.2",
     "html2pdf.js": "^0.14.0",
     "lucide-react": "^0.577.0",
+    "puppeteer": "^25.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hot-toast": "^2.6.0",
