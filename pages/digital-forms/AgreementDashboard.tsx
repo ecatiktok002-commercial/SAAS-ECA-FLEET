@@ -158,7 +158,7 @@ const AgreementDashboard: React.FC = () => {
     const status = a.status?.toLowerCase().trim();
     const hasReceipt = !!a.payment_receipt && a.payment_receipt !== '[]' && a.payment_receipt !== 'null';
     const isSigned = status === 'signed' || status === 'completed';
-    const isPaid = true; // Original rule doesn't mandate receipt for completed
+    const isPaid = hasReceipt;
     const pickupDate = getPickupDateTime(a);
     const now = getNowMYT();
     const isFuture = pickupDate.getTime() > now.getTime();
@@ -289,7 +289,7 @@ const AgreementDashboard: React.FC = () => {
               const status = a.status?.toLowerCase().trim();
               const hasReceipt = !!a.payment_receipt && a.payment_receipt !== '[]' && a.payment_receipt !== 'null';
               const isSigned = status === 'signed' || status === 'completed';
-              const isPaid = true; // Original rule doesn't mandate receipt for completed
+              const isPaid = hasReceipt;
               const isFuture = getPickupDateTime(a).getTime() > getNowMYT().getTime();
               return status === 'completed' && isFuture;
             }).length}
@@ -311,7 +311,7 @@ const AgreementDashboard: React.FC = () => {
               const status = a.status?.toLowerCase().trim();
               const hasReceipt = !!a.payment_receipt && a.payment_receipt !== '[]' && a.payment_receipt !== 'null';
               const isSigned = status === 'signed' || status === 'completed';
-              const isPaid = true; // Original rule doesn't mandate receipt for completed
+              const isPaid = hasReceipt;
               const isPast = getPickupDateTime(a).getTime() <= getNowMYT().getTime();
               return status === 'completed' && isPast;
             }).length}
@@ -333,7 +333,7 @@ const AgreementDashboard: React.FC = () => {
               const status = a.status?.toLowerCase().trim();
               const hasReceipt = !!a.payment_receipt && a.payment_receipt !== '[]' && a.payment_receipt !== 'null';
               const isSigned = status === 'signed' || status === 'completed';
-              const isPaid = true; // Original rule doesn't mandate receipt for completed
+              const isPaid = hasReceipt;
               return status === 'signed';
             }).length}
           </div>
@@ -442,7 +442,7 @@ const AgreementDashboard: React.FC = () => {
                           const status = agreement.status?.toLowerCase().trim();
                           const hasReceipt = !!agreement.payment_receipt && agreement.payment_receipt !== '[]' && agreement.payment_receipt !== 'null';
                           const isSigned = status === 'signed' || status === 'completed';
-                          const isPaid = true; // Original rule doesn't mandate receipt for completed
+                          const isPaid = hasReceipt;
                           const pickupDate = getPickupDateTime(agreement);
                           const now = getNowMYT();
                           const isFuture = pickupDate.getTime() > now.getTime();
@@ -558,7 +558,7 @@ const AgreementDashboard: React.FC = () => {
               const status = agreement.status?.toLowerCase().trim();
               const hasReceipt = !!agreement.payment_receipt && agreement.payment_receipt !== '[]' && agreement.payment_receipt !== 'null';
               const isSigned = status === 'signed' || status === 'completed';
-              const isPaid = true; // Original rule doesn't mandate receipt for completed
+              const isPaid = hasReceipt;
               const pickupDate = getPickupDateTime(agreement);
               const now = getNowMYT();
               const isFuture = pickupDate.getTime() > now.getTime();

@@ -440,6 +440,17 @@ export default function EditAgreement() {
       if (receiptData !== undefined) {
         updates.payment_receipt = receiptData;
         updates.updated_at = getNowMYT().toISOString();
+        
+        // Auto-update status based on receipt presence
+        const hasReceipt = !!receiptData && receiptData !== '[]' && receiptData !== 'null';
+        const currentStatus = agreement.status?.toLowerCase().trim();
+        
+        if (hasReceipt && currentStatus === 'signed') {
+          updates.status = 'completed';
+        } else if (!hasReceipt && currentStatus === 'completed') {
+          // If receipt is removed and it was completed, revert to signed (if it has signature) or pending
+          updates.status = agreement.signature_data ? 'signed' : 'pending';
+        }
       }
 
       if (Object.keys(updates).length === 0) {
