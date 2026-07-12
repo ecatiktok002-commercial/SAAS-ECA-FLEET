@@ -564,7 +564,7 @@ const CalendarPage: React.FC = () => {
         </div>
       )}
 
-      <header className="bg-white/80 backdrop-blur-md h-14 md:h-16 flex items-center justify-between px-4 md:px-8 shrink-0 z-50 border-b border-slate-100">
+      <header className="bg-white/80 backdrop-blur-md h-14 md:h-16 flex items-center justify-between px-4 md:px-8 shrink-0 z-30 border-b border-slate-100">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>

@@ -86,7 +86,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ currentMonth, bookings, car
     <div className="flex-1 flex flex-col bg-white select-none overflow-hidden h-full font-sans">
       <div className="flex flex-col h-full min-w-[340px]">
         {/* Header stays sticky at the top */}
-        <div className="grid grid-cols-7 bg-white sticky top-0 z-40 shrink-0 border-b border-slate-100">
+        <div className="grid grid-cols-7 bg-white sticky top-0 z-30 shrink-0 border-b border-slate-100">
           {weekDays.map(day => (
             <div key={day} className="py-3 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
               {day}
