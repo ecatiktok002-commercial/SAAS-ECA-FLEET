@@ -125,8 +125,10 @@ const AuditPayoutManagement: React.FC = () => {
     const loadData = async () => {
       try {
         setLoading(true);
-        // Ensure commissions are up-to-date before fetching
-        await apiService.recalculateAllCommissions(subscriberId!);
+        // Run commission recalculation in the background without blocking the UI
+        apiService.recalculateAllCommissions(subscriberId!).catch(err => 
+          console.error('Background recalculation failed:', err)
+        );
         
         const [auditData, historyData] = await Promise.all([
           apiService.getAuditRecords(subscriberId!),
@@ -614,20 +616,18 @@ const AuditPayoutManagement: React.FC = () => {
                               if (earned <= 0 && Number(record.form_price) > 0) earned = Number(record.form_price) * 0.20;
                               return earned.toFixed(2);
                             })()}</div>
+                              <div className="flex items-center gap-2">
                               {record.payment_receipt && (
                                 <button
                                   onClick={async () => {
-                                    // LAZY LOAD FIX: Fetch the heavy Base64 image ONLY when clicked
                                     try {
                                       const toastId = toast.loading('Loading receipt...');
                                       const fullAgreement = await apiService.getAgreementById(record.form_id, subscriberId!);
                                       toast.dismiss(toastId);
-                                      
                                       if (!fullAgreement || !fullAgreement.payment_receipt || fullAgreement.payment_receipt === '[]' || fullAgreement.payment_receipt === 'null') {
                                         toast.error('No receipt found.');
                                         return;
                                       }
-
                                       let allUrls: string[] = [];
                                       try {
                                         const parsed = JSON.parse(fullAgreement.payment_receipt);
@@ -635,15 +635,11 @@ const AuditPayoutManagement: React.FC = () => {
                                       } catch (e) {
                                         allUrls = [fullAgreement.payment_receipt];
                                       }
-                                      
                                       if (fullAgreement.has_pending_changes && fullAgreement.pending_changes?.payment_receipt) {
                                         try {
-                                          const pendingParsed = typeof fullAgreement.pending_changes.payment_receipt === 'string' 
-                                              ? JSON.parse(fullAgreement.pending_changes.payment_receipt)
-                                              : fullAgreement.pending_changes.payment_receipt;
-                                              
+                                          const pendingParsed = typeof fullAgreement.pending_changes.payment_receipt === 'string' ? JSON.parse(fullAgreement.pending_changes.payment_receipt) : fullAgreement.pending_changes.payment_receipt;
                                           const pendingUrls = Array.isArray(pendingParsed) ? pendingParsed : [fullAgreement.pending_changes.payment_receipt];
-                                          allUrls = Array.from(new Set([...allUrls, ...pendingUrls])); // Use Set to deduplicate
+                                          allUrls = Array.from(new Set([...allUrls, ...pendingUrls]));
                                         } catch (e) {
                                           if (typeof fullAgreement.pending_changes.payment_receipt === 'string') {
                                              allUrls = Array.from(new Set([...allUrls, fullAgreement.pending_changes.payment_receipt]));
@@ -660,9 +656,11 @@ const AuditPayoutManagement: React.FC = () => {
                                   }}
                                   className="text-[10px] text-blue-600 font-bold hover:underline flex items-center gap-0.5"
                                 >
-                                  <ImageIcon className="w-3 h-3" /> View
+                                  <ImageIcon className="w-3 h-3" /> View Receipt
                                 </button>
                               )}
+
+                              </div>
                             </div>
                           </td>
                           <td className="py-4 px-6">
@@ -1097,6 +1095,7 @@ const AuditPayoutManagement: React.FC = () => {
                           <div className="text-xs text-slate-500">to {new Date(r.form_end).toLocaleDateString()}</div>
                         </td>
                         <td className="py-3 px-4">
+                          <div className="flex flex-col gap-1">
                           {r.payment_receipt ? (
                             <button
                               onClick={async () => {
@@ -1148,6 +1147,8 @@ const AuditPayoutManagement: React.FC = () => {
                           ) : (
                             <span className="text-xs text-slate-400 font-medium">No Receipt</span>
                           )}
+
+                          </div>
                         </td>
                         <td className="py-3 px-4 text-right font-medium text-slate-900">RM {Number(r.form_price).toFixed(2)}</td>
                         <td className="py-3 px-4 text-right font-bold text-emerald-600">

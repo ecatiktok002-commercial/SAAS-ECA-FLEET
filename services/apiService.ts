@@ -2515,7 +2515,7 @@ export const apiService = {
     return withRetry(async () => {
       let query = supabase
         .from('subscriber_audit_view')
-        .select('form_id, subscriber_id, agent_id, agent_name, customer_name, car_plate_number, form_price, form_start, form_end, commission_earned, payout_status, is_receipt_verified, status, reference_number, created_at, booking_id, booking_price, booking_start, booking_duration, booking_start_date, booking_end_date, booking_pickup_time, booking_return_time, has_discrepancy, is_dates_matched, discrepancy_reason, has_pending_changes, pending_changes');
+        .select('form_id, subscriber_id, agent_id, agent_name, customer_name, car_plate_number, form_price, form_start, form_end, commission_earned, payout_status, is_receipt_verified, status, reference_number, created_at, booking_id, booking_price, booking_start, booking_duration, booking_start_date, booking_end_date, booking_pickup_time, booking_return_time, has_discrepancy, is_dates_matched, discrepancy_reason, has_pending_changes, pending_changes, payment_receipt, ic_license_photos');
       
       query = applySubscriberFilter(query, targetSubscriberId);
 
@@ -2525,10 +2525,27 @@ export const apiService = {
         logSupabaseError('getAuditRecords', error);
         throw new Error('Failed to fetch audit records');
       }
-      return (data || []).map(d => ({
-        ...d,
-        payment_receipt: ['upcoming', 'completed', 'reconciled'].includes(d.status) ? 'exists' : null
-      }));
+      return (data || []).map(d => {
+        let hasReceipt = false;
+        if (d.payment_receipt && d.payment_receipt !== '[]' && d.payment_receipt !== 'null') {
+           hasReceipt = true;
+        }
+        if (d.has_pending_changes && d.pending_changes && d.pending_changes.payment_receipt && d.pending_changes.payment_receipt !== '[]' && d.pending_changes.payment_receipt !== 'null') {
+           hasReceipt = true;
+        }
+        let hasIc = false;
+        if (d.ic_license_photos && d.ic_license_photos !== '[]' && d.ic_license_photos !== 'null') {
+           hasIc = true;
+        }
+        if (d.has_pending_changes && d.pending_changes && d.pending_changes.ic_license_photos && d.pending_changes.ic_license_photos !== '[]' && d.pending_changes.ic_license_photos !== 'null') {
+           hasIc = true;
+        }
+        return {
+          ...d,
+          payment_receipt: hasReceipt ? 'exists' : null,
+          ic_license_photos: hasIc ? 'exists' : null
+        };
+      });
     });
   },
 

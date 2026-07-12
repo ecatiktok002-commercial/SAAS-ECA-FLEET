@@ -216,6 +216,7 @@ export interface AuditRecord {
   form_start: string;
   form_end: string;
   payment_receipt: string | null;
+  ic_license_photos?: string | null;
   commission_earned: number;
   payout_status: 'pending' | 'pending_review' | 'approved' | 'paid';
   status: string;
