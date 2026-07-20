@@ -15,6 +15,7 @@ interface AuthContextType {
   subscriptionTier: SubscriptionTier | null;
   subscriberTier: number; // Numeric representation for refined App.tsx
   companyName: string | null;
+  expiryDate: string | null;
   isLoading: boolean;
   login: (subscriberId: string, staffRole: StaffRole, subscriptionTier: SubscriptionTier, userId?: string, userName?: string, userUid?: string, companyName?: string) => void;
   logout: () => void;
@@ -26,8 +27,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const normalizeTier = (tier: any): SubscriptionTier => {
   if (!tier) return 'tier_1';
   const normalized = String(tier).toLowerCase();
-  if (normalized.includes('tier 3') || normalized.includes('tier_3') || normalized === '3') return 'tier_3';
-  if (normalized.includes('tier 2') || normalized.includes('tier_2') || normalized === '2') return 'tier_2';
+  if (normalized.includes('tier 3') || normalized.includes('tier_3') || normalized === '3' || normalized.includes('smart') || normalized.includes('enterprise')) return 'tier_3';
+  if (normalized.includes('tier 2') || normalized.includes('tier_2') || normalized === '2' || normalized.includes('growth') || normalized.includes('pro')) return 'tier_2';
   return 'tier_1';
 };
 
@@ -42,6 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return normalizeTier(stored);
   });
   const [companyName, setCompanyName] = useState<string | null>(null);
+  const [expiryDate, setExpiryDate] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -238,6 +240,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
               activeTier = companyData.tier ? normalizeTier(companyData.tier) : 'tier_1';
               displayName = companyData.name;
+              setExpiryDate(companyData.expiry_date || null);
             }
           }
           
@@ -406,6 +409,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       subscriptionTier, 
       subscriberTier: getTierNumber(subscriptionTier),
       companyName,
+      expiryDate,
       isLoading, 
       login, 
       logout,

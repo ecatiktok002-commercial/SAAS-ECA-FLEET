@@ -143,9 +143,9 @@ const AppRoutes: React.FC = () => {
             </StrictTierGate>
           } />
           
-          {/* Digital Forms: Tier 1 and Tier 3 */}
+          {/* Digital Forms: Tier 1, 2, and 3 */}
           <Route path="forms/*" element={
-            <StrictTierGate allowedTiers={[1, 3]}><DigitalFormPage /></StrictTierGate>
+            <StrictTierGate allowedTiers={[1, 2, 3]}><DigitalFormPage /></StrictTierGate>
           } />
 
           {/* Audit & Payout: Tier 3 only */}

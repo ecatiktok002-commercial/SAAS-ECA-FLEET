@@ -4,6 +4,7 @@ import Sidebar from './Sidebar';
 import { useAuth } from '../context/AuthContext';
 import SupabaseConnectionBanner from './SupabaseConnectionBanner';
 import SchemaErrorBanner from './SchemaErrorBanner';
+import ExpiryReminder from './ExpiryReminder';
 import { Menu } from 'lucide-react';
 
 const Layout: React.FC = () => {
@@ -38,6 +39,7 @@ const Layout: React.FC = () => {
         
         <Outlet />
       </main>
+      <ExpiryReminder />
       <SupabaseConnectionBanner />
       <SchemaErrorBanner />
     </div>

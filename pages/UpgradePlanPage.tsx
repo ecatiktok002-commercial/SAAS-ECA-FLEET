@@ -14,21 +14,46 @@ const UpgradePlanPage: React.FC = () => {
 
   const tiers = [
     {
-      name: 'Tier 1 (Forms Module)',
-      price: 'RM 100/mo',
-      features: ['Digital Forms', 'Staff Management'],
+      name: 'Starter',
+      price: 'RM 49/mo',
+      description: 'Perfect for operators with 1–10 vehicles. Stop using paper agreements forever.',
+      features: [
+        'Unlimited Digital Rental Agreements',
+        'Digital Signature',
+        'PDF Auto Generation',
+        'Staff Management'
+      ],
       isCurrent: subscriberTier === 1
     },
     {
-      name: 'Tier 2 (Calendar Module)',
-      price: 'RM 100/mo',
-      features: ['Calendar UI', 'Staff Management'],
+      name: 'Growth',
+      price: 'RM 99/mo',
+      description: 'Perfect for operators with 10–30 vehicles.',
+      features: [
+        'Everything in Starter +',
+        'Fleet Calendar',
+        'Booking Timeline',
+        'Prevent Double Booking',
+        'Vehicle Availability',
+        'Staff Scheduling'
+      ],
       isCurrent: subscriberTier === 2
     },
     {
-      name: 'Tier 3 (Fleet Guardian)',
-      price: 'RM 299/mo',
-      features: ['All Features', 'CRM', 'Audit & Payouts', 'Fleet Tracking', 'Admin Dashboard'],
+      name: 'Smart Business',
+      price: 'RM 199/mo',
+      description: 'Everything included.',
+      features: [
+        'Business Dashboard',
+        'Revenue Analytics',
+        'Customer CRM',
+        'WhatsApp Marketing Export',
+        'Commission Calculator',
+        'Fleet Maintenance',
+        'Road Tax Reminder',
+        'Insurance Reminder',
+        'Vehicle Service Records'
+      ],
       isCurrent: subscriberTier === 3
     }
   ];
@@ -50,7 +75,7 @@ const UpgradePlanPage: React.FC = () => {
         <X className="w-6 h-6" />
       </button>
 
-      <div className="max-w-4xl w-full">
+      <div className="max-w-7xl w-full">
         <div className="text-center mb-12">
           <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 border border-blue-100">
             <Shield className="w-10 h-10" />
@@ -61,11 +86,11 @@ const UpgradePlanPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           {tiers.map((tier) => (
             <div 
               key={tier.name}
-              className={`bg-white rounded-3xl p-8 border-2 transition-all ${
+              className={`bg-white rounded-3xl p-8 border-2 transition-all flex flex-col h-full ${
                 tier.isCurrent 
                   ? 'border-blue-600 shadow-xl shadow-blue-900/10' 
                   : 'border-slate-100 hover:border-slate-200 shadow-sm'
@@ -73,14 +98,15 @@ const UpgradePlanPage: React.FC = () => {
             >
               <div className="mb-6">
                 <h3 className="text-xl font-bold text-slate-900 mb-2">{tier.name}</h3>
-                <p className="text-3xl font-black text-slate-900">{tier.price}</p>
+                <p className="text-3xl font-black text-slate-900 mb-4">{tier.price}</p>
+                <p className="text-sm text-slate-500 font-medium leading-relaxed min-h-[40px]">{tier.description}</p>
               </div>
 
-              <ul className="space-y-4 mb-8">
-                {tier.features.map((feature) => (
-                  <li key={feature} className="flex items-center gap-3 text-slate-600 text-sm font-medium">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                    {feature}
+              <ul className="space-y-4 mb-8 flex-1">
+                {tier.features.map((feature, i) => (
+                  <li key={i} className="flex items-start gap-3 text-slate-600 text-sm font-medium">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                    <span className="leading-tight">{feature}</span>
                   </li>
                 ))}
               </ul>
@@ -90,7 +116,10 @@ const UpgradePlanPage: React.FC = () => {
                   Current Plan
                 </div>
               ) : (
-                <button className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold text-sm hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20">
+                <button 
+                  onClick={() => alert('Please contact +6013 5378032 to upgrade your plan.')}
+                  className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold text-sm hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
+                >
                   <ArrowUpCircle className="w-5 h-5" />
                   Upgrade Now
                 </button>

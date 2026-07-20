@@ -255,15 +255,26 @@ const SubscriberManager: React.FC = () => {
     const currentMonthName = monthNames[now.getMonth()];
     
     const currentMonthData = revenueStats.find(m => m.month.startsWith(currentMonthName));
-    const mrr = currentMonthData ? currentMonthData.monthly_revenue : 0;
-
     let activeSubs = 0;
+    let mrr = 0;
+    
     subscribers.forEach(sub => {
       const isExpired = sub.expiry_date && utcToMyt(sub.expiry_date) < now;
       const isActive = sub.status === 'ACTIVE' && (sub.expiry_date === null || !isExpired);
 
       if (isActive) {
         activeSubs++;
+        
+        if (!sub.is_trial) {
+          const tierName = String(sub.tier).toLowerCase();
+          if (tierName.includes('3') || tierName.includes('enterprise') || tierName.includes('smart')) {
+            mrr += 199;
+          } else if (tierName.includes('2') || tierName.includes('pro') || tierName.includes('growth')) {
+            mrr += 99;
+          } else {
+            mrr += 49; // Tier 1 / Starter
+          }
+        }
       }
     });
 
@@ -491,9 +502,9 @@ const SubscriberManager: React.FC = () => {
                               onChange={(e) => handleUpdateField(sub.id, 'tier', e.target.value)}
                               className="appearance-none bg-white border border-slate-200 rounded-lg px-3 py-2 pr-8 text-sm text-slate-900 focus:ring-2 focus:ring-[#0F172A] outline-none w-full transition-all cursor-pointer"
                             >
-                              <option value="Tier 1">Tier 1 (Basic)</option>
-                              <option value="Tier 2">Tier 2 (Pro)</option>
-                              <option value="Tier 3">Tier 3 (Enterprise)</option>
+                              <option value="Tier 1">Tier 1 (Starter)</option>
+                              <option value="Tier 2">Tier 2 (Growth)</option>
+                              <option value="Tier 3">Tier 3 (Smart Business)</option>
                             </select>
                             <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                           </div>
@@ -723,9 +734,9 @@ const SubscriberManager: React.FC = () => {
                     onChange={(e) => setNewCompanyTier(e.target.value as Company['tier'])}
                     className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-900 focus:ring-2 focus:ring-[#0F172A] outline-none transition-all cursor-pointer disabled:bg-slate-50 disabled:text-slate-500"
                   >
-                    <option value="Tier 1">Tier 1 (Basic)</option>
-                    <option value="Tier 2">Tier 2 (Pro)</option>
-                    <option value="Tier 3">Tier 3 (Enterprise)</option>
+                    <option value="Tier 1">Tier 1 (Starter)</option>
+                    <option value="Tier 2">Tier 2 (Growth)</option>
+                    <option value="Tier 3">Tier 3 (Smart Business)</option>
                   </select>
                 </div>
 

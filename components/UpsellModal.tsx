@@ -129,13 +129,12 @@ const UpsellModal: React.FC<UpsellModalProps> = ({ isOpen, onClose, featureName 
           {/* CTA */}
           <button 
             onClick={() => {
-              // In a real app, this would redirect to a billing page or trigger a Stripe checkout
-              alert('Redirecting to upgrade page...');
+              alert('Please contact +6013 5378032 to upgrade your plan.');
               onClose();
             }}
             className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 px-6 rounded-xl shadow-lg shadow-slate-900/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
           >
-            Unlock Everything: Upgrade to Tier 3 - RM 399/mo
+            Unlock Everything: Upgrade to Smart Business - RM 199/mo
           </button>
         </div>
       </div>

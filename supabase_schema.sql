@@ -974,16 +974,19 @@ CREATE TABLE IF NOT EXISTS subscriber_payments (
 
 -- Trigger to record payments automatically
 CREATE OR REPLACE FUNCTION record_subscriber_payment()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
   v_tier_price DECIMAL(10, 2);
   v_months_diff INTEGER;
   v_base_date TIMESTAMP WITH TIME ZONE;
 BEGIN
   -- Determine tier price
-  IF NEW.tier = 'Tier 1' THEN v_tier_price := 100;
-  ELSIF NEW.tier = 'Tier 2' THEN v_tier_price := 100;
-  ELSIF NEW.tier = 'Tier 3' THEN v_tier_price := 299;
+  IF NEW.tier = 'Tier 1' THEN v_tier_price := 50;
+  ELSIF NEW.tier = 'Tier 2' THEN v_tier_price := 50;
+  ELSIF NEW.tier = 'Tier 3' THEN v_tier_price := 150;
   ELSE v_tier_price := 0;
   END IF;
 
@@ -1076,9 +1079,9 @@ INSERT INTO subscriber_payments (subscriber_id, amount, tier, months_added, paym
 SELECT 
   id, 
   CASE 
-    WHEN tier = 'Tier 1' THEN 150 
-    WHEN tier = 'Tier 2' THEN 200 
-    WHEN tier = 'Tier 3' THEN 399 
+    WHEN tier = 'Tier 1' THEN 50 
+    WHEN tier = 'Tier 2' THEN 50 
+    WHEN tier = 'Tier 3' THEN 150 
     ELSE 0 
   END * GREATEST(1, (EXTRACT(YEAR FROM expiry_date) - EXTRACT(YEAR FROM subscription_start_date)) * 12 + (EXTRACT(MONTH FROM expiry_date) - EXTRACT(MONTH FROM subscription_start_date))),
   tier,

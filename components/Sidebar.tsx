@@ -64,7 +64,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
         name: 'Digital Form', 
         path: '/forms', 
         icon: <FileText className="w-5 h-5" />,
-        allowedTiers: [1, 3],
+        allowedTiers: [1, 2, 3],
         adminOnly: false
       },
       { 
