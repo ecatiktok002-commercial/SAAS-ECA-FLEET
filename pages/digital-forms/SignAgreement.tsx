@@ -475,7 +475,7 @@ export default function SignAgreement() {
                     <ul className="space-y-0.5 print:space-y-0 text-[11px] print:text-[6.5pt] text-slate-600 list-disc ml-4 print:ml-3 print:leading-tight">
                       <li>Pemandu sah (Kelas P,D) sahaja.</li>
                       <li>Lesen P excess wajib RM400.</li>
-                      <li>Deposit Forfiet kalau dapati salah kegunaan.</li>
+                      <li>Deposit forfeit kalau dapati salah kegunaan.</li>
                       <li>Tiada sub-let / keluar luar Semenanjung.</li>
                     </ul>
                   </div>
@@ -505,7 +505,7 @@ export default function SignAgreement() {
                     <ul className="space-y-0.5 print:space-y-0 text-[11px] print:text-[6.5pt] text-slate-600 list-disc ml-4 print:ml-3 print:leading-tight">
                       <li>Minyak pulang mesti sama atau caj RM10/bar.</li>
                       <li>Kereta pulang kotor caj cuci RM20.</li>
-                      <li>Kansel saat akhir (kurang dari 8 jam) = Deposit Forfiet.</li>
+                      <li>Kansel saat akhir (kurang dari 8 jam) = Deposit forfeit.</li>
                     </ul>
                   </div>
                 </div>
