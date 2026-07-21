@@ -833,6 +833,7 @@ export default function EditAgreement() {
                   <option value="">-- SELECT USAGE --</option>
                   <option value="Within KL/Selangor (200km limit/day)">Within KL/Selangor (200km limit/day)</option>
                   <option value="Outstation (500km limit/day)">Outstation (500km limit/day)</option>
+                  <option value="Monthly Subscription (Unlimited)">Monthly Subscription (Unlimited)</option>
                 </select>
               </div>
 
