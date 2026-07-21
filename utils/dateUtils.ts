@@ -58,8 +58,8 @@ export const formatTimeMYT = (timeStr: string): string => {
   const formattedTime = timeStr.length === 5 ? `${timeStr}:00` : timeStr;
   
   // Create a date object with the specified time but with MYT explicit offset
-  // We don't want date-fns-tz to offset a UTC time, we just want to format the literal time.
-  const d = new Date(`1970-01-01T${formattedTime}+08:00`); 
+  // We use 2024 instead of 1970 because in 1970 Malaysia was on +07:30 timezone
+  const d = new Date(`2024-01-01T${formattedTime}+08:00`); 
   return formatInTimeZone(d, TIMEZONE, 'h:mm a'); 
 };
 
