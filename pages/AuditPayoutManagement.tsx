@@ -21,7 +21,7 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronLeft,
-  ArrowRight,
+  ArrowRight, ArrowUpDown,
   TrendingUp,
   X,
   RefreshCw,
@@ -68,6 +68,7 @@ const AuditPayoutManagement: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'pending' | 'summary' | 'history' | 'analytics'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortAgentDirection, setSortAgentDirection] = useState<'asc' | 'desc' | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [processing, setProcessing] = useState<string | null>(null);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
@@ -307,11 +308,25 @@ const AuditPayoutManagement: React.FC = () => {
     [currentMonthRecords]
   );
 
-  const filteredRecords = useMemo(() => readyForReview.filter(r => 
-    (r.customer_name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) ||
-    (r.agent_name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) ||
-    (r.reference_number || '').toLowerCase().includes((searchTerm || '').toLowerCase())
-  ), [readyForReview, searchTerm]);
+  const filteredRecords = useMemo(() => {
+    let records = readyForReview.filter(r => 
+      (r.customer_name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) ||
+      (r.agent_name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) ||
+      (r.reference_number || '').toLowerCase().includes((searchTerm || '').toLowerCase())
+    );
+    
+    if (sortAgentDirection) {
+      records = records.sort((a, b) => {
+        const nameA = (a.agent_name || '').toLowerCase();
+        const nameB = (b.agent_name || '').toLowerCase();
+        if (nameA < nameB) return sortAgentDirection === 'asc' ? -1 : 1;
+        if (nameA > nameB) return sortAgentDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    
+    return records;
+  }, [readyForReview, searchTerm, sortAgentDirection]);
 
   const pendingPayoutsSum = readyForReview
     .reduce((sum, r) => {
@@ -578,7 +593,15 @@ const AuditPayoutManagement: React.FC = () => {
                           </button>
                         </th>
                         <th className="py-4 px-6">Customer & Reference</th>
-                        <th className="py-4 px-6">Agent</th>
+                        <th 
+                          className="py-4 px-6 cursor-pointer hover:text-slate-700 transition-colors"
+                          onClick={() => setSortAgentDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                        >
+                          <div className="flex items-center gap-1">
+                            Agent 
+                            <ArrowUpDown className={`w-3 h-3 ${sortAgentDirection ? 'text-blue-600' : ''}`} />
+                          </div>
+                        </th>
                         <th className="py-4 px-6">Booking Details</th>
                         <th className="py-4 px-6">Financials</th>
                         <th className="py-4 px-6">Status</th>

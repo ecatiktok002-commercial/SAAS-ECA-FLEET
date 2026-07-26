@@ -313,6 +313,15 @@ export default function SignAgreement() {
                 return [agreement.payment_receipt];
               }
             })()}
+            icLicensePhotos={(() => {
+              if (!agreement.ic_license_photos) return [];
+              try {
+                const parsed = typeof agreement.ic_license_photos === 'string' ? JSON.parse(agreement.ic_license_photos) : agreement.ic_license_photos;
+                return Array.isArray(parsed) ? parsed : [agreement.ic_license_photos];
+              } catch (e) {
+                return Array.isArray(agreement.ic_license_photos) ? agreement.ic_license_photos : [agreement.ic_license_photos];
+              }
+            })()}
           />
         )}
 
@@ -456,12 +465,12 @@ export default function SignAgreement() {
             
             <div className="space-y-3">
               <div className="bg-white p-4 print:p-2 rounded-xl print:rounded-none border border-slate-200 print:border-black shadow-sm print:shadow-none text-xs print:text-[8pt] text-slate-700 print:text-black text-justify">
-                <p className="mb-2">1. <strong>Tujuan Penggunaan:</strong> Kenderaan ini hanya digunakan untuk tujuan perjalanan, pelancongan, rekreasi, percutian, lawatan keluarga/rakan atau perjalanan tidak berbayar. Kenderaan ini tidak boleh digunakan untuk e-hailing, Grab, penghantaran makanan/barang, membawa penumpang berbayar, courier, perlumbaan, aktiviti haram, towing, sub-rental, pinjam kepada pihak ketiga, atau kegunaan di luar syarat.</p>
-                <p className="mb-2">2. <strong>Pematuhan Undang-Undang:</strong> Kenderaan ini tidak boleh digunakan untuk sebarang aktiviti haram atau menyalahi undang-undang Malaysia. Penyewa bertanggungjawab sepenuhnya ke atas sebarang saman, kompaun, atau tindakan undang-undang yang terbit semasa tempoh sewaan.</p>
-                <p className="mb-2">3. <strong>Kerosakan & Kemusnahan:</strong> Penyewa bertanggungjawab atas sebarang kerosakan, kemalangan, atau kehilangan kenderaan (kecurian) semasa tempoh sewaan. Kos baik pulih akan ditolak daripada deposit keselamatan, dan baki kos (jika ada) wajib ditanggung oleh penyewa.</p>
-                <p className="mb-2">4. <strong>Lewat Pulang:</strong> Denda akan dikenakan jika kenderaan tidak dipulangkan pada tarikh dan masa yang telah dipersetujui tanpa notis awal.</p>
-                <p className="mb-2">5. <strong>Kebersihan:</strong> Kenderaan mesti dipulangkan dalam keadaan bersih. Denda pembersihan akan dikenakan jika kenderaan dipulangkan dalam keadaan kotor yang melampau atau berbau (seperti asap rokok/durian).</p>
-                <p>6. <strong>Persetujuan PDPA:</strong> Selaras dengan Akta Perlindungan Data Peribadi 2010 (PDPA), penyewa bersetuju dan membenarkan pihak syarikat untuk mengumpul, menyimpan, dan memproses data peribadi seperti salinan Kad Pengenalan (IC), Lesen Memandu, gambar, dan rekod sewaan untuk tujuan pengesahan, rekod perniagaan, dan perlindungan undang-undang.</p>
+                <p className="mb-2"><strong>1. Tujuan Penggunaan:</strong> Kenderaan hanya untuk kegunaan persendirian seperti perjalanan, pelancongan, rekreasi atau lawatan keluarga/rakan. Dilarang digunakan untuk e-hailing, penghantaran, membawa penumpang berbayar, perlumbaan, aktiviti haram, towing, sub-rental atau dipinjamkan kepada pihak ketiga.</p>
+                <p className="mb-2"><strong>2. Saman dan Kesalahan Trafik:</strong> Penyewa bertanggungjawab sepenuhnya atas semua saman, kompaun, parkir, tol atau kesalahan yang berlaku sepanjang tempoh sewaan. Tanggungjawab penyewa adalah berdasarkan tarikh dan masa kesalahan dilakukan, bukan tarikh saman diterima, dikesan atau dimaklumkan oleh pihak syarikat. Sekiranya saman hanya muncul selepas tempoh sewaan tamat, penyewa tetap wajib membayar jumlah sebenar yang dikenakan, termasuk sebarang kenaikan kompaun atau penalti.</p>
+                <p className="mb-2"><strong>3. Kerosakan dan Kehilangan:</strong> Penyewa bertanggungjawab atas kerosakan, kemalangan, kehilangan atau kecurian sepanjang tempoh sewaan. Kos akan ditolak daripada deposit dan baki, jika ada, wajib dibayar oleh penyewa.</p>
+                <p className="mb-2"><strong>4. Lewat Pulang:</strong> Caj lewat akan dikenakan sekiranya kenderaan tidak dipulangkan pada tarikh dan masa yang dipersetujui tanpa kelulusan awal pihak syarikat.</p>
+                <p className="mb-2"><strong>5. Kebersihan:</strong> Kenderaan mesti dipulangkan dalam keadaan bersih. Caj pembersihan akan dikenakan bagi kekotoran melampau, kesan muntah, bau rokok, vape, durian atau bau lain yang memerlukan pembersihan khas.</p>
+                <p><strong>6. Persetujuan Data Peribadi:</strong> Penyewa bersetuju membenarkan pihak syarikat mengumpul, menyimpan dan memproses maklumat peribadi seperti IC, Lesen Memandu, gambar dan rekod sewaan untuk tujuan pengesahan, pengurusan sewaan, tuntutan, keselamatan dan perlindungan undang-undang.</p>
               </div>
 
               {/* Rules Grid */}
