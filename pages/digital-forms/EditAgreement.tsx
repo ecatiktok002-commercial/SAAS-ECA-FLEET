@@ -1,7 +1,7 @@
 import { supabase } from '../../services/supabase';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, Upload, CheckCircle2, Eye, Trash2, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, Upload, CheckCircle2, Eye, Trash2, Loader2, Wand2 } from 'lucide-react';
 import { addDays, differenceInDays, parseISO, format, isValid } from 'date-fns';
 import { getNowMYT, formatInMYT, utcToMyt } from '../../utils/dateUtils';
 import { apiService } from '../../services/apiService';
@@ -10,6 +10,7 @@ import * as auditService from '../../services/auditService';
 import { useAuth } from '../../context/AuthContext';
 import { openDataURL } from '../../utils/fileUtils';
 import toast from 'react-hot-toast';
+import { compressImage } from '../../services/imageCompression';
 
 export default function EditAgreement() {
   const { id } = useParams();
@@ -354,16 +355,11 @@ export default function EditAgreement() {
       // Trigger OCR automatically on the first new file if no date is set
       if (!formData.transaction_date && !agreement?.transaction_date && firstFile && (firstFile.type.startsWith('image/') || firstFile.type === 'application/pdf')) {
         setOcrLoading(true);
-        const reader = new FileReader();
-        reader.readAsDataURL(firstFile);
-        reader.onload = async () => {
+        const performOcr = async () => {
           try {
-            const base64Data = (reader.result as string).split(',')[1];
+            const receiptUrl = await uploadAgreementImage(subscriberId!, firstFile, 'temp_ocr');
             const { data, error } = await supabase.functions.invoke('receipt-ocr', {
-              body: { 
-                base64Image: base64Data,
-                mimeType: firstFile.type 
-              }
+              body: { receiptUrl }
             });
             if (error) throw error;
             if (data && data.result && data.result !== 'Cash') {
@@ -376,13 +372,57 @@ export default function EditAgreement() {
             } else if (data && data.result === 'Cash') {
                toast.success("OCR detected Cash. Please input date manually if applicable.");
             }
-          } catch (err) {
+          } catch (err: any) {
             console.error('OCR Error:', err);
+            toast.error(err?.message || "Failed to read receipt date automatically.");
           } finally {
             setOcrLoading(false);
           }
         };
+        performOcr();
       }
+    }
+  };
+
+  const handleManualOcr = async () => {
+    setOcrLoading(true);
+    try {
+      let bodyData: any = {};
+      if (paymentReceipts.length > 0) {
+        const firstFile = paymentReceipts[0];
+        const receiptUrl = await uploadAgreementImage(subscriberId!, firstFile, 'temp_ocr');
+        bodyData = { receiptUrl };
+      } else if (existingReceipts.length > 0) {
+        bodyData = { receiptUrl: existingReceipts[0] };
+      } else {
+        toast.error("No receipt to scan");
+        setOcrLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('receipt-ocr', {
+        body: bodyData
+      });
+      if (error) throw error;
+      if (data && data.result && data.result !== 'Cash') {
+        const parsedDate = new Date(data.result);
+        if (!isNaN(parsedDate.getTime())) {
+          const formattedDate = parsedDate.toISOString().split('T')[0];
+          setFormData(prev => ({ ...prev, transaction_date: formattedDate }));
+          toast.success(`OCR detected date: ${formattedDate}`);
+        } else {
+          toast.error(`Could not parse date: ${data.result}`);
+        }
+      } else if (data && data.result === 'Cash') {
+         toast.success("OCR detected Cash. Please input date manually if applicable.");
+      } else {
+         toast.error("No date found on receipt.");
+      }
+    } catch (err: any) {
+      console.error('OCR Error:', err);
+      toast.error(err?.message || "Failed to read receipt date automatically.");
+    } finally {
+      setOcrLoading(false);
     }
   };
 
@@ -925,10 +965,21 @@ export default function EditAgreement() {
               <div className="sm:col-span-2">
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-sm font-medium text-slate-700">Transaction Date (Leave empty for OCR auto-detection)</label>
-                  {ocrLoading && (
+                  {ocrLoading ? (
                     <span className="text-xs font-medium text-blue-600 flex items-center gap-1">
                       <Loader2 className="w-3 h-3 animate-spin" /> Scanning receipt...
                     </span>
+                  ) : (
+                    (!formData.transaction_date && (existingReceipts.length > 0 || paymentReceipts.length > 0)) && (
+                      <button
+                        type="button"
+                        onClick={handleManualOcr}
+                        disabled={isLocked}
+                        className="text-xs font-medium text-emerald-600 hover:text-emerald-700 flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-md transition-colors"
+                      >
+                        <Wand2 className="w-3.5 h-3.5" /> Auto-Detect Date
+                      </button>
+                    )
                   )}
                 </div>
                 <input

@@ -6,6 +6,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+function arrayBufferToBase64(buffer: ArrayBuffer) {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
+  const chunkSize = 8192;
+  for (let i = 0; i < len; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode.apply(null, chunk as any);
+  }
+  return btoa(binary);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -32,7 +44,7 @@ serve(async (req) => {
        // Fetch the image from URL
        const imageResp = await fetch(receiptUrl);
        const imageBuffer = await imageResp.arrayBuffer();
-       const base64Data = btoa(String.fromCharCode(...new Uint8Array(imageBuffer)));
+       const base64Data = arrayBufferToBase64(imageBuffer);
        const contentType = imageResp.headers.get("content-type") || 'image/jpeg';
        
        imagePart = {
@@ -65,7 +77,7 @@ serve(async (req) => {
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       contents: [prompt, imagePart],
       config: {
         temperature: 0,
