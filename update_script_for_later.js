@@ -1,22 +1,25 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import fs from 'fs';
+import { GoogleGenAI } from '@google/genai';
+
 dotenv.config();
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL.replace(/^["']|["']$/g, '');
 const SUPABASE_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY).replace(/^["']|["']$/g, '');
-
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const ai = new GoogleGenAI({ apiKey: process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY });
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 function log(msg) {
   console.log(msg);
-  fs.appendFileSync('scan-june-july.log', msg + '\n');
+  fs.appendFileSync('native_scan.log', msg + '\n');
 }
 
 async function runBatch() {
-  log("Starting batch OCR scan for June and July (Descending)...");
+  log("Starting safe batch OCR scan for June and July (Descending)...");
   
   const { data: agreements, error } = await supabase.from('agreements')
     .select('id, payment_receipt, created_at, transaction_date')
@@ -37,10 +40,9 @@ async function runBatch() {
   for (let i = 0; i < agreements.length; i++) {
     const agreement = agreements[i];
     
-    // Skip empty marker
     if (agreement.transaction_date === ' ') continue;
 
-    log(`\nProcessing ${i+1}/${agreements.length}: Agreement ${agreement.id}`);
+    log(`\nProcessing ${i+1}/${agreements.length}: Agreement ${agreement.id} (Created: ${agreement.created_at})`);
     
     let receipts = [];
     try {
@@ -59,35 +61,52 @@ async function runBatch() {
 
     let detectedDates = [];
     let rateLimited = false;
-
+    
     for (const receiptUrl of receipts) {
       try {
-        const res = await fetch(SUPABASE_URL + '/functions/v1/receipt-ocr', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY },
-            body: JSON.stringify({ receiptUrl })
-        });
+        log(`Scanning receipt: ${receiptUrl}`);
         
-        if (res.status === 429) { rateLimited = true; break; }
+        const imageResp = await fetch(receiptUrl);
+        const imageBuffer = await imageResp.arrayBuffer();
+        const mimeType = imageResp.headers.get("content-type") || 'image/jpeg';
+        
+        const base64Data = Buffer.from(imageBuffer).toString('base64');
+        
+        const prompt = `
+          Extract the TRANSACTION DATE from this receipt. Return ONLY the date formatted as YYYY-MM-DD. If missing the year, use 2026. If no date, return "Cash".
+        `;
 
-        const text = await res.text();
-        try {
-            const data = JSON.parse(text);
-            if (data.error && typeof data.error === 'string' && data.error.includes('429')) {
-               rateLimited = true; break;
-            } else if (data.result && data.result !== 'Cash') {
-                const parsedDate = new Date(data.result.replace(/["']/g, '').trim());
-                if (!isNaN(parsedDate.getTime())) {
-                    detectedDates.push(parsedDate.toISOString().split('T')[0]);
-                }
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.0-flash',
+          contents: [
+            { text: prompt },
+            { inlineData: { data: base64Data, mimeType } }
+          ],
+          config: {
+            temperature: 0,
+          }
+        });
+
+        const dateOrCash = response.text?.trim() || "Cash";
+        
+        if (dateOrCash !== 'Cash') {
+            const parsedDate = new Date(dateOrCash.replace(/["']/g, '').trim());
+            if (!isNaN(parsedDate.getTime())) {
+                detectedDates.push(parsedDate.toISOString().split('T')[0]);
             }
-        } catch(e) {}
-      } catch (err) {}
+        }
+      } catch (err) {
+        log("Error scanning receipt: " + err.message);
+        if (err.message && err.message.includes('429')) {
+            rateLimited = true;
+            break;
+        }
+      }
       
-      // Delay 6.5s
-      await sleep(6500); 
+      // Delay to respect 15 RPM free tier
+      await sleep(5000); 
     }
-
+    
     if (rateLimited) {
        log("Rate limit hit. Waiting 65s...");
        await sleep(65000);
@@ -104,7 +123,9 @@ async function runBatch() {
       log("No date found. Marked empty.");
     }
   }
+
   log("Batch scan complete.");
 }
 
+// Do not auto-run, just prepare it
 runBatch();

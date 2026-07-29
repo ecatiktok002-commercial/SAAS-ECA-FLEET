@@ -32,8 +32,8 @@ serve(async (req) => {
     }
 
     const ai = new GoogleGenAI({ apiKey: Deno.env.get("GEMINI_API_KEY") });
-
     let imagePart: any = {};
+
     if (base64Image) {
        imagePart = {
           inlineData: {
@@ -59,6 +59,7 @@ serve(async (req) => {
     const prompt = `
       You are an expert OCR and data extraction system analyzing a payment receipt (often from Malaysian banks like Maybank, CIMB, RHB, TnG eWallet, DuitNow, or cash receipts).
       Your goal is to extract the TRANSACTION DATE from this receipt.
+
       Look closely for any printed, faded, or handwritten dates. 
       It might be labeled as "Date", "Tarikh", "Txn Date", "Date/Time", or have no label at all.
       It could appear in various formats, such as:
@@ -78,7 +79,7 @@ serve(async (req) => {
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.0-flash',
       contents: [prompt, imagePart],
       config: {
         temperature: 0,
@@ -91,7 +92,6 @@ serve(async (req) => {
       JSON.stringify({ result: dateOrCash }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
-
   } catch (error) {
     return new Response(
       JSON.stringify({ error: error.message }),
