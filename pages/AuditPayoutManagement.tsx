@@ -217,28 +217,47 @@ const AuditPayoutManagement: React.FC = () => {
         return;
       }
 
-      // We need to fetch full agreement details to get IC and Phone. Let's do it asynchronously.
+      // We need to fetch full agreement and customer details to get ic_passport and phone_number. Let's do it asynchronously.
       toast.promise(
         (async () => {
           // Fetch full agreements for these form_ids to get IC and Phone
           const formIds = historyRecords.map(r => r.form_id);
-          const { data: fullAgreements } = await supabase
+          const { data: fullAgreements, error: agFetchError } = await supabase
             .from('agreements')
-            .select('id, identity_number, ic_number, customer_phone, transaction_date')
+            .select('id, identity_number, customer_phone, customer_id, transaction_date')
             .in('id', formIds);
             
+          if (agFetchError) {
+            console.error('Error fetching agreement details for Excel export:', agFetchError);
+          }
+            
           const agreementMap = new Map(fullAgreements?.map(a => [a.id, a]) || []);
+
+          // Also fetch linked customer details as fallback for ic_passport and phone_number
+          const customerIds = Array.from(new Set(fullAgreements?.map(a => a.customer_id).filter(Boolean))) as string[];
+          let customerMap = new Map<string, any>();
+          if (customerIds.length > 0) {
+            const { data: fullCustomers } = await supabase
+              .from('customers')
+              .select('id, ic_passport, phone_number')
+              .in('id', customerIds);
+            if (fullCustomers) {
+              customerMap = new Map(fullCustomers.map(c => [c.id, c]));
+            }
+          }
           
           const finalExcelData = historyRecords.map(record => {
             const agreement = agreementMap.get(record.form_id);
-            const ic = agreement?.identity_number || agreement?.ic_number || 'N/A';
-            const phone = agreement?.customer_phone || 'N/A';
+            const customer = agreement?.customer_id ? customerMap.get(agreement.customer_id) : null;
+
+            const icPassport = agreement?.identity_number || customer?.ic_passport || (record as any).ic_passport || (record as any).identity_number || 'N/A';
+            const phoneNumber = agreement?.customer_phone || customer?.phone_number || (record as any).phone_number || (record as any).customer_phone || 'N/A';
             const txnDate = agreement?.transaction_date || (record as any).transaction_date;
             
             return {
               'Customer Name': record.customer_name || 'N/A',
-              'IC': ic,
-              'Phone Number': phone,
+              'ic_passport': icPassport,
+              'phone_number': phoneNumber,
               'Car Plate': record.car_plate_number || 'N/A',
               'Duration (Days)': record.booking_duration || 0,
               'Start Date': record.booking_start_date ? safeFormat(record.booking_start_date, 'dd/MM/yyyy') : safeFormat(record.form_start, 'dd/MM/yyyy'),
