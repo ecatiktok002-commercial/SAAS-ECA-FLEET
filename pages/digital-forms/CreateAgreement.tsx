@@ -257,7 +257,6 @@ export default function CreateAgreement() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const newFiles = Array.from(e.target.files);
-      const firstFile = newFiles[0];
 
       setPaymentReceipts(prev => {
         const totalCount = prev.length + newFiles.length;
@@ -271,36 +270,7 @@ export default function CreateAgreement() {
       });
       e.target.value = '';
 
-      // Trigger OCR automatically on the first new file
-      if (!formData.transaction_date && firstFile && (firstFile.type.startsWith('image/') || firstFile.type === 'application/pdf')) {
-        setOcrLoading(true);
-        const performOcr = async () => {
-          try {
-            const receiptUrl = await uploadAgreementImage(subscriberId!, firstFile, 'temp_ocr');
-            const { data, error } = await supabase.functions.invoke('receipt-ocr', {
-              body: { receiptUrl }
-            });
-            if (error) throw error;
-            if (data && data.result && data.result !== 'Cash') {
-              const parsedDate = new Date(data.result);
-              if (!isNaN(parsedDate.getTime())) {
-                const formattedDate = parsedDate.toISOString().split('T')[0];
-                setFormData(prev => ({ ...prev, transaction_date: formattedDate }));
-                toast.success(`OCR detected date: ${formattedDate}`);
-              }
-            } else if (data && data.result === 'Cash') {
-               toast.success("OCR detected Cash. Please input date manually if applicable.");
-            }
-          } catch (err: any) {
-            console.error('OCR Error:', err);
-            toast.error(err?.message || "Failed to read receipt date automatically.");
-          } finally {
-            setOcrLoading(false);
-          }
-        };
-        performOcr();
       }
-    }
   };
 
   const handleManualOcr = async () => {
@@ -311,26 +281,48 @@ export default function CreateAgreement() {
 
     setOcrLoading(true);
     try {
-      const firstFile = paymentReceipts[0];
-      const receiptUrl = await uploadAgreementImage(subscriberId!, firstFile, 'temp_ocr');
-      
-      const { data, error } = await supabase.functions.invoke('receipt-ocr', {
-        body: { receiptUrl }
-      });
-      if (error) throw error;
-      if (data && data.result && data.result !== 'Cash') {
-        const parsedDate = new Date(data.result);
-        if (!isNaN(parsedDate.getTime())) {
-          const formattedDate = parsedDate.toISOString().split('T')[0];
-          setFormData(prev => ({ ...prev, transaction_date: formattedDate }));
-          toast.success(`OCR detected date: ${formattedDate}`);
-        } else {
-          toast.error(`Could not parse date: ${data.result}`);
+      const detectedDates: string[] = [];
+      for (const file of paymentReceipts) {
+        if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+          const receiptUrl = await uploadAgreementImage(subscriberId!, file, 'temp_ocr');
+          const { data, error } = await supabase.functions.invoke('receipt-ocr', {
+            body: { receiptUrl }
+          });
+          console.log("OCR Result for", receiptUrl, ":", { data, error });
+          
+          if (error) {
+             throw new Error(error.message || "Failed to parse receipt via AI due to Rate Limit or API Error");
+          }
+          if (data?.error) {
+             let errMsg = data.error;
+             try {
+                const parsed = JSON.parse(data.error);
+                if (parsed.error && parsed.error.message) errMsg = parsed.error.message;
+             } catch(e) {}
+             throw new Error(errMsg);
+          }
+
+          if (data && data.result && data.result !== 'Cash') {
+            // Some results might have extra quotes or spaces
+            const cleanResult = data.result.replace(/["']/g, '').trim();
+            const parsedDate = new Date(cleanResult);
+            if (!isNaN(parsedDate.getTime())) {
+              detectedDates.push(parsedDate.toISOString().split('T')[0]);
+            } else {
+              console.warn("Could not parse date:", cleanResult);
+            }
+          }
         }
-      } else if (data && data.result === 'Cash') {
-         toast.success("OCR detected Cash. Please input date manually if applicable.");
+      }
+
+      if (detectedDates.length > 0) {
+        setFormData(prev => {
+          const uniqueDates = Array.from(new Set(detectedDates)).filter(Boolean).join(', ');
+          return { ...prev, transaction_date: uniqueDates };
+        });
+        toast.success(`OCR detected dates`);
       } else {
-         toast.error("No date found on receipt.");
+        toast.error("No valid dates found on receipts.");
       }
     } catch (err: any) {
       console.error('OCR Error:', err);
@@ -383,11 +375,20 @@ export default function CreateAgreement() {
         // Try OCR to get transaction date
         if (!transactionDate) {
           try {
-            const { data, error } = await supabase.functions.invoke('receipt-ocr', {
-              body: { receiptUrl: receiptUrls[0] }
-            });
-            if (data && data.result && data.result !== 'Cash') {
-              transactionDate = data.result;
+            const detectedDates: string[] = [];
+            for (const url of receiptUrls) {
+              const { data, error } = await supabase.functions.invoke('receipt-ocr', {
+                body: { receiptUrl: url }
+              });
+              if (!error && data && data.result && data.result !== 'Cash') {
+                const parsedDate = new Date(data.result);
+                if (!isNaN(parsedDate.getTime())) {
+                  detectedDates.push(parsedDate.toISOString().split('T')[0]);
+                }
+              }
+            }
+            if (detectedDates.length > 0) {
+              transactionDate = Array.from(new Set(detectedDates)).filter(Boolean).join(', ');
             }
           } catch (e) {
             console.error("OCR failed", e);
@@ -764,11 +765,12 @@ export default function CreateAgreement() {
                   )}
                 </div>
                 <input
-                  type="date"
+                  type="text"
                   name="transaction_date"
                   value={formData.transaction_date}
                   onChange={handleChange}
-                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  placeholder="YYYY-MM-DD (e.g. 2024-05-01, 2024-05-02)"
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm px-3"
                   disabled={ocrLoading}
                 />
               </div>

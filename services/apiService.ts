@@ -1478,7 +1478,7 @@ export const apiService = {
         throw new Error('Failed to generate signed URLs');
       }
 
-      return data?.map(item => item.signedUrl) || [];
+      return data?.map(item => item.signedUrl).filter((url): url is string => Boolean(url)) || [];
     });
   },
 
