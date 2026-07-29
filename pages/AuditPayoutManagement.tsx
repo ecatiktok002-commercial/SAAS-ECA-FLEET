@@ -44,6 +44,7 @@ import MatchyScanAlert from '../components/MatchyScanAlert';
 import { approveAmendment } from '../services/auditService';
 import toast from 'react-hot-toast';
 import { supabase } from '../services/supabase';
+import * as XLSX from 'xlsx';
 
 const safeFormat = (dateStr: string | Date | null | undefined, formatStr: string) => {
   if (!dateStr) return 'N/A';
@@ -195,6 +196,72 @@ const AuditPayoutManagement: React.FC = () => {
       toast.error('Failed to re-run Matchy scan');
     } finally {
       setProcessing(null);
+    }
+  };
+
+  const handleExportSalesToExcel = (history: PayoutHistory) => {
+    try {
+      // Find all records that match this history's month_year and were paid out
+      const historyRecords = records.filter(r => {
+        let recordDate = new Date(r.booking_end_date || r.form_end);
+        if (!isValid(recordDate)) {
+          recordDate = new Date(r.form_start);
+        }
+        if (!isValid(recordDate)) return false;
+        
+        return formatInMYT(recordDate, 'MMMM yyyy') === history.month_year && r.payout_status === 'paid';
+      });
+
+      if (historyRecords.length === 0) {
+        toast.error('No matching sales records found for this period.');
+        return;
+      }
+
+      // We need to fetch full agreement details to get IC and Phone. Let's do it asynchronously.
+      toast.promise(
+        (async () => {
+          // Fetch full agreements for these form_ids to get IC and Phone
+          const formIds = historyRecords.map(r => r.form_id);
+          const { data: fullAgreements } = await supabase
+            .from('agreements')
+            .select('id, identity_number, ic_number, customer_phone, transaction_date')
+            .in('id', formIds);
+            
+          const agreementMap = new Map(fullAgreements?.map(a => [a.id, a]) || []);
+          
+          const finalExcelData = historyRecords.map(record => {
+            const agreement = agreementMap.get(record.form_id);
+            const ic = agreement?.identity_number || agreement?.ic_number || 'N/A';
+            const phone = agreement?.customer_phone || 'N/A';
+            const txnDate = agreement?.transaction_date || (record as any).transaction_date;
+            
+            return {
+              'Customer Name': record.customer_name || 'N/A',
+              'IC': ic,
+              'Phone Number': phone,
+              'Car Plate': record.car_plate_number || 'N/A',
+              'Duration (Days)': record.booking_duration || 0,
+              'Start Date': record.booking_start_date ? safeFormat(record.booking_start_date, 'dd/MM/yyyy') : safeFormat(record.form_start, 'dd/MM/yyyy'),
+              'End Date': record.booking_end_date ? safeFormat(record.booking_end_date, 'dd/MM/yyyy') : safeFormat(record.form_end, 'dd/MM/yyyy'),
+              'Revenue': record.booking_price || record.form_price || 0,
+              'Transaction Status/Date': txnDate || (record.payment_receipt && record.payment_receipt !== '[]' && record.payment_receipt !== 'null' ? 'Cash' : 'N/A')
+            };
+          });
+
+          const worksheet = XLSX.utils.json_to_sheet(finalExcelData);
+          const workbook = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(workbook, worksheet, 'Sales Report');
+          XLSX.writeFile(workbook, `Sales_Report_${history.month_year.replace(/\s+/g, '_')}.xlsx`);
+        })(),
+        {
+          loading: 'Generating Excel...',
+          success: 'Excel downloaded successfully!',
+          error: 'Failed to generate Excel'
+        }
+      );
+    } catch (err) {
+      console.error('Export error:', err);
+      toast.error('Failed to export to Excel');
     }
   };
 
@@ -841,7 +908,18 @@ const AuditPayoutManagement: React.FC = () => {
 
                     {expandedHistoryId === history.id && (
                       <div className="px-6 pb-6 bg-slate-50/50 border-t border-slate-100">
-                        <div className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                        <div className="mt-4 flex justify-end">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleExportSalesToExcel(history);
+                            }}
+                            className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all flex items-center gap-2"
+                          >
+                            Download Sales Report (Excel)
+                          </button>
+                        </div>
+                        <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
                           <table className="w-full text-left border-collapse">
                             <thead>
                               <tr className="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-wider">

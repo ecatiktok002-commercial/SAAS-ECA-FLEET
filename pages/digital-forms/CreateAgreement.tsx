@@ -1,12 +1,14 @@
+import { supabase } from '../../services/supabase';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Save, Upload, CheckCircle2, X, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, Upload, CheckCircle2, X, Trash2, Loader2 } from 'lucide-react';
 import { addDays, differenceInDays, parseISO, format, isValid } from 'date-fns';
 import { getNowMYT, formatInMYT, utcToMyt, getMYTTimeString } from '../../utils/dateUtils';
 import { apiService } from '../../services/apiService';
 import { uploadAgreementImage } from '../../services/storageService';
 import { parseBookingDate } from '../../services/bookingService';
 import { useAuth } from '../../context/AuthContext';
+import toast from 'react-hot-toast';
 
 export default function CreateAgreement() {
   const { subscriberId, userId, userName, userUid, staffRole } = useAuth();
@@ -35,11 +37,13 @@ export default function CreateAgreement() {
     pickup_time: '',
     return_time: '',
     need_einvoice: false,
+    transaction_date: '',
     booking_id: bookingId || '',
   });
   const [paymentReceipts, setPaymentReceipts] = useState<File[]>([]);
   const [icLicensePhotos, setIcLicensePhotos] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
   const [error, setError] = useState('');
   const [highlightReturnDate, setHighlightReturnDate] = useState(false);
   const [highlightReturnTime, setHighlightReturnTime] = useState(false);
@@ -250,8 +254,10 @@ export default function CreateAgreement() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
+    if (e.target.files && e.target.files.length > 0) {
       const newFiles = Array.from(e.target.files);
+      const firstFile = newFiles[0];
+
       setPaymentReceipts(prev => {
         const totalCount = prev.length + newFiles.length;
         if (totalCount > 10) {
@@ -263,6 +269,39 @@ export default function CreateAgreement() {
         return [...prev, ...newFiles];
       });
       e.target.value = '';
+
+      // Trigger OCR automatically on the first new file
+      if (!formData.transaction_date && firstFile && (firstFile.type.startsWith('image/') || firstFile.type === 'application/pdf')) {
+        setOcrLoading(true);
+        const reader = new FileReader();
+        reader.readAsDataURL(firstFile);
+        reader.onload = async () => {
+          try {
+            const base64Data = (reader.result as string).split(',')[1];
+            const { data, error } = await supabase.functions.invoke('receipt-ocr', {
+              body: { 
+                base64Image: base64Data,
+                mimeType: firstFile.type 
+              }
+            });
+            if (error) throw error;
+            if (data && data.result && data.result !== 'Cash') {
+              const parsedDate = new Date(data.result);
+              if (!isNaN(parsedDate.getTime())) {
+                const formattedDate = parsedDate.toISOString().split('T')[0];
+                setFormData(prev => ({ ...prev, transaction_date: formattedDate }));
+                toast.success(`OCR detected date: ${formattedDate}`);
+              }
+            } else if (data && data.result === 'Cash') {
+               toast.success("OCR detected Cash. Please input date manually if applicable.");
+            }
+          } catch (err) {
+            console.error('OCR Error:', err);
+          } finally {
+            setOcrLoading(false);
+          }
+        };
+      }
     }
   };
 
@@ -299,11 +338,26 @@ export default function CreateAgreement() {
 
     try {
       let receiptData = null;
+      let transactionDate = formData.transaction_date || null;
       if (paymentReceipts.length > 0) {
         const receiptUrls = await Promise.all(
           paymentReceipts.map(file => uploadAgreementImage(subscriberId, file, 'receipts'))
         );
         receiptData = JSON.stringify(receiptUrls);
+
+        // Try OCR to get transaction date
+        if (!transactionDate) {
+          try {
+            const { data, error } = await supabase.functions.invoke('receipt-ocr', {
+              body: { receiptUrl: receiptUrls[0] }
+            });
+            if (data && data.result && data.result !== 'Cash') {
+              transactionDate = data.result;
+            }
+          } catch (e) {
+            console.error("OCR failed", e);
+          }
+        }
       }
       
       let icLicenseDataArray: string[] | undefined = undefined;
@@ -366,6 +420,7 @@ export default function CreateAgreement() {
         return_time: formData.return_time,
         need_einvoice: formData.need_einvoice,
         payment_receipt: receiptData,
+        transaction_date: transactionDate,
         ic_license_photos: icLicenseDataArray,
         status: 'pending',
         booking_id: formData.booking_id || null
@@ -654,6 +709,25 @@ export default function CreateAgreement() {
               <>
               <div className="bg-slate-50 p-3 rounded-lg font-medium text-slate-900 mb-4">Payment & Receipt</div>
               <div className="grid grid-cols-1 gap-y-4 gap-x-6 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-slate-700">Transaction Date</label>
+                  {ocrLoading && (
+                    <span className="text-xs font-medium text-blue-600 flex items-center gap-1">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Scanning receipt...
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="date"
+                  name="transaction_date"
+                  value={formData.transaction_date}
+                  onChange={handleChange}
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  disabled={ocrLoading}
+                />
+              </div>
+
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Payment Receipt</label>
                 <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-lg hover:bg-slate-50 transition-colors">

@@ -140,6 +140,7 @@ export interface Agreement {
   return_time?: string;
   need_einvoice?: boolean;
   payment_receipt?: string;
+  transaction_date?: string | null;
   signature_data?: string;
   photos_url?: string[];
   ic_license_photos?: string[];
@@ -216,6 +217,7 @@ export interface AuditRecord {
   form_start: string;
   form_end: string;
   payment_receipt: string | null;
+  transaction_date?: string | null;
   ic_license_photos?: string | null;
   commission_earned: number;
   payout_status: 'pending' | 'pending_review' | 'approved' | 'paid';

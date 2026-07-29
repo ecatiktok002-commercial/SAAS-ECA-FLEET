@@ -150,7 +150,6 @@ export const runMatchyScan = async (subscriberId: string, monthStartDate: string
           .from('agreements')
           .update({ 
             booking_id: matchingBooking.id,
-            status: 'completed',
             payout_status: 'pending_review'
           })
           .eq('id', agreement.id);

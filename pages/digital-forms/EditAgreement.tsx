@@ -1,6 +1,7 @@
+import { supabase } from '../../services/supabase';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, Upload, CheckCircle2, Eye, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, Upload, CheckCircle2, Eye, Trash2, Loader2 } from 'lucide-react';
 import { addDays, differenceInDays, parseISO, format, isValid } from 'date-fns';
 import { getNowMYT, formatInMYT, utcToMyt } from '../../utils/dateUtils';
 import { apiService } from '../../services/apiService';
@@ -36,6 +37,7 @@ export default function EditAgreement() {
     duration_days: '',
     pickup_time: '',
     return_time: '',
+    transaction_date: '',
     need_einvoice: false,
   });
   const [paymentReceipts, setPaymentReceipts] = useState<File[]>([]);
@@ -45,6 +47,7 @@ export default function EditAgreement() {
   const [removedExistingIcLicense, setRemovedExistingIcLicense] = useState<string[]>([]);
   const [pendingReceipts, setPendingReceipts] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState('');
   const [highlightReturnDate, setHighlightReturnDate] = useState(false);
@@ -154,6 +157,7 @@ export default function EditAgreement() {
           duration_days: data.duration_days?.toString() || '',
           pickup_time: data.pickup_time || '',
           return_time: data.return_time || '',
+          transaction_date: data.transaction_date || '',
           need_einvoice: data.need_einvoice || false,
         });
 
@@ -327,8 +331,9 @@ export default function EditAgreement() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
+    if (e.target.files && e.target.files.length > 0) {
       const newFiles = Array.from(e.target.files);
+      const firstFile = newFiles[0];
       const totalCount = existingReceipts.length + paymentReceipts.length + newFiles.length;
       
       if (totalCount > 10) {
@@ -345,6 +350,39 @@ export default function EditAgreement() {
       
       // Reset input value to allow re-selecting the same file
       e.target.value = '';
+
+      // Trigger OCR automatically on the first new file if no date is set
+      if (!formData.transaction_date && !agreement?.transaction_date && firstFile && (firstFile.type.startsWith('image/') || firstFile.type === 'application/pdf')) {
+        setOcrLoading(true);
+        const reader = new FileReader();
+        reader.readAsDataURL(firstFile);
+        reader.onload = async () => {
+          try {
+            const base64Data = (reader.result as string).split(',')[1];
+            const { data, error } = await supabase.functions.invoke('receipt-ocr', {
+              body: { 
+                base64Image: base64Data,
+                mimeType: firstFile.type 
+              }
+            });
+            if (error) throw error;
+            if (data && data.result && data.result !== 'Cash') {
+              const parsedDate = new Date(data.result);
+              if (!isNaN(parsedDate.getTime())) {
+                const formattedDate = parsedDate.toISOString().split('T')[0];
+                setFormData(prev => ({ ...prev, transaction_date: formattedDate }));
+                toast.success(`OCR detected date: ${formattedDate}`);
+              }
+            } else if (data && data.result === 'Cash') {
+               toast.success("OCR detected Cash. Please input date manually if applicable.");
+            }
+          } catch (err) {
+            console.error('OCR Error:', err);
+          } finally {
+            setOcrLoading(false);
+          }
+        };
+      }
     }
   };
 
@@ -366,6 +404,7 @@ export default function EditAgreement() {
 
     try {
       let receiptData = undefined;
+      let transactionDate: string | null | undefined = formData.transaction_date !== (agreement.transaction_date || '') ? (formData.transaction_date || null) : undefined;
       
       if (paymentReceipts.length > 0 || removedExistingReceipts.length > 0) {
         const newReceiptDataArray = await Promise.all(paymentReceipts.map(file => uploadAgreementImage(subscriberId, file, 'receipts')));
@@ -376,6 +415,20 @@ export default function EditAgreement() {
           receiptData = JSON.stringify(finalReceipts);
         } else {
           receiptData = null;
+        }
+
+        // Trigger OCR if we have new receipts and no manual date is set
+        if (newReceiptDataArray.length > 0 && !transactionDate && !formData.transaction_date) {
+          try {
+            const { data, error } = await supabase.functions.invoke('receipt-ocr', {
+              body: { receiptUrl: newReceiptDataArray[0] }
+            });
+            if (data && data.result && data.result !== 'Cash') {
+              transactionDate = data.result;
+            }
+          } catch (e) {
+            console.error("OCR failed", e);
+          }
         }
       }
 
@@ -435,6 +488,10 @@ export default function EditAgreement() {
 
       if (icLicenseDataArray !== undefined) {
         updates.ic_license_photos = icLicenseDataArray;
+      }
+
+      if (transactionDate !== undefined) {
+        updates.transaction_date = transactionDate;
       }
 
       if (receiptData !== undefined) {
@@ -862,6 +919,25 @@ export default function EditAgreement() {
                   value={formData.deposit}
                   onChange={handleChange}
                   className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm disabled:bg-slate-100 disabled:text-slate-500"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-slate-700">Transaction Date (Leave empty for OCR auto-detection)</label>
+                  {ocrLoading && (
+                    <span className="text-xs font-medium text-blue-600 flex items-center gap-1">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Scanning receipt...
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="date"
+                  name="transaction_date"
+                  value={formData.transaction_date}
+                  onChange={handleChange}
+                  className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+                  disabled={isLocked || ocrLoading}
                 />
               </div>
 
