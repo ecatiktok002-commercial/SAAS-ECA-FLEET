@@ -526,7 +526,7 @@ export const apiService = {
       let query = supabase.from('cars').select('*');
       query = applySubscriberFilter(query, targetSubscriberId);
 
-      const { data, error } = await query.order('created_at', { ascending: false }).limit(500);
+      const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) {
         logSupabaseError('getCars', error);
@@ -847,7 +847,7 @@ export const apiService = {
         query = query.lte('pickup_datetime', endDate);
       }
 
-      const { data, error } = await query.order('pickup_datetime', { ascending: false }).limit(500);
+      const { data, error } = await query.order('pickup_datetime', { ascending: false });
       
       if (error) {
         logSupabaseError('getBookings', error);
@@ -2030,7 +2030,7 @@ export const apiService = {
         query = query.lte('created_at', endDate);
       }
 
-      const { data, error } = await query.order('created_at', { ascending: false }).limit(500);
+      const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) {
         logSupabaseError('getAgreements', error);
@@ -2332,7 +2332,7 @@ export const apiService = {
         }
       }
 
-      const { data, error } = await query.order('created_at', { ascending: false }).limit(500);
+      const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) {
         logSupabaseError('getDigitalForms', error);
@@ -2509,7 +2509,7 @@ export const apiService = {
   },
 
   // Marketing Events
-  async getAuditRecords(subscriberId: string): Promise<AuditRecord[]> {
+  async getAuditRecords(subscriberId: string, startDate?: string, endDate?: string): Promise<AuditRecord[]> {
     validateSubscriber(subscriberId);
     const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
@@ -2519,7 +2519,14 @@ export const apiService = {
       
       query = applySubscriberFilter(query, targetSubscriberId);
 
-      const { data, error } = await query.order('form_id', { ascending: false }).limit(200);
+      if (startDate) {
+        query = query.gte('created_at', startDate);
+      }
+      if (endDate) {
+        query = query.lte('created_at', endDate);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) {
         logSupabaseError('getAuditRecords', error);
