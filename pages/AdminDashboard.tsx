@@ -120,8 +120,15 @@ const AdminDashboard: React.FC = () => {
     startOfLastWeek.setDate(startOfWeek.getDate() - 7);
     const startOfLastWeekStr = format(startOfLastWeek, 'yyyy-MM-dd');
 
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    const endOfWeekStr = format(endOfWeek, 'yyyy-MM-dd');
+
     const startOfMonth = new Date(mytDate.getFullYear(), mytDate.getMonth(), 1);
     const startOfMonthStr = format(startOfMonth, 'yyyy-MM-dd');
+    
+    const endOfMonth = new Date(mytDate.getFullYear(), mytDate.getMonth() + 1, 0);
+    const endOfMonthStr = format(endOfMonth, 'yyyy-MM-dd');
 
     // Past 6 months sales tracking
     const past6MonthsSales = Array.from({ length: 6 }).map((_, i) => {
@@ -150,9 +157,9 @@ const AdminDashboard: React.FC = () => {
       const matchDateStr = getMYTDateString(pickupDateObj);
       const price = a.total_price || 0;
       if (matchDateStr === todayStr) salesToday += price;
-      if (matchDateStr >= startOfWeekStr) salesThisWeek += price;
+      if (matchDateStr >= startOfWeekStr && matchDateStr <= endOfWeekStr) salesThisWeek += price;
       if (matchDateStr >= startOfLastWeekStr && matchDateStr < startOfWeekStr) salesLastWeek += price;
-      if (matchDateStr >= startOfMonthStr) salesThisMonth += price;
+      if (matchDateStr >= startOfMonthStr && matchDateStr <= endOfMonthStr) salesThisMonth += price;
 
       // Populate past 6 months
       for (const monthData of past6MonthsSales) {
@@ -235,7 +242,7 @@ const AdminDashboard: React.FC = () => {
     const agentMap = new Map<string, { name: string, total: number }>();
     completedAgreements.forEach(a => {
       const matchDateStr = getMYTDateString(getAgreementPickupDateTime(a));
-      if (matchDateStr >= startOfMonthStr) {
+      if (matchDateStr >= startOfMonthStr && matchDateStr <= endOfMonthStr) {
         const rawName = a.agent_name?.trim() || 'Unknown';
         const rawId = a.agent_id || a.created_by || '';
         
