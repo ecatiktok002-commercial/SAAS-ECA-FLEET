@@ -97,29 +97,11 @@ const AuditPayoutManagement: React.FC = () => {
   }, [selectedMonth]);
 
   const currentMonthRecords = useMemo(() => {
+    const targetMonthStr = formatInMYT(selectedMonth, 'yyyy-MM');
     return records.filter(r => {
       if (!r.form_start) return false;
-      let recordDate = typeof r.form_start === 'string' ? parseISO(r.form_start) : r.form_start;
-      
-      if (!isValid(recordDate) && typeof r.form_start === 'string') {
-        // Handle DD/MM/YYYY explicitly
-        if (r.form_start.includes('/')) {
-          const parts = r.form_start.split('/');
-          if (parts.length === 3) {
-            // Assume DD/MM/YYYY
-            recordDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-          }
-        }
-        
-        if (!isValid(recordDate)) {
-          recordDate = new Date(r.form_start);
-        }
-      }
-      
-      if (!isValid(recordDate)) return false;
-      
-      return recordDate.getFullYear() === selectedMonth.getFullYear() &&
-             recordDate.getMonth() === selectedMonth.getMonth();
+      const recordMonthStr = formatInMYT(r.form_start, 'yyyy-MM');
+      return recordMonthStr === targetMonthStr;
     });
   }, [records, selectedMonth]);
 

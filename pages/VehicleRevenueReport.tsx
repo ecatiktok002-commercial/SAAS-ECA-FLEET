@@ -2,22 +2,40 @@ import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/apiService';
-import { getAgreementPickupDateTime } from '../utils/dateUtils';
+import { getAgreementPickupDateTime, getAgreementReturnDateTime, formatInMYT } from '../utils/dateUtils';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell
 } from 'recharts';
-import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, getDaysInMonth } from 'date-fns';
+import { format } from 'date-fns';
 import { Car, DollarSign, Calendar, TrendingUp } from 'lucide-react';
 
 const VehicleRevenueReport: React.FC = () => {
   const { subscriberId } = useAuth();
-  const [selectedMonth, setSelectedMonth] = useState<Date>(startOfMonth(new Date()));
+  
+  // Current month start in MYT (+08:00)
+  const [selectedMonth, setSelectedMonth] = useState<Date>(() => {
+    const now = new Date();
+    const currentYear = formatInMYT(now, 'yyyy');
+    const currentMonth = formatInMYT(now, 'MM');
+    return new Date(`${currentYear}-${currentMonth}-01T00:00:00+08:00`);
+  });
 
-  // Generate last 12 months for selector
+  // Generate last 12 months for selector strictly in MYT (+08:00)
   const monthOptions = useMemo(() => {
-    const options = [];
+    const now = new Date();
+    const currentYear = parseInt(formatInMYT(now, 'yyyy'), 10);
+    const currentMonth = parseInt(formatInMYT(now, 'MM'), 10);
+    
+    const options: Date[] = [];
     for (let i = 0; i < 12; i++) {
-      options.push(startOfMonth(subMonths(new Date(), i)));
+      let y = currentYear;
+      let m = currentMonth - i;
+      while (m <= 0) {
+        m += 12;
+        y -= 1;
+      }
+      const mStr = m.toString().padStart(2, '0');
+      options.push(new Date(`${y}-${mStr}-01T00:00:00+08:00`));
     }
     return options;
   }, []);
@@ -45,45 +63,14 @@ const VehicleRevenueReport: React.FC = () => {
   const { vehicleData, totalRevenue, totalBookings, daysInMonth } = useMemo(() => {
     if (!data) return { vehicleData: [], totalRevenue: 0, totalBookings: 0, daysInMonth: 30 };
 
-    const monthDays = getDaysInMonth(selectedMonth);
-    const year = selectedMonth.getFullYear();
-    const month = selectedMonth.getMonth() + 1;
+    const year = parseInt(formatInMYT(selectedMonth, 'yyyy'), 10);
+    const month = parseInt(formatInMYT(selectedMonth, 'MM'), 10);
     const monthStr = month.toString().padStart(2, '0');
+    const monthDays = new Date(year, month, 0).getDate();
 
     // STRICTLY follow Frontend timezone (MYT +08:00) for the month boundaries
     const startMs = new Date(`${year}-${monthStr}-01T00:00:00+08:00`).getTime();
     const endMs = new Date(`${year}-${monthStr}-${monthDays.toString().padStart(2, '0')}T23:59:59.999+08:00`).getTime();
-
-    const getAgreementReturnDateTime = (agreement: any, pickup: Date): Date => {
-      if (agreement.actual_end_time) return new Date(agreement.actual_end_time);
-      if (agreement.duration_days) {
-        return new Date(pickup.getTime() + agreement.duration_days * 24 * 60 * 60 * 1000);
-      }
-      if (agreement.end_date) {
-        let dateStr = agreement.end_date;
-        if (dateStr.includes('/')) {
-          const parts = dateStr.split('/');
-          if (parts.length === 3) {
-            dateStr = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-          }
-        }
-        const timeStr = agreement.return_time || '12:00';
-        let formattedTime = timeStr;
-        const timeMatch = timeStr.match(/(\d+):(\d+)\s*(AM|PM)?/i);
-        if (timeMatch) {
-          let hours = parseInt(timeMatch[1], 10);
-          const minutes = timeMatch[2];
-          const modifier = timeMatch[3];
-          if (modifier) {
-            if (modifier.toUpperCase() === 'PM' && hours < 12) hours += 12;
-            if (modifier.toUpperCase() === 'AM' && hours === 12) hours = 0;
-          }
-          formattedTime = `${hours.toString().padStart(2, '0')}:${minutes}:00`;
-        }
-        return new Date(`${dateStr}T${formattedTime}+08:00`);
-      }
-      return pickup;
-    };
 
     const carStats: Record<string, { total: number; count: number; name: string }> = {};
     const carIntervals: Record<string, { start: number; end: number }[]> = {};
@@ -105,7 +92,6 @@ const VehicleRevenueReport: React.FC = () => {
 
     data.agreements.forEach(a => {
       const status = a.status?.toLowerCase().trim() || '';
-      const payoutStatus = a.payout_status?.toLowerCase().trim() || '';
       const plate = a.car_plate_number || 'Unknown';
       
       if (!carStats[plate]) {
@@ -130,7 +116,7 @@ const VehicleRevenueReport: React.FC = () => {
           // Calculate actual duration days based on start and return times
           const actualTotalDays = (ret.getTime() - pickup.getTime()) / msInDay;
           const durationDays = actualTotalDays > 0 ? actualTotalDays : (a.duration_days && a.duration_days > 0 ? a.duration_days : 1);
-          const dailyRate = (a.total_price || 0) / durationDays;
+          const dailyRate = (Number(a.total_price) || 0) / durationDays;
           
           // Use the exact overlap days in this month to calculate the revenue attributable to this month
           const overlappingRevenue = dailyRate * overlapDays;

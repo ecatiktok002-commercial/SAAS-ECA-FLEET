@@ -1,18 +1,19 @@
 import { formatInTimeZone, fromZonedTime, toZonedTime } from 'date-fns-tz';
 
-const TIMEZONE = 'Asia/Kuala_Lumpur';
+export const TIMEZONE = 'Asia/Kuala_Lumpur';
 
 /**
- * Gets the current date/time in Malaysia timezone
+ * Gets the current date/time
  */
 export const getNowMYT = (): Date => {
-  return toZonedTime(new Date(), TIMEZONE);
+  return new Date();
 };
 
 /**
  * Formats a date to a string in Malaysia timezone
  */
-export const formatInMYT = (date: Date | string | number, formatStr: string): string => {
+export const formatInMYT = (date: Date | string | number | null | undefined, formatStr: string): string => {
+  if (!date) return '';
   let d: Date;
   if (typeof date === 'string') {
     let cleanDate = date.trim();
@@ -23,12 +24,19 @@ export const formatInMYT = (date: Date | string | number, formatStr: string): st
     if (/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
       return cleanDate === formatStr ? cleanDate : formatInTimeZone(fromZonedTime(`${cleanDate}T00:00:00`, TIMEZONE), TIMEZONE, formatStr);
     }
+    // If string is DD/MM/YYYY
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(cleanDate)) {
+      const parts = cleanDate.split('/');
+      const isoDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      return formatInTimeZone(fromZonedTime(`${isoDate}T00:00:00`, TIMEZONE), TIMEZONE, formatStr);
+    }
     d = new Date(cleanDate);
   } else if (typeof date === 'number') {
     d = new Date(date);
   } else {
     d = date;
   }
+  if (isNaN(d.getTime())) return '';
   return formatInTimeZone(d, TIMEZONE, formatStr);
 };
 
@@ -38,7 +46,8 @@ export const formatInMYT = (date: Date | string | number, formatStr: string): st
 export const formatMytDate = (date?: Date | string | number | null, formatStr: string = 'dd MMM yyyy'): string => {
   if (!date) return '-';
   try {
-    return formatInMYT(date, formatStr);
+    const formatted = formatInMYT(date, formatStr);
+    return formatted || '-';
   } catch {
     return '-';
   }
@@ -78,14 +87,14 @@ export const getMYTInputString = (date: Date | string | number): string => {
 };
 
 /**
- * Helper to get just the date part in MYT
+ * Helper to get just the date part in MYT (YYYY-MM-DD)
  */
 export const getMYTDateString = (date: Date | string | number): string => {
   return formatInMYT(date, "yyyy-MM-dd");
 };
 
 /**
- * Helper to get just the time part in MYT
+ * Helper to get just the time part in MYT (HH:mm)
  */
 export const getMYTTimeString = (date: Date | string | number): string => {
   return formatInMYT(date, "HH:mm");
@@ -104,7 +113,7 @@ export const formatTimeMYT = (timeStr: string): string => {
 export const getAgreementPickupDateTime = (agreement: any): Date => {
   let dateStr = agreement.start_date;
   if (!dateStr) {
-    return new Date(agreement.created_at); // Fallback
+    return agreement.created_at ? new Date(agreement.created_at) : new Date(); // Fallback
   }
 
   // Convert DD/MM/YYYY to YYYY-MM-DD if needed
@@ -128,7 +137,47 @@ export const getAgreementPickupDateTime = (agreement: any): Date => {
       if (modifier.toUpperCase() === 'AM' && hours === 12) hours = 0;
     }
     formattedTime = `${hours.toString().padStart(2, '0')}:${minutes}:00`;
+  } else if (formattedTime.length === 5) {
+    formattedTime = `${formattedTime}:00`;
   }
 
   return new Date(`${dateStr}T${formattedTime}+08:00`);
+};
+
+export const getAgreementReturnDateTime = (agreement: any, pickupDate?: Date): Date => {
+  if (agreement.actual_end_time) return new Date(agreement.actual_end_time);
+  
+  const pickup = pickupDate || getAgreementPickupDateTime(agreement);
+  
+  if (agreement.duration_days && Number(agreement.duration_days) > 0) {
+    return new Date(pickup.getTime() + Number(agreement.duration_days) * 24 * 60 * 60 * 1000);
+  }
+  
+  if (agreement.end_date) {
+    let dateStr = agreement.end_date;
+    if (dateStr.includes('/')) {
+      const parts = dateStr.split('/');
+      if (parts.length === 3) {
+        dateStr = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      }
+    }
+    const timeStr = agreement.return_time || agreement.pickup_time || '12:00';
+    let formattedTime = timeStr;
+    const timeMatch = timeStr.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+    if (timeMatch) {
+      let hours = parseInt(timeMatch[1], 10);
+      const minutes = timeMatch[2];
+      const modifier = timeMatch[3];
+      if (modifier) {
+        if (modifier.toUpperCase() === 'PM' && hours < 12) hours += 12;
+        if (modifier.toUpperCase() === 'AM' && hours === 12) hours = 0;
+      }
+      formattedTime = `${hours.toString().padStart(2, '0')}:${minutes}:00`;
+    } else if (formattedTime.length === 5) {
+      formattedTime = `${formattedTime}:00`;
+    }
+    return new Date(`${dateStr}T${formattedTime}+08:00`);
+  }
+  
+  return pickup;
 };

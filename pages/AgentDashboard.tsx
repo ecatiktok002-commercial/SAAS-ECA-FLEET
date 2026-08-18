@@ -45,22 +45,20 @@ const AgentDashboard: React.FC = () => {
     currency: 'MYR',
   });
 
-  const { startDateStr, endDateStr, mytDate, now } = useMemo(() => {
-    const now = getNowMYT();
-    const mytDate = utcToMyt(now);
+  const { startDateStr, endDateStr, now } = useMemo(() => {
+    const now = new Date();
     
-    // Fetch data for the last 6 months to support the 6-month sales history
-    const startDateObj = new Date(mytDate);
+    // Fetch data for the last 6 months to support the 6-month sales history + future bookings
+    const startDateObj = new Date();
     startDateObj.setMonth(startDateObj.getMonth() - 6);
     startDateObj.setDate(1);
     startDateObj.setHours(0, 0, 0, 0);
     
-    // End date is end of current month
-    const endDateObj = new Date(mytDate.getFullYear(), mytDate.getMonth() + 1, 0, 23, 59, 59, 999);
+    const endDateObj = new Date();
+    endDateObj.setMonth(endDateObj.getMonth() + 6);
     
     return {
       now,
-      mytDate,
       startDateStr: startDateObj.toISOString(),
       endDateStr: endDateObj.toISOString()
     };
@@ -104,45 +102,69 @@ const AgentDashboard: React.FC = () => {
 
     const { allBookings, cars, agreements, marketingEvents, members, staff: currentStaff, logisticCredits } = data;
 
-    const todayStr = format(mytDate, 'yyyy-MM-dd');
+    const todayStr = formatInMYT(now, 'yyyy-MM-dd');
     
-    const startOfWeek = new Date(mytDate);
-    startOfWeek.setDate(mytDate.getDate() - mytDate.getDay());
-    const startOfWeekStr = format(startOfWeek, 'yyyy-MM-dd');
+    const currentMytYear = parseInt(formatInMYT(now, 'yyyy'), 10);
+    const currentMytMonth = parseInt(formatInMYT(now, 'MM'), 10);
     
-    const startOfLastWeek = new Date(startOfWeek);
-    startOfLastWeek.setDate(startOfWeek.getDate() - 7);
-    const startOfLastWeekStr = format(startOfLastWeek, 'yyyy-MM-dd');
-
-    const startOfMonth = new Date(mytDate.getFullYear(), mytDate.getMonth(), 1);
-    const startOfMonthStr = format(startOfMonth, 'yyyy-MM-dd');
+    // Calculate start/end of month in MYT
+    const monthDays = new Date(currentMytYear, currentMytMonth, 0).getDate();
+    const currentMonthStr = currentMytMonth.toString().padStart(2, '0');
+    const startOfMonthStr = `${currentMytYear}-${currentMonthStr}-01`;
+    const endOfMonthStr = `${currentMytYear}-${currentMonthStr}-${monthDays.toString().padStart(2, '0')}`;
+    
+    // Calculate start/end of week in MYT (Sunday to Saturday)
+    const mytZonedDate = utcToMyt(now);
+    const dayOfWeek = mytZonedDate.getDay();
+    
+    const startOfWeekZoned = new Date(mytZonedDate);
+    startOfWeekZoned.setDate(mytZonedDate.getDate() - dayOfWeek);
+    const startOfWeekStr = format(startOfWeekZoned, 'yyyy-MM-dd');
+    
+    const endOfWeekZoned = new Date(startOfWeekZoned);
+    endOfWeekZoned.setDate(startOfWeekZoned.getDate() + 6);
+    const endOfWeekStr = format(endOfWeekZoned, 'yyyy-MM-dd');
+    
+    const startOfLastWeekZoned = new Date(startOfWeekZoned);
+    startOfLastWeekZoned.setDate(startOfWeekZoned.getDate() - 7);
+    const startOfLastWeekStr = format(startOfLastWeekZoned, 'yyyy-MM-dd');
 
     // Past 6 months sales tracking
     const past6MonthsSales = Array.from({ length: 6 }).map((_, i) => {
-      const d = new Date(mytDate.getFullYear(), mytDate.getMonth() - i, 1);
+      let targetYear = currentMytYear;
+      let targetMonth = currentMytMonth - i;
+      while (targetMonth <= 0) {
+        targetMonth += 12;
+        targetYear -= 1;
+      }
+      const targetMonthStr = targetMonth.toString().padStart(2, '0');
+      const daysInTargetMonth = new Date(targetYear, targetMonth, 0).getDate();
+      const startStr = `${targetYear}-${targetMonthStr}-01`;
+      const endStr = `${targetYear}-${targetMonthStr}-${daysInTargetMonth.toString().padStart(2, '0')}`;
+      
+      const sampleDate = new Date(`${startStr}T12:00:00+08:00`);
       return {
-        month: format(d, 'MMM yyyy'),
+        month: formatInMYT(sampleDate, 'MMM yyyy'),
         sales: 0,
-        startStr: format(d, 'yyyy-MM-dd'),
-        endStr: format(new Date(mytDate.getFullYear(), mytDate.getMonth() - i + 1, 0), 'yyyy-MM-dd')
+        startStr,
+        endStr
       };
     });
 
-    const lastMonth = new Date(mytDate.getFullYear(), mytDate.getMonth() - 1, 1);
-    const lastMonthKey = format(lastMonth, 'yyyy-MM');
+    const lastMonthKey = past6MonthsSales[1]?.startStr ? past6MonthsSales[1].startStr.substring(0, 7) : '';
     let lastMonthEarnings = 0;
 
     // Filter to strictly their own agreements for sales metrics (matching Admin logic)
-    // We group by what Admin uses: agent_id (primary) or created_by
     const ownAgreements = agreements.filter(a => {
       const key = a.agent_id || a.created_by || a.agent_name;
       return key === userId || key === currentStaff?.name || key === userUid || key === currentStaff?.id;
     });
 
-    // 1. Sales Metrics (Completed Agreements)
+    // 1. Sales Metrics (Completed, Signed, Reconciled Agreements)
+    const validStatuses = ['completed', 'signed', 'reconciled'];
     const completedAgreements = ownAgreements.filter(a => {
-      const status = a.status?.toLowerCase().trim();
-      return status === 'completed';
+      const status = a.status?.toLowerCase().trim() || '';
+      return validStatuses.includes(status);
     });
     
     let salesToday = 0;
@@ -154,9 +176,9 @@ const AgentDashboard: React.FC = () => {
       const matchDateStr = getMYTDateString(getAgreementPickupDateTime(a));
       const price = Number(a.total_price) || 0;
       if (matchDateStr === todayStr) salesToday += price;
-      if (matchDateStr >= startOfWeekStr) salesThisWeek += price;
+      if (matchDateStr >= startOfWeekStr && matchDateStr <= endOfWeekStr) salesThisWeek += price;
       if (matchDateStr >= startOfLastWeekStr && matchDateStr < startOfWeekStr) salesLastWeek += price;
-      if (matchDateStr >= startOfMonthStr) salesThisMonth += price;
+      if (matchDateStr >= startOfMonthStr && matchDateStr <= endOfMonthStr) salesThisMonth += price;
 
       // Populate past 6 months
       for (const monthData of past6MonthsSales) {
@@ -171,11 +193,12 @@ const AgentDashboard: React.FC = () => {
 
     // 2. Idle Vehicles
     const activeCars = cars.filter(c => c.status === 'active');
+    const nowTime = now.getTime();
     const carsOnRentToday = allBookings.filter(b => {
-      const start = utcToMyt(parseBookingDate(b.start_date, b.pickup_time));
-      // FIX: Use actual_end_time or duration_days. Ignore DB's end_time string.
-      const end = utcToMyt(getBookingEndTime(b));
-      return start <= now && end >= now && b.status !== 'cancelled';
+      if (b.status === 'cancelled') return false;
+      const startMs = parseBookingDate(b.start_date, b.pickup_time);
+      const endMs = getBookingEndTime(b);
+      return startMs <= nowTime && endMs >= nowTime;
     }).map(b => b.car_id);
     
     const uniqueCarsOnRent = new Set(carsOnRentToday);
@@ -332,7 +355,7 @@ const AgentDashboard: React.FC = () => {
       recentAgreements: completedAgreements.slice(0, 5),
       logisticCredits
     };
-  }, [data, mytDate, now]);
+  }, [data, now]);
 
   const handleConfirmReturn = async (id: string) => {
     try {
