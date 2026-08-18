@@ -10,6 +10,7 @@ import { Menu } from 'lucide-react';
 const Layout: React.FC = () => {
   const { subscriberId, staffRole, subscriptionTier, isLoading } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const isSuperAdmin = subscriberId === 'superadmin';
 
   if (isLoading) {
     return (
@@ -26,16 +27,20 @@ const Layout: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden font-sans relative">
-      <Sidebar isMobileOpen={isMobileOpen} setIsMobileOpen={setIsMobileOpen} />
+      {!isSuperAdmin && (
+        <Sidebar isMobileOpen={isMobileOpen} setIsMobileOpen={setIsMobileOpen} />
+      )}
       
       <main className="flex-1 overflow-y-auto relative w-full">
-        {/* Floating Mobile Hamburger Button */}
-        <button 
-          onClick={() => setIsMobileOpen(true)}
-          className="md:hidden fixed bottom-6 right-6 z-30 p-4 bg-slate-900 text-white rounded-full shadow-2xl hover:bg-slate-800 transition-transform active:scale-95"
-        >
-          <Menu className="w-6 h-6" />
-        </button>
+        {/* Floating Mobile Hamburger Button (Only for tenant users with sidebar) */}
+        {!isSuperAdmin && (
+          <button 
+            onClick={() => setIsMobileOpen(true)}
+            className="md:hidden fixed bottom-6 right-6 z-30 p-4 bg-slate-900 text-white rounded-full shadow-2xl hover:bg-slate-800 transition-transform active:scale-95"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+        )}
         
         <Outlet />
       </main>

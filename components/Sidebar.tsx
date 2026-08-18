@@ -35,7 +35,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
 
     // Master Admin (Superadmin) specific items
     if (isSuperAdmin) {
-      return [{ name: 'Subscribers', path: '/subscribers', icon: <Users className="w-5 h-5" />, isLocked: false }];
+      return [
+        { name: 'SaaS Command Center', path: '/subscribers', icon: <LayoutDashboard className="w-5 h-5" />, isLocked: false },
+        { name: 'Subscribers', path: '/subscribers?tab=subscribers', icon: <Users className="w-5 h-5" />, isLocked: false },
+        { name: 'Billing & Invoices', path: '/subscribers?tab=billing', icon: <FileCheck className="w-5 h-5" />, isLocked: false },
+        { name: 'Commission Ledger', path: '/subscribers?tab=commissions', icon: <BarChart3 className="w-5 h-5" />, isLocked: false }
+      ];
     }
 
     const allItems = [

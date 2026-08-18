@@ -1,5 +1,5 @@
 
-import { Booking, Car, Member, LogEntry, Expense, StaffMember, Agreement, DigitalForm, Company, MarketingEvent, AuditRecord, PayoutHistory } from '../types';
+import { Booking, Car, Member, LogEntry, Expense, StaffMember, Agreement, DigitalForm, Company, MarketingEvent, AuditRecord, PayoutHistory, SaaSInvoice, SaaSCommission, SaaSActivityLog } from '../types';
 import { supabase } from './supabase';
 
 // Countermeasure for DB crashes: prevent HUGE base64 payloads
@@ -75,13 +75,43 @@ NOTIFY pgrst, 'reload schema';`;
       } else if (table === 'subscribers') {
         sql = `ALTER TABLE subscribers 
 ADD COLUMN IF NOT EXISTS name TEXT,
+ADD COLUMN IF NOT EXISTS brand_name TEXT,
 ADD COLUMN IF NOT EXISTS tier TEXT DEFAULT 'Tier 1',
 ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE,
 ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'ACTIVE',
 ADD COLUMN IF NOT EXISTS is_trial BOOLEAN DEFAULT FALSE,
 ADD COLUMN IF NOT EXISTS logistic_credits_enabled BOOLEAN DEFAULT TRUE,
 ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMP WITH TIME ZONE,
-ADD COLUMN IF NOT EXISTS subscription_start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+ADD COLUMN IF NOT EXISTS subscription_start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+ADD COLUMN IF NOT EXISTS account_type TEXT DEFAULT 'Commercial Customer',
+ADD COLUMN IF NOT EXISTS include_in_analytics BOOLEAN DEFAULT TRUE,
+ADD COLUMN IF NOT EXISTS contact_person TEXT,
+ADD COLUMN IF NOT EXISTS contact_email TEXT,
+ADD COLUMN IF NOT EXISTS contact_phone TEXT,
+ADD COLUMN IF NOT EXISTS billing_cycle TEXT DEFAULT 'monthly',
+ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'active',
+ADD COLUMN IF NOT EXISTS lead_source TEXT DEFAULT 'Direct Sales',
+ADD COLUMN IF NOT EXISTS campaign_source TEXT,
+ADD COLUMN IF NOT EXISTS salesperson_id TEXT,
+ADD COLUMN IF NOT EXISTS salesperson_name TEXT,
+ADD COLUMN IF NOT EXISTS primary_salesperson_id TEXT,
+ADD COLUMN IF NOT EXISTS primary_salesperson_name TEXT,
+ADD COLUMN IF NOT EXISTS supporting_salesperson_id TEXT,
+ADD COLUMN IF NOT EXISTS supporting_salesperson_name TEXT,
+ADD COLUMN IF NOT EXISTS commission_eligible BOOLEAN DEFAULT TRUE,
+ADD COLUMN IF NOT EXISTS commission_split TEXT DEFAULT '100/0',
+ADD COLUMN IF NOT EXISTS commission_rule TEXT DEFAULT 'first_month_100',
+ADD COLUMN IF NOT EXISTS commission_status TEXT DEFAULT 'pending',
+ADD COLUMN IF NOT EXISTS referrer TEXT,
+ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'Manual Bank Transfer',
+ADD COLUMN IF NOT EXISTS custom_mrr NUMERIC,
+ADD COLUMN IF NOT EXISTS annual_amount NUMERIC,
+ADD COLUMN IF NOT EXISTS outstanding_amount NUMERIC DEFAULT 0,
+ADD COLUMN IF NOT EXISTS last_payment_date TIMESTAMP WITH TIME ZONE,
+ADD COLUMN IF NOT EXISTS next_billing_date TIMESTAMP WITH TIME ZONE,
+ADD COLUMN IF NOT EXISTS grace_period_until TIMESTAMP WITH TIME ZONE,
+ADD COLUMN IF NOT EXISTS cancel_at_period_end BOOLEAN DEFAULT FALSE,
+ADD COLUMN IF NOT EXISTS saas_notes TEXT;
 
 -- Force Supabase to reload its schema cache
 NOTIFY pgrst, 'reload schema';`;
@@ -1932,20 +1962,206 @@ export const apiService = {
     });
   },
 
-  // Companies (Superadmin)
+  // Companies & SaaS Subscribers (Superadmin)
   async getCompanies(): Promise<Company[]> {
     return withRetry(async () => {
       const { data, error } = await supabase
         .from('subscribers')
-        .select('id, name, brand_name, tier, is_active, status, is_trial, expiry_date, created_at, address')
+        .select('*')
         .order('name', { ascending: true });
       
       if (error) {
         logSupabaseError('getCompanies', error);
         throw new Error(error.message || 'Failed to fetch subscribers');
       }
+
+      // Merge with local SaaS metadata if available
+      try {
+        const cached = localStorage.getItem('ecafleet_saas_subscribers_meta');
+        if (cached) {
+          const metaMap = JSON.parse(cached);
+          return (data || []).map(sub => ({
+            ...sub,
+            ...(metaMap[sub.id] || {})
+          }));
+        }
+      } catch {
+        // Fallback to raw data
+      }
+      
       return data || [];
     });
+  },
+
+  // SaaS Invoices
+  async getSaasInvoices(): Promise<SaaSInvoice[]> {
+    try {
+      const { data, error } = await supabase
+        .from('saas_invoices')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        // Fallback to local storage persistence
+        const cached = localStorage.getItem('ecafleet_saas_invoices');
+        return cached ? JSON.parse(cached) : [];
+      }
+      return data || [];
+    } catch {
+      const cached = localStorage.getItem('ecafleet_saas_invoices');
+      return cached ? JSON.parse(cached) : [];
+    }
+  },
+
+  async addSaasInvoice(invoice: Partial<SaaSInvoice>): Promise<SaaSInvoice> {
+    const newInv: SaaSInvoice = {
+      id: crypto.randomUUID(),
+      invoice_number: invoice.invoice_number || `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      subscriber_id: invoice.subscriber_id || '',
+      subscriber_name: invoice.subscriber_name || '',
+      plan_tier: invoice.plan_tier || 'Tier 1',
+      plan_name: invoice.plan_name || 'Basic Forms',
+      billing_period: invoice.billing_period || 'Current Month',
+      billing_cycle: invoice.billing_cycle || 'monthly',
+      amount: invoice.amount || 50,
+      payment_date: invoice.payment_date || new Date().toISOString(),
+      payment_method: invoice.payment_method || 'FPX',
+      status: invoice.status || 'paid',
+      notes: invoice.notes || '',
+      created_at: new Date().toISOString()
+    };
+
+    try {
+      const { data, error } = await supabase
+        .from('saas_invoices')
+        .insert([newInv])
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    } catch {
+      // Local fallback
+      const cached = localStorage.getItem('ecafleet_saas_invoices');
+      const list: SaaSInvoice[] = cached ? JSON.parse(cached) : [];
+      list.unshift(newInv);
+      localStorage.setItem('ecafleet_saas_invoices', JSON.stringify(list));
+      return newInv;
+    }
+  },
+
+  // SaaS Commissions
+  async getSaasCommissions(): Promise<SaaSCommission[]> {
+    try {
+      const { data, error } = await supabase
+        .from('saas_commissions')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        const cached = localStorage.getItem('ecafleet_saas_commissions');
+        return cached ? JSON.parse(cached) : [];
+      }
+      return data || [];
+    } catch {
+      const cached = localStorage.getItem('ecafleet_saas_commissions');
+      return cached ? JSON.parse(cached) : [];
+    }
+  },
+
+  async addSaasCommission(commission: Partial<SaaSCommission>): Promise<SaaSCommission> {
+    const newComm: SaaSCommission = {
+      id: crypto.randomUUID(),
+      subscriber_id: commission.subscriber_id || '',
+      subscriber_name: commission.subscriber_name || '',
+      salesperson_id: commission.salesperson_id || 'sales_rep',
+      salesperson_name: commission.salesperson_name || 'Direct Sales',
+      plan_tier: commission.plan_tier || 'Tier 1',
+      plan_name: commission.plan_name || 'Basic Forms',
+      first_month_revenue: commission.first_month_revenue || 50,
+      commission_rule: commission.commission_rule || 'first_month_100',
+      commission_rate_percent: commission.commission_rate_percent || 100,
+      commission_amount: commission.commission_amount || 50,
+      status: commission.status || 'eligible',
+      created_at: new Date().toISOString()
+    };
+
+    try {
+      const { data, error } = await supabase
+        .from('saas_commissions')
+        .insert([newComm])
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    } catch {
+      const cached = localStorage.getItem('ecafleet_saas_commissions');
+      const list: SaaSCommission[] = cached ? JSON.parse(cached) : [];
+      list.unshift(newComm);
+      localStorage.setItem('ecafleet_saas_commissions', JSON.stringify(list));
+      return newComm;
+    }
+  },
+
+  async updateSaasCommission(id: string, updates: Partial<SaaSCommission>): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('saas_commissions')
+        .update(updates)
+        .eq('id', id);
+      
+      if (error) throw error;
+    } catch {
+      const cached = localStorage.getItem('ecafleet_saas_commissions');
+      let list: SaaSCommission[] = cached ? JSON.parse(cached) : [];
+      list = list.map(c => c.id === id ? { ...c, ...updates } : c);
+      localStorage.setItem('ecafleet_saas_commissions', JSON.stringify(list));
+    }
+  },
+
+  // SaaS Activity Logs
+  async getSaasActivityLogs(): Promise<SaaSActivityLog[]> {
+    try {
+      const { data, error } = await supabase
+        .from('saas_activity_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      
+      if (error) {
+        const cached = localStorage.getItem('ecafleet_saas_activity_logs');
+        return cached ? JSON.parse(cached) : [];
+      }
+      return data || [];
+    } catch {
+      const cached = localStorage.getItem('ecafleet_saas_activity_logs');
+      return cached ? JSON.parse(cached) : [];
+    }
+  },
+
+  async logSaasActivity(activity: Partial<SaaSActivityLog>): Promise<void> {
+    const newLog: SaaSActivityLog = {
+      id: crypto.randomUUID(),
+      subscriber_id: activity.subscriber_id || '',
+      subscriber_name: activity.subscriber_name || '',
+      event_type: activity.event_type || 'signup',
+      description: activity.description || '',
+      plan_tier: activity.plan_tier,
+      amount: activity.amount,
+      lead_source: activity.lead_source,
+      salesperson_name: activity.salesperson_name,
+      created_at: new Date().toISOString()
+    };
+
+    try {
+      await supabase.from('saas_activity_logs').insert([newLog]);
+    } catch {
+      const cached = localStorage.getItem('ecafleet_saas_activity_logs');
+      const list: SaaSActivityLog[] = cached ? JSON.parse(cached) : [];
+      list.unshift(newLog);
+      localStorage.setItem('ecafleet_saas_activity_logs', JSON.stringify(list.slice(0, 100)));
+    }
   },
 
   async getCompanyById(id: string): Promise<Company | null> {
@@ -1960,11 +2176,32 @@ export const apiService = {
         logSupabaseError('getCompanyById', error);
         return null;
       }
+
+      try {
+        const cached = localStorage.getItem('ecafleet_saas_subscribers_meta');
+        if (cached && data) {
+          const metaMap = JSON.parse(cached);
+          return { ...data, ...(metaMap[id] || {}) };
+        }
+      } catch {
+        // Fallback
+      }
+
       return data;
     });
   },
 
   async updateCompany(id: string, updates: any): Promise<void> {
+    // 1. Always save/merge updates into local SaaS metadata cache
+    try {
+      const cached = localStorage.getItem('ecafleet_saas_subscribers_meta');
+      const metaMap = cached ? JSON.parse(cached) : {};
+      metaMap[id] = { ...(metaMap[id] || {}), ...updates };
+      localStorage.setItem('ecafleet_saas_subscribers_meta', JSON.stringify(metaMap));
+    } catch (e) {
+      console.warn('Could not save subscriber metadata to localStorage:', e);
+    }
+
     return withRetry(async () => {
       const { error } = await supabase
         .from('subscribers')
@@ -1972,6 +2209,49 @@ export const apiService = {
         .eq('id', id);
       
       if (error) {
+        // If the error is a missing column (e.g. code 42703 or missing subscription_status/account_type/etc.),
+        // fall back to updating only the core columns supported by older schemas so user workflows are uninterrupted
+        if (error.code === '42703' || error.message?.includes('column') || error.message?.includes('does not exist')) {
+          const coreKeys = [
+            'name', 
+            'brand_name', 
+            'tier', 
+            'is_active', 
+            'status', 
+            'is_trial', 
+            'expiry_date', 
+            'subscription_start_date', 
+            'logistic_credits_enabled', 
+            'address', 
+            'contact', 
+            'logo_url', 
+            'ssm_logo_url', 
+            'spdp_logo_url', 
+            'signature_url'
+          ];
+          const coreUpdates: any = {};
+          for (const key of Object.keys(updates)) {
+            if (coreKeys.includes(key)) {
+              coreUpdates[key] = updates[key];
+            }
+          }
+
+          if (Object.keys(coreUpdates).length > 0) {
+            const { error: coreError } = await supabase
+              .from('subscribers')
+              .update(coreUpdates)
+              .eq('id', id);
+            
+            if (!coreError) {
+              return; // Core updates applied in DB, extended attributes safely stored in local cache
+            }
+            logSupabaseError('updateCompany', coreError);
+            throw new Error(coreError.message || 'Failed to update company');
+          } else {
+            return; // No core updates needed, local metadata saved
+          }
+        }
+
         logSupabaseError('updateCompany', error);
         throw new Error(error.message || 'Failed to update company');
       }

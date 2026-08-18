@@ -240,6 +240,104 @@ export interface AuditRecord {
   pending_changes?: any;
 }
 
+export type SaaSAccountType = 
+  | 'Commercial Customer' 
+  | 'Internal' 
+  | 'Demo / Trial' 
+  | 'Test / Sandbox' 
+  | 'Complimentary / Partner' 
+  | 'Unclassified';
+
+export type SaaSSubscriptionStatus = 
+  | 'trialing' 
+  | 'active' 
+  | 'past_due' 
+  | 'grace_period' 
+  | 'suspended' 
+  | 'cancel_at_period_end' 
+  | 'cancelled' 
+  | 'expired';
+
+export type SaaSPlanTier = 'Tier 1' | 'Tier 2' | 'Tier 3';
+
+export interface SaaSInvoice {
+  id: string;
+  invoice_number: string;
+  subscriber_id: string;
+  subscriber_name: string;
+  plan_tier: SaaSPlanTier;
+  plan_name: string;
+  billing_period: string; // e.g. "Aug 2026" or "Aug 2026 - Aug 2027"
+  billing_cycle: 'monthly' | 'annual';
+  amount: number;
+  payment_date: string;
+  payment_method: 'FPX' | 'Credit Card' | 'DuitNow' | 'Manual Bank Transfer' | 'Stripe';
+  payment_gateway?: string;
+  status: 'paid' | 'pending' | 'past_due' | 'failed' | 'refunded' | 'manual_override';
+  transaction_ref?: string;
+  notes?: string;
+  created_at: string;
+}
+
+export interface SaaSCommission {
+  id: string;
+  salesperson_id: string;
+  salesperson_name: string;
+  salesperson_role?: 'primary' | 'supporting';
+  subscriber_id: string;
+  subscriber_name: string;
+  plan_tier: SaaSPlanTier;
+  plan_name: string;
+  first_month_revenue: number;
+  commission_amount: number;
+  commission_rule: 'first_month_100' | 'percentage' | 'fixed' | 'team_split' | 'manual_override';
+  commission_rate_percent?: number;
+  split_percentage?: number;
+  status: 'pending' | 'eligible' | 'approved' | 'paid' | 'cancelled';
+  paid_date?: string | null;
+  notes?: string;
+  created_at: string;
+}
+
+export interface SaaSActivityLog {
+  id: string;
+  subscriber_id: string;
+  subscriber_name: string;
+  event_type: 
+    | 'subscriber_created'
+    | 'trial_started'
+    | 'trial_converted'
+    | 'subscription_activated'
+    | 'payment_recorded'
+    | 'payment_failed'
+    | 'plan_upgraded'
+    | 'plan_downgraded'
+    | 'subscription_suspended'
+    | 'subscription_reactivated'
+    | 'cancellation_scheduled'
+    | 'subscription_cancelled'
+    | 'commission_created'
+    | 'commission_approved'
+    | 'commission_paid'
+    | 'signup' 
+    | 'upgrade' 
+    | 'downgrade' 
+    | 'renewal' 
+    | 'payment_success' 
+    | 'past_due' 
+    | 'grace_period_extended' 
+    | 'suspended' 
+    | 'reactivated' 
+    | 'cancellation';
+  description: string;
+  plan_tier?: SaaSPlanTier;
+  amount?: number;
+  lead_source?: string;
+  salesperson_name?: string;
+  created_by?: string;
+  created_at: string;
+}
+
 export interface Company {
   id: string;
   name: string;
@@ -250,6 +348,7 @@ export interface Company {
   is_trial: boolean;
   logistic_credits_enabled?: boolean;
   expiry_date: string | null;
+  subscription_start_date?: string | null;
   logo_url?: string;
   ssm_logo_url?: string;
   spdp_logo_url?: string;
@@ -257,6 +356,37 @@ export interface Company {
   address?: string;
   contact?: string;
   created_at: string;
+
+  // Smart Drive SaaS Extension Fields
+  account_type?: SaaSAccountType;
+  include_in_analytics?: boolean;
+  contact_person?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  billing_cycle?: 'monthly' | 'annual';
+  subscription_status?: SaaSSubscriptionStatus;
+  lead_source?: string; // 'Threads Organic', 'Instagram Organic', 'TikTok Ads', 'Facebook', 'Referral', 'Founder', 'ECA Referral', 'Direct Sales'
+  campaign_source?: string;
+  salesperson_id?: string;
+  salesperson_name?: string;
+  primary_salesperson_id?: string;
+  primary_salesperson_name?: string;
+  supporting_salesperson_id?: string;
+  supporting_salesperson_name?: string;
+  commission_eligible?: boolean;
+  commission_split?: string; // e.g. '100/0', '50/50', '70/30', '30/70'
+  commission_rule?: 'first_month_100' | 'manual_override';
+  commission_status?: 'pending' | 'approved' | 'paid' | 'cancelled';
+  referrer?: string;
+  payment_method?: string; // 'FPX', 'Credit Card', 'DuitNow', 'Manual Bank Transfer', 'Stripe'
+  custom_mrr?: number;
+  annual_amount?: number;
+  outstanding_amount?: number;
+  last_payment_date?: string | null;
+  next_billing_date?: string | null;
+  grace_period_until?: string | null;
+  cancel_at_period_end?: boolean;
+  saas_notes?: string;
 }
 
 export interface PayoutHistory {

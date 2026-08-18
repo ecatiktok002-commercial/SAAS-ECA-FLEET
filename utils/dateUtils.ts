@@ -33,6 +33,18 @@ export const formatInMYT = (date: Date | string | number, formatStr: string): st
 };
 
 /**
+ * Formats a date to a string in Malaysia timezone (default format: 'dd MMM yyyy')
+ */
+export const formatMytDate = (date?: Date | string | number | null, formatStr: string = 'dd MMM yyyy'): string => {
+  if (!date) return '-';
+  try {
+    return formatInMYT(date, formatStr);
+  } catch {
+    return '-';
+  }
+};
+
+/**
  * Converts a Malaysia local time string (e.g. from an input) to a UTC Date object for storage
  */
 export const mytToUtc = (date: Date | string): Date => {
