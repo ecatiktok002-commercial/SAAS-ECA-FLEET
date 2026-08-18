@@ -10,8 +10,8 @@ export default function BrandingSettings() {
     ssm_logo_url: '',
     spdp_logo_url: '',
     signature_logo_url: '',
-    company_name: 'ECA GROUP TRAVEL & TOURS SDN BHD',
-    company_address: '011-55582106 | NO 21-B, JALAN SUARASA 8/3, BANDAR TUN HUSSEIN ONN, 43200 CHERAS, SELANGOR'
+    company_name: '',
+    company_address: ''
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -32,8 +32,8 @@ export default function BrandingSettings() {
           ssm_logo_url: data.ssm_logo_url || '',
           spdp_logo_url: data.spdp_logo_url || '',
           signature_logo_url: data.signature_url || '',
-          company_name: data.brand_name || data.name || 'ECA GROUP TRAVEL & TOURS SDN BHD',
-          company_address: data.address || '011-55582106 | NO 21-B, JALAN SUARASA 8/3, BANDAR TUN HUSSEIN ONN, 43200 CHERAS, SELANGOR'
+          company_name: data.brand_name || data.name || '',
+          company_address: data.address || ''
         });
       }
     } catch (error) {
@@ -122,6 +122,7 @@ export default function BrandingSettings() {
                 type="text"
                 value={settings.company_name}
                 onChange={(e) => setSettings({...settings, company_name: e.target.value})}
+                placeholder="e.g. My Car Rental Sdn Bhd"
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-slate-900 outline-none"
               />
             </div>

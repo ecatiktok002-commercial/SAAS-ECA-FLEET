@@ -342,15 +342,22 @@ export default function SignAgreement() {
           </div>
         )}
 
-        {/* 1. Header (Corporate Identity) */}
-        <div className="p-4 sm:p-6 print:p-0 border-b border-slate-200 print:border-b-2 print:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white print:mb-2 print:flex-row print:items-center print:page-break-inside-avoid">
-          <div className="flex flex-col w-full sm:w-auto mb-4 sm:mb-0 print:mb-0">
+        {/* 1. Header (Corporate Identity / Letterhead) */}
+        <div className="p-4 sm:p-6 print:p-0 border-b border-slate-200 print:border-b-2 print:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white print:mb-2 print:flex-row print:items-center print:page-break-inside-avoid gap-4">
+          <div className="flex items-center gap-4 w-full sm:w-auto mb-2 sm:mb-0 print:mb-0">
+            {company?.logo_url ? (
+              <img src={company.logo_url} alt="Company Logo" className="h-12 max-w-[120px] object-contain shrink-0" />
+            ) : null}
             {/* Company Name & Details */}
-            <div className="text-center sm:text-left">
-              <h1 className="text-xl sm:text-2xl print:text-lg font-bold tracking-tight text-slate-900 mb-0.5 print:mb-0 uppercase">{company?.brand_name || company?.name || 'ECA GROUP TRAVEL & TOURS SDN BHD'}</h1>
-              <p className="text-slate-500 text-xs print:text-[8pt] font-medium print:leading-tight">
-                {company?.address || '011-55582106 | NO 21-B, JALAN SUARASA 8/3, BANDAR TUN HUSSEIN ONN, 43200 CHERAS, SELANGOR'}
-              </p>
+            <div className="text-left">
+              <h1 className="text-xl sm:text-2xl print:text-lg font-bold tracking-tight text-slate-900 mb-0.5 print:mb-0 uppercase">
+                {company?.brand_name || company?.name || 'CAR RENTAL'}
+              </h1>
+              {company?.address ? (
+                <p className="text-slate-500 text-xs print:text-[8pt] font-medium print:leading-tight whitespace-pre-line">
+                  {company.address}
+                </p>
+              ) : null}
             </div>
           </div>
 

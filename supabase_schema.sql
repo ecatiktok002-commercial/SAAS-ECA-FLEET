@@ -946,7 +946,8 @@ BEGIN
       'role', 'subscriber', 
       'id', v_company.id, 
       'tier', v_company.tier, 
-      'company_code', v_company.name
+      'company_code', v_company.name,
+      'brand_name', v_company.brand_name
     );
   END IF;
 
@@ -963,7 +964,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
 
 -- 11. Subscriber Payments (for Cash-Basis Revenue Tracking)
 CREATE TABLE IF NOT EXISTS subscriber_payments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   subscriber_id UUID REFERENCES subscribers(id) ON DELETE CASCADE,
   amount DECIMAL(10, 2) NOT NULL,
   payment_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -972,7 +973,16 @@ CREATE TABLE IF NOT EXISTS subscriber_payments (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Trigger to record payments automatically
+-- Enable RLS and permissions
+ALTER TABLE subscriber_payments ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Authenticated users full access to subscriber_payments" ON subscriber_payments;
+CREATE POLICY "Authenticated users full access to subscriber_payments" ON subscriber_payments
+  FOR ALL TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+-- Trigger to record payments automatically (defensive so missing table or errors never crash subscriber creation)
 CREATE OR REPLACE FUNCTION record_subscriber_payment()
 RETURNS TRIGGER 
 SECURITY DEFINER
@@ -983,6 +993,11 @@ DECLARE
   v_months_diff INTEGER;
   v_base_date TIMESTAMP WITH TIME ZONE;
 BEGIN
+  -- Safety check: If subscriber_payments table does not exist, do not fail subscriber creation
+  IF to_regclass('public.subscriber_payments') IS NULL THEN
+    RETURN NEW;
+  END IF;
+
   -- Determine tier price
   IF NEW.tier = 'Tier 1' THEN v_tier_price := 50;
   ELSIF NEW.tier = 'Tier 2' THEN v_tier_price := 50;
@@ -995,49 +1010,53 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  -- Calculate months added
-  IF (TG_OP = 'INSERT') THEN
-    -- For new subscribers, months is difference between start and expiry
-    -- We use a simple month difference calculation
-    v_months_diff := (EXTRACT(YEAR FROM NEW.expiry_date) - EXTRACT(YEAR FROM NEW.subscription_start_date)) * 12 +
-                     (EXTRACT(MONTH FROM NEW.expiry_date) - EXTRACT(MONTH FROM NEW.subscription_start_date));
-    
-    -- If the day of month is greater, it counts as another month
-    IF EXTRACT(DAY FROM NEW.expiry_date) > EXTRACT(DAY FROM NEW.subscription_start_date) THEN
-        v_months_diff := v_months_diff + 1;
-    END IF;
-    
-    -- Ensure at least 1 month if expiry is set
-    IF v_months_diff <= 0 AND NEW.expiry_date > NEW.subscription_start_date THEN
-        v_months_diff := 1;
-    END IF;
-
-    IF v_months_diff > 0 THEN
-      INSERT INTO subscriber_payments (subscriber_id, amount, tier, months_added, payment_date)
-      VALUES (NEW.id, v_months_diff * v_tier_price, NEW.tier, v_months_diff, NEW.subscription_start_date);
-    END IF;
-  ELSIF (TG_OP = 'UPDATE') THEN
-    -- Only record if expiry_date was increased
-    IF NEW.expiry_date > OLD.expiry_date OR (OLD.expiry_date IS NULL AND NEW.expiry_date IS NOT NULL) THEN
-      v_base_date := COALESCE(OLD.expiry_date, NOW());
+  BEGIN
+    -- Calculate months added
+    IF (TG_OP = 'INSERT') THEN
+      -- For new subscribers, months is difference between start and expiry
+      v_months_diff := (EXTRACT(YEAR FROM NEW.expiry_date) - EXTRACT(YEAR FROM COALESCE(NEW.subscription_start_date, NOW()))) * 12 +
+                       (EXTRACT(MONTH FROM NEW.expiry_date) - EXTRACT(MONTH FROM COALESCE(NEW.subscription_start_date, NOW())));
       
-      v_months_diff := (EXTRACT(YEAR FROM NEW.expiry_date) - EXTRACT(YEAR FROM v_base_date)) * 12 +
-                       (EXTRACT(MONTH FROM NEW.expiry_date) - EXTRACT(MONTH FROM v_base_date));
-      
-      IF EXTRACT(DAY FROM NEW.expiry_date) > EXTRACT(DAY FROM v_base_date) THEN
+      -- If the day of month is greater, it counts as another month
+      IF EXTRACT(DAY FROM NEW.expiry_date) > EXTRACT(DAY FROM COALESCE(NEW.subscription_start_date, NOW())) THEN
           v_months_diff := v_months_diff + 1;
       END IF;
-
-      IF v_months_diff <= 0 AND NEW.expiry_date > v_base_date THEN
+      
+      -- Ensure at least 1 month if expiry is set
+      IF v_months_diff <= 0 AND NEW.expiry_date > COALESCE(NEW.subscription_start_date, NOW()) THEN
           v_months_diff := 1;
       END IF;
 
       IF v_months_diff > 0 THEN
         INSERT INTO subscriber_payments (subscriber_id, amount, tier, months_added, payment_date)
-        VALUES (NEW.id, v_months_diff * v_tier_price, NEW.tier, v_months_diff, NOW());
+        VALUES (NEW.id, v_months_diff * v_tier_price, NEW.tier, v_months_diff, COALESCE(NEW.subscription_start_date, NOW()));
+      END IF;
+    ELSIF (TG_OP = 'UPDATE') THEN
+      -- Only record if expiry_date was increased
+      IF NEW.expiry_date > OLD.expiry_date OR (OLD.expiry_date IS NULL AND NEW.expiry_date IS NOT NULL) THEN
+        v_base_date := COALESCE(OLD.expiry_date, NOW());
+        
+        v_months_diff := (EXTRACT(YEAR FROM NEW.expiry_date) - EXTRACT(YEAR FROM v_base_date)) * 12 +
+                         (EXTRACT(MONTH FROM NEW.expiry_date) - EXTRACT(MONTH FROM v_base_date));
+        
+        IF EXTRACT(DAY FROM NEW.expiry_date) > EXTRACT(DAY FROM v_base_date) THEN
+            v_months_diff := v_months_diff + 1;
+        END IF;
+
+        IF v_months_diff <= 0 AND NEW.expiry_date > v_base_date THEN
+            v_months_diff := 1;
+        END IF;
+
+        IF v_months_diff > 0 THEN
+          INSERT INTO subscriber_payments (subscriber_id, amount, tier, months_added, payment_date)
+          VALUES (NEW.id, v_months_diff * v_tier_price, NEW.tier, v_months_diff, NOW());
+        END IF;
       END IF;
     END IF;
-  END IF;
+  EXCEPTION WHEN OTHERS THEN
+    -- Suppress errors to ensure subscriber records are ALWAYS created / updated smoothly
+    RAISE WARNING 'record_subscriber_payment trigger warning: %', SQLERRM;
+  END;
 
   RETURN NEW;
 END;
@@ -1069,7 +1088,7 @@ SELECT
       FROM subscribers s 
       WHERE s.status = 'ACTIVE' 
       AND (s.expiry_date >= m.date OR s.expiry_date IS NULL)
-      AND DATE_TRUNC('month', s.subscription_start_date) <= m.date
+      AND DATE_TRUNC('month', COALESCE(s.subscription_start_date, NOW())) <= m.date
     ) as active_subscribers
 FROM months m
 ORDER BY m.date ASC;

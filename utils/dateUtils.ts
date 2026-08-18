@@ -6,14 +6,29 @@ const TIMEZONE = 'Asia/Kuala_Lumpur';
  * Gets the current date/time in Malaysia timezone
  */
 export const getNowMYT = (): Date => {
-  return new Date();
+  return toZonedTime(new Date(), TIMEZONE);
 };
 
 /**
  * Formats a date to a string in Malaysia timezone
  */
 export const formatInMYT = (date: Date | string | number, formatStr: string): string => {
-  const d = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
+  let d: Date;
+  if (typeof date === 'string') {
+    let cleanDate = date.trim();
+    if (cleanDate.includes(' ') && !cleanDate.includes('T')) {
+      cleanDate = cleanDate.replace(' ', 'T');
+    }
+    // If string is YYYY-MM-DD only, treat as start of day in MYT
+    if (/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
+      return cleanDate === formatStr ? cleanDate : formatInTimeZone(fromZonedTime(`${cleanDate}T00:00:00`, TIMEZONE), TIMEZONE, formatStr);
+    }
+    d = new Date(cleanDate);
+  } else if (typeof date === 'number') {
+    d = new Date(date);
+  } else {
+    d = date;
+  }
   return formatInTimeZone(d, TIMEZONE, formatStr);
 };
 
@@ -28,7 +43,18 @@ export const mytToUtc = (date: Date | string): Date => {
  * Converts a UTC date (from DB) to a Malaysia local time Date object for display/manipulation
  */
 export const utcToMyt = (date: Date | string | number): Date => {
-  const d = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
+  let d: Date;
+  if (typeof date === 'string') {
+    let cleanDate = date.trim();
+    if (cleanDate.includes(' ') && !cleanDate.includes('T')) {
+      cleanDate = cleanDate.replace(' ', 'T');
+    }
+    d = new Date(cleanDate);
+  } else if (typeof date === 'number') {
+    d = new Date(date);
+  } else {
+    d = date;
+  }
   return toZonedTime(d, TIMEZONE);
 };
 

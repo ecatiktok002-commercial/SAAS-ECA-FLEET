@@ -72,14 +72,30 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
         <div id="printable-agreement" className="w-[794px] min-w-[794px] max-w-[794px] bg-white text-black font-sans mx-auto">
           {/* PAGE 1: MAIN AGREEMENT */}
           <div className="p-10 flex flex-col relative">
-            {/* --- HEADER: BRAND SETTINGS --- */}
+            {/* --- HEADER: BRAND SETTINGS (LETTERHEAD) --- */}
             <div className="border-b-2 border-black pb-4 mb-6">
-              <div className="text-center">
-                <h1 className="text-2xl font-bold uppercase">{brandSettings.companyName || 'ECA GROUP TRAVEL & TOURS SDN BHD'}</h1>
-                <p className="text-sm mt-1">{brandSettings.address || 'NO 21-B, JALAN SUARASA 8/3, BANDAR TUN HUSSEIN ONN, 43200 CHERAS, SELANGOR'}</p>
-                <p className="text-sm font-bold mt-1">Tel: {brandSettings.contact || '011-55582106'}</p>
+              <div className="flex items-center justify-between">
+                {brandSettings.logoUrl ? (
+                  <div className="w-28 shrink-0 flex items-center justify-start">
+                    <img src={brandSettings.logoUrl} alt="Company Logo" className="max-h-16 max-w-full object-contain" crossOrigin="anonymous" />
+                  </div>
+                ) : null}
+                <div className={`text-center flex-1 ${brandSettings.logoUrl || brandSettings.ssmLogoUrl ? 'px-4' : ''}`}>
+                  <h1 className="text-2xl font-bold uppercase">{brandSettings.companyName || 'CAR RENTAL'}</h1>
+                  {brandSettings.address ? (
+                    <p className="text-sm mt-1">{brandSettings.address}</p>
+                  ) : null}
+                  {brandSettings.contact ? (
+                    <p className="text-sm font-bold mt-1">Tel: {brandSettings.contact}</p>
+                  ) : null}
+                </div>
+                {brandSettings.ssmLogoUrl ? (
+                  <div className="w-28 shrink-0 flex items-center justify-end">
+                    <img src={brandSettings.ssmLogoUrl} alt="SSM" className="max-h-16 max-w-full object-contain" crossOrigin="anonymous" />
+                  </div>
+                ) : null}
               </div>
-              <div className="flex justify-between items-center mt-4">
+              <div className="flex justify-between items-center mt-4 pt-2 border-t border-gray-300">
                 <div className="text-left">
                   <h2 className="text-lg font-bold">PERJANJIAN SEWA KENDERAAN</h2>
                 </div>
@@ -220,7 +236,7 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
                   ) : (
                     <div className="h-20 border-b border-black mb-1"></div>
                   )}
-                  <p className="font-bold text-sm uppercase">{brandSettings.companyName || 'ECA GROUP TRAVEL & TOURS'}</p>
+                  <p className="font-bold text-sm uppercase">{brandSettings.companyName || 'WAKIL SYARIKAT'}</p>
                   <p className="text-xs">Wakil Syarikat</p>
                 </div>
               </div>

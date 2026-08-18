@@ -148,15 +148,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else {
           // Try to fetch role from staff table if we have a userUid
           const storedUserUid = localStorage.getItem('userUid');
-          const storedCompanyName = localStorage.getItem('companyName');
-          if (storedUserUid && storedCompanyName) {
+          if (storedUserUid) {
             try {
               const { data: staffData } = await supabase
                 .from('staff')
                 .select('role')
                 .eq('access_id', storedUserUid)
-                .eq('subscriber_id', storedCompanyName)
-                .single();
+                .maybeSingle();
               
               if (staffData?.role) {
                 const role = staffData.role === 'admin' ? 'admin' : 'staff';
@@ -193,7 +191,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
 
-        // Fetch latest tier and company name from DB for non-superadmins
+        // Fetch latest tier and company brand name from DB for non-superadmins
         if (!isSuperAdmin) {
           let activeTier = 'tier_1';
           let displayName = '';
@@ -211,7 +209,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               }
 
               activeTier = rpcData.tier ? normalizeTier(rpcData.tier) : 'tier_1';
-              displayName = rpcData.company_code || rpcData.staff_name;
               
               // Update finalSubscriberId to the correct one from RPC
               if (rpcData.id || rpcData.subscriber_id) {
@@ -222,13 +219,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
           
-          // If RPC fails or returns nothing, fallback to direct query
-          if (!displayName) {
+          // Query subscriber record to get the custom brand_name (or name fallback), status, expiry_date
+          if (finalSubscriberId && finalSubscriberId !== 'superadmin') {
             const { data: companyData } = await supabase
               .from('subscribers')
-              .select('tier, name, status, is_active, expiry_date')
+              .select('tier, name, brand_name, status, is_active, expiry_date')
               .eq('id', finalSubscriberId)
-              .single();
+              .maybeSingle();
             
             if (companyData) {
               const isExpired = companyData.expiry_date && new Date(companyData.expiry_date) < new Date();
@@ -239,7 +236,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               }
 
               activeTier = companyData.tier ? normalizeTier(companyData.tier) : 'tier_1';
-              displayName = companyData.name;
+              displayName = companyData.brand_name || companyData.name || '';
               setExpiryDate(companyData.expiry_date || null);
             }
           }

@@ -117,10 +117,25 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           console.warn('Subscriber Auth Error (Primary):', authError.message);
         }
 
+        // Fetch custom brand name if available
+        let brandDisplayName = subData.brand_name || subData.company_code;
+        try {
+          const { data: subRecord } = await supabase
+            .from('subscribers')
+            .select('brand_name, name')
+            .eq('id', subData.id)
+            .maybeSingle();
+          if (subRecord?.brand_name) {
+            brandDisplayName = subRecord.brand_name;
+          }
+        } catch (e) {
+          console.warn('Failed to fetch subscriber brand name:', e);
+        }
+
         if (authData?.user && !authError) {
           localStorage.setItem('current_subscriber_id', subData.id);
           // Parameters: id, role, tier, uId, uName, uUid, cName
-          login(subData.id, 'admin', subData.tier, subData.id, subData.company_code, authData.user.id, subData.company_code);
+          login(subData.id, 'admin', subData.tier, subData.id, brandDisplayName, authData.user.id, brandDisplayName);
           if (onLogin) onLogin(subData.id);
           
           const normalizedTier = String(subData.tier).toLowerCase();
@@ -149,7 +164,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         if (!fallback.error && fallback.data?.user) {
           localStorage.setItem('current_subscriber_id', subData.id);
           // Parameters: id, role, tier, uId, uName, uUid, cName
-          login(subData.id, 'admin', subData.tier, subData.id, subData.company_code, fallback.data.user.id, subData.company_code);
+          login(subData.id, 'admin', subData.tier, subData.id, brandDisplayName, fallback.data.user.id, brandDisplayName);
           if (onLogin) onLogin(subData.id);
           
           const normalizedTier = String(subData.tier).toLowerCase();
@@ -226,6 +241,20 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         ? detectedRole.role as any 
         : 'staff';
 
+      let staffBrandName = detectedRole.brand_name || detectedRole.subscriber_slug;
+      try {
+        const { data: subRecord } = await supabase
+          .from('subscribers')
+          .select('brand_name, name')
+          .eq('id', detectedRole.subscriber_id)
+          .maybeSingle();
+        if (subRecord?.brand_name) {
+          staffBrandName = subRecord.brand_name;
+        }
+      } catch (e) {
+        console.warn('Failed to fetch subscriber brand name for staff:', e);
+      }
+
       login(
         detectedRole.subscriber_id, 
         finalRole, 
@@ -233,7 +262,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         detectedRole.staff_id, 
         detectedRole.staff_name, 
         detectedRole.access_id,
-        detectedRole.subscriber_slug
+        staffBrandName
       );
       
       if (onLogin) {

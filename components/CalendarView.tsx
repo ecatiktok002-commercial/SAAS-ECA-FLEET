@@ -42,8 +42,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({ currentMonth, bookings, car
     
     const prevMonthLastDay = new Date(year, month, 0);
     
-    const today = getNowMYT();
-    today.setHours(0,0,0,0);
+    const todayMYT = getNowMYT();
+    const todayYear = todayMYT.getFullYear();
+    const todayMonth = todayMYT.getMonth();
+    const todayDate = todayMYT.getDate();
 
     const getDayContent = (d: Date) => {
       const dayBookings = bookingsWithTracks.filter(b => isBookingOnDate(b, d));
@@ -51,20 +53,24 @@ const CalendarView: React.FC<CalendarViewProps> = ({ currentMonth, bookings, car
       return { dayBookings, maxTrack };
     };
 
+    const isDateToday = (d: Date) => {
+      return d.getFullYear() === todayYear && d.getMonth() === todayMonth && d.getDate() === todayDate;
+    };
+
     const buildDays = () => {
       const allDays: any[] = [];
       for (let i = daysInPrevMonth - 1; i >= 0; i--) {
         const d = new Date(year, month - 1, prevMonthLastDay.getDate() - i);
-        allDays.push({ date: d, isCurrentMonth: false, isToday: false });
+        allDays.push({ date: d, isCurrentMonth: false, isToday: isDateToday(d) });
       }
       for (let i = 1; i <= lastDay.getDate(); i++) {
         const d = new Date(year, month, i);
-        allDays.push({ date: d, isCurrentMonth: true, isToday: d.getTime() === today.getTime() });
+        allDays.push({ date: d, isCurrentMonth: true, isToday: isDateToday(d) });
       }
       const remaining = 42 - allDays.length;
       for (let i = 1; i <= remaining; i++) {
         const d = new Date(year, month + 1, i);
-        allDays.push({ date: d, isCurrentMonth: false, isToday: false });
+        allDays.push({ date: d, isCurrentMonth: false, isToday: isDateToday(d) });
       }
       return allDays;
     };

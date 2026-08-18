@@ -250,14 +250,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
         const car = cars.find((c) => c.id === editingBooking.car_id);
         if (car) setSelectedModel(car.name);
 
-        setSelectedDateTimeStr(
-          getMYTInputString(
-            parseBookingDate(
-              editingBooking.start_date,
-              editingBooking.pickup_time,
-            ),
-          ),
-        );
+        const startDate = editingBooking.start_date || formatInMYT(new Date(), 'yyyy-MM-dd');
+        const pickupTime = (editingBooking.pickup_time || '10:00').substring(0, 5);
+        setSelectedDateTimeStr(`${startDate}T${pickupTime}`);
       } else if (initialDate) {
         // New: Default to category mode
         setBookingMode("category");
@@ -286,12 +281,13 @@ const BookingModal: React.FC<BookingModalProps> = ({
         setDuration(1);
 
         const now = getNowMYT();
-        const d = new Date(initialDate);
-        if (d.getHours() === 0 && d.getMinutes() === 0) {
-          d.setHours(now.getHours(), 0, 0, 0);
-        }
+        const year = initialDate.getFullYear();
+        const month = String(initialDate.getMonth() + 1).padStart(2, '0');
+        const day = String(initialDate.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const mins = '00';
 
-        setSelectedDateTimeStr(getMYTInputString(d));
+        setSelectedDateTimeStr(`${year}-${month}-${day}T${hours}:${mins}`);
       }
     }
   }, [isOpen, initialDate, editingBooking, preselectedCarId, cars]);

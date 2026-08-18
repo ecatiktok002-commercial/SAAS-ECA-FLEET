@@ -355,8 +355,11 @@ export const assignTracks = (bookings: Booking[]): Booking[] => {
 };
 
 export const isBookingOnDate = (booking: Booking, date: Date): boolean => {
-  // FIX: Use your utility to get the correct YYYY-MM-DD for Malaysia
-  const dateStr = getMYTDateString(date);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const dateStr = `${year}-${month}-${day}`;
+
   const startOfDay = mytToUtc(`${dateStr}T00:00:00`).getTime();
   const endOfDay = startOfDay + 24 * 60 * 60 * 1000;
 
@@ -370,8 +373,11 @@ export const isBookingOnDate = (booking: Booking, date: Date): boolean => {
 };
 
 export const getBookingSegmentData = (booking: Booking, date: Date) => {
-  // FIX: Force dayStart to be 00:00 Malaysia Time, converted to UTC correctly
-  const dateStr = getMYTDateString(date);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const dateStr = `${year}-${month}-${day}`;
+
   const dayStart = mytToUtc(`${dateStr}T00:00:00`).getTime();
   const dayEnd = dayStart + 24 * 60 * 60 * 1000;
 

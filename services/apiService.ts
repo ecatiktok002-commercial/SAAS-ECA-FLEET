@@ -102,6 +102,110 @@ NOTIFY pgrst, 'reload schema';`;
       }));
     } else if (tableName) {
       console.error(`Supabase Schema Error: The table '${tableName}' does not exist. Please run the SQL schema in your Supabase SQL Editor.`);
+      
+      let tableSql = '';
+      if (tableName === 'subscriber_payments' || tableName === 'subscriber_payment') {
+        tableSql = `-- 1. Create subscriber_payments table
+CREATE TABLE IF NOT EXISTS subscriber_payments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  subscriber_id UUID REFERENCES subscribers(id) ON DELETE CASCADE,
+  amount DECIMAL(10, 2) NOT NULL,
+  payment_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  tier TEXT NOT NULL,
+  months_added INTEGER NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 2. Enable RLS
+ALTER TABLE subscriber_payments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Authenticated users full access to subscriber_payments" ON subscriber_payments;
+CREATE POLICY "Authenticated users full access to subscriber_payments" ON subscriber_payments
+  FOR ALL TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+-- 3. Trigger for recording payment on subscribers
+CREATE OR REPLACE FUNCTION record_subscriber_payment()
+RETURNS TRIGGER 
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_tier_price DECIMAL(10, 2);
+  v_months_diff INTEGER;
+  v_base_date TIMESTAMP WITH TIME ZONE;
+BEGIN
+  IF to_regclass('public.subscriber_payments') IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.tier = 'Tier 1' THEN v_tier_price := 50;
+  ELSIF NEW.tier = 'Tier 2' THEN v_tier_price := 50;
+  ELSIF NEW.tier = 'Tier 3' THEN v_tier_price := 150;
+  ELSE v_tier_price := 0;
+  END IF;
+
+  IF NEW.is_trial = TRUE OR NEW.expiry_date IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  BEGIN
+    IF (TG_OP = 'INSERT') THEN
+      v_months_diff := (EXTRACT(YEAR FROM NEW.expiry_date) - EXTRACT(YEAR FROM COALESCE(NEW.subscription_start_date, NOW()))) * 12 +
+                       (EXTRACT(MONTH FROM NEW.expiry_date) - EXTRACT(MONTH FROM COALESCE(NEW.subscription_start_date, NOW())));
+      
+      IF EXTRACT(DAY FROM NEW.expiry_date) > EXTRACT(DAY FROM COALESCE(NEW.subscription_start_date, NOW())) THEN
+          v_months_diff := v_months_diff + 1;
+      END IF;
+      
+      IF v_months_diff <= 0 AND NEW.expiry_date > COALESCE(NEW.subscription_start_date, NOW()) THEN
+          v_months_diff := 1;
+      END IF;
+
+      IF v_months_diff > 0 THEN
+        INSERT INTO subscriber_payments (subscriber_id, amount, tier, months_added, payment_date)
+        VALUES (NEW.id, v_months_diff * v_tier_price, NEW.tier, v_months_diff, COALESCE(NEW.subscription_start_date, NOW()));
+      END IF;
+    ELSIF (TG_OP = 'UPDATE') THEN
+      IF NEW.expiry_date > OLD.expiry_date OR (OLD.expiry_date IS NULL AND NEW.expiry_date IS NOT NULL) THEN
+        v_base_date := COALESCE(OLD.expiry_date, NOW());
+        v_months_diff := (EXTRACT(YEAR FROM NEW.expiry_date) - EXTRACT(YEAR FROM v_base_date)) * 12 +
+                         (EXTRACT(MONTH FROM NEW.expiry_date) - EXTRACT(MONTH FROM v_base_date));
+        
+        IF EXTRACT(DAY FROM NEW.expiry_date) > EXTRACT(DAY FROM v_base_date) THEN
+            v_months_diff := v_months_diff + 1;
+        END IF;
+
+        IF v_months_diff <= 0 AND NEW.expiry_date > v_base_date THEN
+            v_months_diff := 1;
+        END IF;
+
+        IF v_months_diff > 0 THEN
+          INSERT INTO subscriber_payments (subscriber_id, amount, tier, months_added, payment_date)
+          VALUES (NEW.id, v_months_diff * v_tier_price, NEW.tier, v_months_diff, NOW());
+        END IF;
+      END IF;
+    END IF;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'record_subscriber_payment trigger warning: %', SQLERRM;
+  END;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_record_subscriber_payment ON subscribers;
+CREATE TRIGGER trg_record_subscriber_payment
+AFTER INSERT OR UPDATE OF expiry_date, tier, is_trial ON subscribers
+FOR EACH ROW EXECUTE FUNCTION record_subscriber_payment();
+
+-- Force Supabase to reload its schema cache
+NOTIFY pgrst, 'reload schema';`;
+
+        window.dispatchEvent(new CustomEvent('supabase-schema-error', { 
+          detail: { table: tableName, column: 'ALL', type: 'TABLE', sql: tableSql } 
+        }));
+      }
     } else {
       console.error(`Supabase Schema Error [${context}]: ${error.message}. This usually means a table is missing or the schema cache is stale.`);
     }
@@ -215,18 +319,17 @@ const mapCarToDB = (car: any) => {
 };
 
   const mapBookingFromDB = (dbBooking: any): Booking => {
-  // Extract start_date and pickup_time from pickup_datetime if available
+  // Extract start_date and pickup_time in Asia/Kuala_Lumpur (GMT+8) from pickup_datetime
   let startDate = dbBooking.start_date;
   let pickupTime = dbBooking.pickup_time;
   
   if (dbBooking.pickup_datetime) {
     startDate = formatInMYT(dbBooking.pickup_datetime, 'yyyy-MM-dd');
     pickupTime = formatInMYT(dbBooking.pickup_datetime, 'HH:mm');
-  }
-  
-  // Ensure pickupTime is HH:MM if it came from a TIME column (which might be HH:MM:SS)
-  if (pickupTime && pickupTime.length > 5) {
-    pickupTime = pickupTime.substring(0, 5);
+  } else {
+    if (pickupTime && pickupTime.length > 5) {
+      pickupTime = pickupTime.substring(0, 5);
+    }
   }
   
   let returnTime = dbBooking.return_time;
@@ -1893,7 +1996,7 @@ export const apiService = {
     return withRetry(async () => {
       const { data, error } = await supabase
         .from('subscribers')
-        .select('name, brand_name, address, logo_url, ssm_logo_url, spdp_logo_url')
+        .select('name, brand_name, address, logo_url, ssm_logo_url, spdp_logo_url, signature_url')
         .eq('id', subscriberId)
         .single();
       
@@ -1906,7 +2009,7 @@ export const apiService = {
   },
 
   async updateCompanySettings(subscriberId: string, settings: any): Promise<void> {
-    const targetSubscriberId = await getTenantId();
+    const targetSubscriberId = subscriberId || await getTenantId();
     return withRetry(async () => {
       const { error } = await supabase
         .from('subscribers')
