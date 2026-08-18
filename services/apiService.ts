@@ -1964,33 +1964,61 @@ export const apiService = {
 
   // Companies & SaaS Subscribers (Superadmin)
   async getCompanies(): Promise<Company[]> {
-    return withRetry(async () => {
-      const { data, error } = await supabase
-        .from('subscribers')
-        .select('*')
-        .order('name', { ascending: true });
-      
-      if (error) {
-        logSupabaseError('getCompanies', error);
-        throw new Error(error.message || 'Failed to fetch subscribers');
-      }
-
-      // Merge with local SaaS metadata if available
-      try {
-        const cached = localStorage.getItem('ecafleet_saas_subscribers_meta');
-        if (cached) {
-          const metaMap = JSON.parse(cached);
-          return (data || []).map(sub => ({
-            ...sub,
-            ...(metaMap[sub.id] || {})
-          }));
+    try {
+      return await withRetry(async () => {
+        const { data, error } = await supabase
+          .from('subscribers')
+          .select('*')
+          .order('name', { ascending: true });
+        
+        if (error) {
+          logSupabaseError('getCompanies', error);
+          const cached = localStorage.getItem('ecafleet_companies_cache');
+          if (cached) {
+            try {
+              const parsed = JSON.parse(cached);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                return parsed;
+              }
+            } catch {}
+          }
+          return [];
         }
-      } catch {
-        // Fallback to raw data
+
+        // Cache subscribers in localStorage for offline / network fault tolerance
+        if (data && Array.isArray(data)) {
+          try {
+            localStorage.setItem('ecafleet_companies_cache', JSON.stringify(data));
+          } catch {}
+        }
+
+        // Merge with local SaaS metadata if available
+        try {
+          const cached = localStorage.getItem('ecafleet_saas_subscribers_meta');
+          if (cached) {
+            const metaMap = JSON.parse(cached);
+            return (data || []).map(sub => ({
+              ...sub,
+              ...(metaMap[sub.id] || {})
+            }));
+          }
+        } catch {
+          // Fallback to raw data
+        }
+        
+        return data || [];
+      });
+    } catch (err: any) {
+      logSupabaseError('getCompanies', err);
+      const cached = localStorage.getItem('ecafleet_companies_cache');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) return parsed;
+        } catch {}
       }
-      
-      return data || [];
-    });
+      return [];
+    }
   },
 
   // SaaS Invoices

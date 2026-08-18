@@ -124,9 +124,9 @@ const SubscriberManager: React.FC = () => {
 
       if (expiredTrials.length > 0) {
         await Promise.all(expiredTrials.map(trial => 
-          apiService.updateCompany(trial.id, { status: 'INACTIVE', is_active: false })
+          apiService.updateCompany(trial.id, { status: 'INACTIVE', is_active: false }).catch(() => {})
         ));
-        const updatedSubs = await apiService.getCompanies();
+        const updatedSubs = await apiService.getCompanies().catch(() => subsData);
         setSubscribers(updatedSubs);
       } else {
         setSubscribers(subsData);
