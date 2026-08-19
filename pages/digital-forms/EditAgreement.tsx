@@ -1,7 +1,7 @@
 import { supabase } from '../../services/supabase';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, Upload, CheckCircle2, Eye, Trash2, Loader2, Wand2 } from 'lucide-react';
+import { ArrowLeft, Save, Upload, CheckCircle2, Eye, Trash2, Loader2, Wand2, UserCheck } from 'lucide-react';
 import { addDays, differenceInDays, parseISO, format, isValid } from 'date-fns';
 import { getNowMYT, formatInMYT, utcToMyt } from '../../utils/dateUtils';
 import { apiService } from '../../services/apiService';
@@ -11,14 +11,18 @@ import { useAuth } from '../../context/AuthContext';
 import { openDataURL } from '../../utils/fileUtils';
 import toast from 'react-hot-toast';
 import { compressImage } from '../../services/imageCompression';
+import { StaffMember } from '../../types';
 
 export default function EditAgreement() {
   const { id } = useParams();
-  const { subscriberId, staffRole, userId, userUid } = useAuth();
+  const { subscriberId, staffRole, userId, userUid, userName } = useAuth();
   const navigate = useNavigate();
   const isAdmin = staffRole === 'admin';
   const [agreement, setAgreement] = useState<any>(null);
   const [requestAmendmentMode, setRequestAmendmentMode] = useState(false);
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
+  const [handledByStaffId, setHandledByStaffId] = useState<string>('');
+  const [handledByStaffName, setHandledByStaffName] = useState<string>('');
   const [formData, setFormData] = useState({
     customer_name: '',
     identity_number: '',
@@ -127,7 +131,15 @@ export default function EditAgreement() {
     const fetchAgreement = async () => {
       if (!id) return;
       try {
-        const data = await apiService.getAgreementById(id, subscriberId);
+        const [data, staff] = await Promise.all([
+          apiService.getAgreementById(id, subscriberId),
+          subscriberId ? apiService.getStaffMembers(subscriberId) : Promise.resolve([])
+        ]);
+
+        if (staff) {
+          setStaffList(staff);
+        }
+
         if (!data) {
           throw new Error('Agreement not found');
         }
@@ -138,6 +150,8 @@ export default function EditAgreement() {
         }
 
         setAgreement(data);
+        setHandledByStaffId(data.agent_id || '');
+        setHandledByStaffName(data.agent_name || '');
 
         setFormData({
           customer_name: data.customer_name || '',
@@ -540,6 +554,14 @@ export default function EditAgreement() {
         }
       }
 
+      // Check if Handled By changed (Admin can reassign)
+      if (handledByStaffId && handledByStaffId !== agreement.agent_id) {
+        updates.agent_id = handledByStaffId;
+        updates.agent_name = handledByStaffName;
+      } else if (handledByStaffName && handledByStaffName !== agreement.agent_name) {
+        updates.agent_name = handledByStaffName;
+      }
+
       if (Object.keys(updates).length === 0) {
         toast.error('No changes detected.');
         setLoading(false);
@@ -572,6 +594,18 @@ export default function EditAgreement() {
 
       // 3. Send it!
       await apiService.updateAgreement(id, subscriberId, finalPayload);
+
+      // If Handled By changed and there's a linked booking, sync the booking too
+      if (isAdmin && agreement.booking_id && (updates.agent_id || updates.agent_name)) {
+        try {
+          await apiService.saveBooking({
+            agent_id: handledByStaffId || agreement.agent_id,
+            agent_name: handledByStaffName || agreement.agent_name
+          } as any, subscriberId, agreement.booking_id);
+        } catch (syncErr) {
+          console.warn('Could not sync booking agent details:', syncErr);
+        }
+      }
       
       if (requestAmendmentMode && !isAdmin) {
         toast.success('Amendment requested successfully!');
@@ -679,6 +713,51 @@ export default function EditAgreement() {
             )}
 
             <div className="grid grid-cols-1 gap-y-6 gap-x-6 sm:grid-cols-2">
+              {/* Handled By / Staff Assignment */}
+              <div className="sm:col-span-2 bg-blue-50/60 border border-blue-100 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2 text-slate-900 font-semibold text-sm">
+                  <UserCheck className="w-4 h-4 text-blue-600" />
+                  <span>Handled By (Staff / Agent)</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="sm:col-span-2">
+                    <select
+                      value={handledByStaffId}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setHandledByStaffId(val);
+                        if (val === subscriberId) {
+                          setHandledByStaffName(userName || 'Company / Owner');
+                        } else {
+                          const found = staffList.find(s => s.id === val);
+                          if (found) {
+                            setHandledByStaffName(found.name);
+                          }
+                        }
+                      }}
+                      disabled={!isAdmin}
+                      className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm bg-white font-medium text-slate-800 disabled:bg-slate-100 disabled:text-slate-600"
+                    >
+                      {isAdmin && subscriberId && (
+                        <option value={subscriberId}>
+                          {userName || 'Company'} (Owner)
+                        </option>
+                      )}
+                      {staffList.map((staff) => (
+                        <option key={staff.id} value={staff.id}>
+                          {staff.name} {staff.role === 'admin' ? '(Admin)' : '(Staff)'}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {isAdmin 
+                        ? 'As Admin/Subscriber, you can reassign which staff member this agreement and commission is awarded to.' 
+                        : `Assigned handler: ${handledByStaffName || 'Agent'}`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div className="sm:col-span-2 flex items-center justify-between border-b border-slate-100 pb-2 mb-4">
                 <h3 className="text-sm font-medium text-slate-900">Customer Details</h3>
                 {customerFound && (

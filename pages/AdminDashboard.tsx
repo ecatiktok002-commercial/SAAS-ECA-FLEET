@@ -38,11 +38,6 @@ const AdminDashboard: React.FC = () => {
   const { subscriberId, staffRole, userUid, userId } = useAuth();
   const queryClient = useQueryClient();
   
-  // Rule: Only Admins can see this dashboard
-  if (staffRole !== 'admin') {
-    return <Navigate to="/" replace />;
-  }
-  
   const [confirmReturnId, setConfirmReturnId] = useState<string | null>(null);
   const [isConfirmingReturn, setIsConfirmingReturn] = useState(false);
 
@@ -359,6 +354,10 @@ const AdminDashboard: React.FC = () => {
     
     return parts.join(' ');
   };
+
+  if (staffRole !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
 
   if (loading) {
     return (

@@ -21,37 +21,36 @@ export const SaasSubscriberDetailModal: React.FC<SaasSubscriberDetailModalProps>
   onUpdateSubscriber,
   onRecordManualPayment
 }) => {
-  if (!subscriber) return null;
-
   const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'controls' | 'commission'>('overview');
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
   // Editable Form State
-  const [accountType, setAccountType] = useState<SaaSAccountType>(subscriber.account_type || 'Commercial Customer');
-  const [includeInAnalytics, setIncludeInAnalytics] = useState<boolean>(isCommercialSubscriber(subscriber));
-  const [tier, setTier] = useState<SaaSPlanTier>((subscriber.tier as SaaSPlanTier) || 'Tier 1');
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>(subscriber.billing_cycle || 'monthly');
+  const [accountType, setAccountType] = useState<SaaSAccountType>(subscriber?.account_type || 'Commercial Customer');
+  const [includeInAnalytics, setIncludeInAnalytics] = useState<boolean>(subscriber ? isCommercialSubscriber(subscriber) : true);
+  const [tier, setTier] = useState<SaaSPlanTier>((subscriber?.tier as SaaSPlanTier) || 'Tier 1');
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>(subscriber?.billing_cycle || 'monthly');
   const [expiryDate, setExpiryDate] = useState<string>(
-    subscriber.expiry_date ? subscriber.expiry_date.substring(0, 10) : ''
+    subscriber?.expiry_date ? subscriber.expiry_date.substring(0, 10) : ''
   );
-  const [outstandingAmount, setOutstandingAmount] = useState<number>(subscriber.outstanding_amount || 0);
-  const [leadSource, setLeadSource] = useState<string>(subscriber.lead_source || 'Threads Organic');
-  const [primarySalesperson, setPrimarySalesperson] = useState<string>(subscriber.primary_salesperson_name || subscriber.salesperson_name || 'Founder Direct');
-  const [supportingSalesperson, setSupportingSalesperson] = useState<string>(subscriber.supporting_salesperson_name || '');
+  const [outstandingAmount, setOutstandingAmount] = useState<number>(subscriber?.outstanding_amount || 0);
+  const [leadSource, setLeadSource] = useState<string>(subscriber?.lead_source || 'Threads Organic');
+  const [primarySalesperson, setPrimarySalesperson] = useState<string>(subscriber?.primary_salesperson_name || subscriber?.salesperson_name || 'Founder Direct');
+  const [supportingSalesperson, setSupportingSalesperson] = useState<string>(subscriber?.supporting_salesperson_name || '');
   const [commissionEligible, setCommissionEligible] = useState<boolean>(
-    subscriber.commission_eligible !== undefined ? Boolean(subscriber.commission_eligible) : true
+    subscriber?.commission_eligible !== undefined ? Boolean(subscriber.commission_eligible) : true
   );
-  const [commissionSplit, setCommissionSplit] = useState<string>(subscriber.commission_split || '50/50');
+  const [commissionSplit, setCommissionSplit] = useState<string>(subscriber?.commission_split || '50/50');
 
   // Manual payment state
-  const [manualAmount, setManualAmount] = useState<number>(calculateSubscriberMRR(subscriber));
+  const [manualAmount, setManualAmount] = useState<number>(subscriber ? calculateSubscriberMRR(subscriber) : 0);
   const [manualMethod, setManualMethod] = useState<'FPX' | 'Credit Card' | 'DuitNow' | 'Manual Bank Transfer' | 'Stripe'>('Manual Bank Transfer');
   const [graceDays, setGraceDays] = useState(7);
 
   // Reset editable states on subscriber prop change
   useEffect(() => {
+    if (!subscriber) return;
     setAccountType(subscriber.account_type || 'Commercial Customer');
     setIncludeInAnalytics(isCommercialSubscriber(subscriber));
     setTier((subscriber.tier as SaaSPlanTier) || 'Tier 1');
@@ -65,12 +64,12 @@ export const SaasSubscriberDetailModal: React.FC<SaasSubscriberDetailModalProps>
     setCommissionSplit(subscriber.commission_split || '50/50');
   }, [subscriber]);
 
-  const status = getSubscriberEffectiveStatus(subscriber);
-  const planName = getPlanName(subscriber.tier);
-  const mrr = calculateSubscriberMRR(subscriber);
+  const status = subscriber ? getSubscriberEffectiveStatus(subscriber) : 'ACTIVE';
+  const planName = subscriber ? getPlanName(subscriber.tier) : 'Basic Forms';
+  const mrr = subscriber ? calculateSubscriberMRR(subscriber) : 0;
 
-  const subInvoices = invoices.filter(i => i.subscriber_id === subscriber.id);
-  const subCommission = commissions.find(c => c.subscriber_id === subscriber.id);
+  const subInvoices = subscriber ? invoices.filter(i => i.subscriber_id === subscriber.id) : [];
+  const subCommission = subscriber ? commissions.find(c => c.subscriber_id === subscriber.id) : undefined;
 
   const handleAction = async (msg: string, updateFn: () => Promise<void>) => {
     try {
@@ -87,6 +86,7 @@ export const SaasSubscriberDetailModal: React.FC<SaasSubscriberDetailModalProps>
 
   const handleSaveEdits = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!subscriber) return;
     await handleAction('Subscriber configuration updated successfully.', async () => {
       await onUpdateSubscriber(subscriber.id, {
         account_type: accountType,
@@ -108,6 +108,7 @@ export const SaasSubscriberDetailModal: React.FC<SaasSubscriberDetailModalProps>
 
   const handleManualPaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!subscriber) return;
     await handleAction(`Payment of RM ${manualAmount} recorded. Next billing extended.`, async () => {
       const nextDate = new Date();
       nextDate.setDate(nextDate.getDate() + (subscriber.billing_cycle === 'annual' ? 365 : 30));
@@ -135,6 +136,8 @@ export const SaasSubscriberDetailModal: React.FC<SaasSubscriberDetailModalProps>
       });
     });
   };
+
+  if (!subscriber) return null;
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">

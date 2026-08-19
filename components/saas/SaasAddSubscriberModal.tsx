@@ -34,8 +34,6 @@ export const SaasAddSubscriberModal: React.FC<SaasAddSubscriberModalProps> = ({
   onClose,
   onAddSubscriber
 }) => {
-  if (!isOpen) return null;
-
   // Step state (1: Company, 2: Subscription, 3: Sales Attribution)
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
@@ -134,6 +132,8 @@ export const SaasAddSubscriberModal: React.FC<SaasAddSubscriberModalProps> = ({
     : billingCycle === 'annual' 
       ? `RM ${plan.annualPrice}/yr (RM ${Math.round(plan.annualPrice / 12)}/mo normalized)` 
       : `RM ${plan.monthlyPrice}/mo`;
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">

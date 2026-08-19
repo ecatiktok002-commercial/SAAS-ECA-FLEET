@@ -111,6 +111,8 @@ const FleetModal: React.FC<FleetModalProps> = ({
     setExpenseNotes('');
   };
 
+  if (!isOpen) return null;
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">

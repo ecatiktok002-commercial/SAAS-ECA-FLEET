@@ -228,17 +228,45 @@ const CalendarPage: React.FC = () => {
       setIsLoading(true);
       
       // Find the member to determine agent_id
-      const selectedMember = members.find(m => m.id === bookingData.member_id);
-      const actualAgentId = selectedMember?.staff_id || currentSubscriberId;
+      const selectedMember = members.find(m => m.id === bookingData.member_id || m.staff_id === bookingData.member_id);
+      
+      let actualAgentId = selectedMember?.staff_id;
+      if (!actualAgentId && selectedMember) {
+        if (selectedMember.is_subscriber) {
+          actualAgentId = currentSubscriberId;
+        } else {
+          const foundStaff = staffMembers.find(s => s.id === selectedMember.id || s.name.toLowerCase() === selectedMember.name.toLowerCase());
+          if (foundStaff) {
+            actualAgentId = foundStaff.id;
+          }
+        }
+      }
+      if (!actualAgentId) {
+        actualAgentId = currentSubscriberId;
+      }
+      
+      const finalStaffName = staffName || selectedMember?.name || '';
       
       const bookingWithAgent = {
         ...bookingData,
         agent_id: actualAgentId || '',
-        agent_name: staffName,
+        agent_name: finalStaffName,
         subscriber_id: currentSubscriberId,
         created_by: (editingBooking && editingBooking.created_by) ? editingBooking.created_by : (userUid || currentUserId || '')
       };
       const savedBooking = await apiService.saveBooking(bookingWithAgent, currentSubscriberId, editingBooking?.id);
+      
+      // If there is an existing linked agreement for this booking, sync agent_id & agent_name
+      if (editingBooking?.id && actualAgentId) {
+        apiService.getLinkedAgreementForBooking(editingBooking.id, currentSubscriberId).then(linkedAgr => {
+          if (linkedAgr && (linkedAgr.agent_id !== actualAgentId || linkedAgr.agent_name !== finalStaffName)) {
+            apiService.updateAgreement(linkedAgr.id, currentSubscriberId, {
+              agent_id: actualAgentId,
+              agent_name: finalStaffName
+            }).catch(e => console.error("Could not sync linked agreement staff:", e));
+          }
+        }).catch(e => console.error("Linked agreement check failed:", e));
+      }
       
       setBookings(prev => {
         const exists = prev.find(b => b.id === savedBooking.id);

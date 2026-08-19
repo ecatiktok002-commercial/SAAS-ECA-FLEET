@@ -1734,7 +1734,7 @@ export const apiService = {
     }
 
     return withRetry(async () => {
-      const { data: subData } = await supabase.from('subscribers').select('name').eq('id', subscriberId).single();
+      const { data: subData } = await supabase.from('subscribers').select('name, company_name').eq('id', subscriberId).single();
       const slug = subData?.name || subscriberId;
 
       const { data, error } = await supabase
@@ -1744,11 +1744,41 @@ export const apiService = {
         .eq('subscriber_id', slug)
         .maybeSingle();
       
+      if (data) return mapStaffFromDB(data);
+
+      // Check legacy staff_members table
+      const { data: legacyData } = await supabase
+        .from('staff_members')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (legacyData) return mapStaffFromDB(legacyData);
+
+      // Check if id is the subscriber itself (Owner / Company)
+      const { data: subRec } = await supabase
+        .from('subscribers')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (subRec) {
+        return {
+          id: subRec.id,
+          staff_uid: subRec.id,
+          name: subRec.company_name || subRec.name || 'Owner',
+          subscriber_id: subRec.id,
+          is_active: true,
+          role: 'admin',
+          created_at: subRec.created_at,
+          commission_rate: 0
+        };
+      }
+
       if (error) {
         logSupabaseError('getStaffMemberById', error);
-        return null;
       }
-      return data ? mapStaffFromDB(data) : null;
+      return null;
     });
   },
 
@@ -2528,11 +2558,14 @@ export const apiService = {
         throw new Error("Cannot create agreement: A valid agent ID is required.");
       }
 
-      // Calculate commission earned based on agent's dynamic rate or tier override
+      // Calculate commission earned based on agent's dynamic rate or tier override & ensure agent_name is populated
       if (finalAgreement.agent_id) {
         try {
           const staffMember = await this.getStaffMemberById(finalAgreement.agent_id, targetSubscriberId);
           if (staffMember) {
+            if (!finalAgreement.agent_name) {
+              finalAgreement.agent_name = staffMember.name;
+            }
             if (staffMember.commission_rate && Number(staffMember.commission_rate) > 0) {
               finalAgreement.commission_earned = finalAgreement.total_price * (staffMember.commission_rate / 100);
             } else if (staffMember.commission_tier_override && staffMember.commission_tier_override !== 'auto') {

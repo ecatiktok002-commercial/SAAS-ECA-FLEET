@@ -1,7 +1,7 @@
 import { supabase } from '../../services/supabase';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Save, Upload, CheckCircle2, X, Trash2, Loader2, Wand2 } from 'lucide-react';
+import { ArrowLeft, Save, Upload, CheckCircle2, X, Trash2, Loader2, Wand2, UserCheck } from 'lucide-react';
 import { addDays, differenceInDays, parseISO, format, isValid } from 'date-fns';
 import { getNowMYT, formatInMYT, utcToMyt, getMYTTimeString } from '../../utils/dateUtils';
 import { apiService } from '../../services/apiService';
@@ -10,6 +10,7 @@ import { parseBookingDate } from '../../services/bookingService';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import { compressImage } from '../../services/imageCompression';
+import { StaffMember } from '../../types';
 
 export default function CreateAgreement() {
   const { subscriberId, userId, userName, userUid, staffRole } = useAuth();
@@ -50,6 +51,40 @@ export default function CreateAgreement() {
   const [highlightReturnTime, setHighlightReturnTime] = useState(false);
   const [customerFound, setCustomerFound] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
+  const [handledByStaffId, setHandledByStaffId] = useState<string>('');
+  const [handledByStaffName, setHandledByStaffName] = useState<string>('');
+
+  // Fetch staff members for Handled By dropdown
+  useEffect(() => {
+    const fetchStaff = async () => {
+      if (!subscriberId) return;
+      try {
+        const staff = await apiService.getStaffMembers(subscriberId);
+        setStaffList(staff);
+
+        // If not from booking, set initial default
+        if (!bookingId) {
+          if (staffRole !== 'admin') {
+            const currentStaff = staff.find(s => s.staff_uid === userUid || s.staff_uid === userId || s.id === userId || s.name === userName);
+            if (currentStaff) {
+              setHandledByStaffId(currentStaff.id);
+              setHandledByStaffName(currentStaff.name);
+            } else {
+              setHandledByStaffId(userId || userUid || '');
+              setHandledByStaffName(userName || 'Agent');
+            }
+          } else {
+            setHandledByStaffId(subscriberId);
+            setHandledByStaffName(userName || 'Company / Owner');
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching staff members:', err);
+      }
+    };
+    fetchStaff();
+  }, [subscriberId, userUid, userId, userName, staffRole, bookingId]);
 
   // Handle auto-calculation of end_date and return_time
   const updateReturnDate = (startDateStr: string, durationStr: string) => {
@@ -74,17 +109,43 @@ export default function CreateAgreement() {
         try {
           const booking = await apiService.getBookingById(bookingId, subscriberId);
           if (booking) {
-            // Fetch member details
-            const member = await apiService.getMembers(subscriberId).then(members => 
-              members.find(m => m.id === booking.member_id)
-            );
+            // Fetch member details and staff list to accurately determine the staff assigned
+            const [members, staff] = await Promise.all([
+              apiService.getMembers(subscriberId),
+              apiService.getStaffMembers(subscriberId)
+            ]);
+
+            const assignedMember = members.find(m => m.id === booking.member_id || m.staff_id === booking.member_id);
+            
+            // Resolve staff assigned on the booking
+            let targetAgentName = booking.agent_name || assignedMember?.name;
+            let targetAgentId = booking.agent_id || assignedMember?.staff_id;
+
+            if (!targetAgentId && targetAgentName) {
+              const matchedStaff = staff.find(s => s.name.toLowerCase() === targetAgentName?.toLowerCase());
+              if (matchedStaff) {
+                targetAgentId = matchedStaff.id;
+              } else if (assignedMember?.is_subscriber) {
+                targetAgentId = subscriberId;
+              }
+            } else if (targetAgentId && !targetAgentName) {
+              const matchedStaff = staff.find(s => s.id === targetAgentId);
+              if (matchedStaff) {
+                targetAgentName = matchedStaff.name;
+              }
+            }
+
+            if (targetAgentId || targetAgentName) {
+              setHandledByStaffId(targetAgentId || subscriberId);
+              setHandledByStaffName(targetAgentName || 'Agent');
+            }
 
             // Fetch car details
             const car = await apiService.getCars(subscriberId).then(cars => 
               cars.find(c => c.id === booking.car_id)
             );
 
-          if (member && car) {
+            if (car) {
               if (booking.start_date && booking.pickup_time) {
                 const startDate = booking.start_date;
                 const time = booking.pickup_time; 
@@ -98,23 +159,16 @@ export default function CreateAgreement() {
 
                 setFormData(prev => ({
                   ...prev,
-                  customer_name: member.name,
-                  identity_number: member.identity_number || '',
-                  customer_phone: member.phone || '',
-                  billing_address: member.billing_address || '',
-                  emergency_contact_name: member.emergency_contact_name || '',
-                  emergency_contact_relation: member.emergency_contact_relation || '',
                   car_plate_number: car.plateNumber || car.plate || '',
                   car_model: modelName,
                   start_date: startDate,
                   end_date: endDate,
                   duration_days: duration.toString(),
                   total_price: booking.total_price?.toString() || '',
-                  pickup_time: time,    // Now shows 17:30
-                  return_time: time,    // Now shows 17:30
+                  pickup_time: time,
+                  return_time: time,
                 }));
               }
-              setCustomerFound(true);
             }
           }
         } catch (err) {
@@ -403,20 +457,28 @@ export default function CreateAgreement() {
         );
       }
 
-      // Get current staff name if available
-      const staffName = userName || 'Agent';
-      let actualAgentId = staffRole === 'admin' ? subscriberId : (userId || userUid);
+      // Resolve staff / handler name and ID
+      let actualAgentId = handledByStaffId || (staffRole === 'admin' ? subscriberId : (userId || userUid));
+      let finalStaffName = handledByStaffName || userName || 'Agent';
 
       // Ensure actualAgentId is a valid UUID. If it's a string UID (e.g., 'idmahira'), fetch the real UUID.
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (actualAgentId && actualAgentId !== 'superadmin' && !uuidRegex.test(actualAgentId)) {
-        // If we have a userUid (string UID), use that for resolution as it's more reliable than the email-based userId
         const idToResolve = userUid || actualAgentId;
         const staffMember = await apiService.getStaffMemberByUid(idToResolve, subscriberId);
         if (staffMember) {
           actualAgentId = staffMember.id;
-        } else {
-          throw new Error('Could not resolve staff UUID. Please log out and log in again.');
+          if (!finalStaffName || finalStaffName === 'Agent') {
+            finalStaffName = staffMember.name;
+          }
+        }
+      }
+
+      // If actualAgentId was selected from staffList, ensure name matches
+      if (actualAgentId && actualAgentId !== subscriberId) {
+        const matched = staffList.find(s => s.id === actualAgentId);
+        if (matched) {
+          finalStaffName = matched.name;
         }
       }
 
@@ -434,8 +496,8 @@ export default function CreateAgreement() {
       const agreementData: any = {
         subscriber_id: subscriberId,
         customer_id: customerId, // Attach the customer_id
-        agent_id: actualAgentId || subscriberId, // Fallback to subscriberId to avoid UUID syntax error
-        agent_name: staffName,
+        agent_id: actualAgentId || subscriberId, // Set the selected staff ID (e.g., SERI)
+        agent_name: finalStaffName, // Set the selected staff Name (e.g., SERI)
         created_by: userUid || userId || '', // Track the actual string UID
         customer_name: formData.customer_name,
         identity_number: formData.identity_number,
@@ -463,8 +525,20 @@ export default function CreateAgreement() {
       };
 
       const newAgreement = await apiService.createAgreement(agreementData, subscriberId);
+
+      // If created from booking, also ensure the booking's agent_id and agent_name are synchronized
+      if (formData.booking_id && actualAgentId) {
+        try {
+          await apiService.saveBooking({
+            agent_id: actualAgentId,
+            agent_name: finalStaffName
+          } as any, subscriberId, formData.booking_id);
+        } catch (syncErr) {
+          console.warn('Could not sync booking agent details:', syncErr);
+        }
+      }
       
-      alert(`Agreement created! ID: ${newAgreement.id}`);
+      toast.success(`Agreement ${newAgreement.reference_number || 'created'} successfully!`);
       navigate('/forms');
     } catch (err: any) {
       setError(err.message);
@@ -506,6 +580,51 @@ export default function CreateAgreement() {
 
             {currentStep === 1 && (
               <>
+                {/* Handled By / Staff Assignment */}
+                <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-4 mb-5">
+                  <div className="flex items-center gap-2 mb-2 text-slate-900 font-semibold text-sm">
+                    <UserCheck className="w-4 h-4 text-blue-600" />
+                    <span>Handled By (Staff / Agent)</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="sm:col-span-2">
+                      <select
+                        value={handledByStaffId}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setHandledByStaffId(val);
+                          if (val === subscriberId) {
+                            setHandledByStaffName(userName || 'Company / Owner');
+                          } else {
+                            const found = staffList.find(s => s.id === val);
+                            if (found) {
+                              setHandledByStaffName(found.name);
+                            }
+                          }
+                        }}
+                        disabled={staffRole !== 'admin'}
+                        className="h-11 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm bg-white font-medium text-slate-800 disabled:bg-slate-100 disabled:text-slate-600"
+                      >
+                        {staffRole === 'admin' && subscriberId && (
+                          <option value={subscriberId}>
+                            {userName || 'Company'} (Owner)
+                          </option>
+                        )}
+                        {staffList.map((staff) => (
+                          <option key={staff.id} value={staff.id}>
+                            {staff.name} {staff.role === 'admin' ? '(Admin)' : '(Staff)'}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {staffRole === 'admin' 
+                          ? 'This agreement and commission will be awarded to the selected staff member.' 
+                          : 'Assigned staff handler for this digital form.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg mb-4">
                   <div className="font-medium text-slate-900">Customer Details</div>
                   {customerFound && (

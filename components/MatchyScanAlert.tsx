@@ -51,6 +51,7 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
 
   // Modal State
   const [linkModal, setLinkModal] = useState<{ isOpen: boolean; type: 'booking' | 'agreement'; sourceId: string; sourceLabel: string } | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; type: 'booking' | 'agreement'; id: string } | null>(null);
   const [selectedMatchId, setSelectedMatchId] = useState('');
   const [isLinking, setIsLinking] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -141,8 +142,6 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
     // Let's add a state for delete confirmation.
     setDeleteModal({ isOpen: true, type, id });
   };
-
-  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; type: 'booking' | 'agreement'; id: string } | null>(null);
 
   const confirmDelete = async () => {
     if (!deleteModal) return;

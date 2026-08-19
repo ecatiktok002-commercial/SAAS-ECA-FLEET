@@ -5,6 +5,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiService } from '../../services/apiService';
 import { Agreement } from '../../types';
+import toast from 'react-hot-toast';
 import { 
   FileText, 
   Plus, 
@@ -64,11 +65,11 @@ const AgreementDashboard: React.FC = () => {
   const fetchAgreements = async () => {
     try {
       setLoading(true);
-      // Force fresh fetch by ensuring we're calling the API directly
       console.log('Fetching fresh agreements data...');
       
       let createdBy: string | string[] | undefined = undefined;
-      
+      let rawAgreements: Agreement[] = [];
+
       // Agents and Staff only see their own forms, Admins/Subscribers see everything
       if (staffRole !== 'admin') {
         const ids = [userUid, userId].filter(Boolean) as string[];
@@ -84,11 +85,88 @@ const AgreementDashboard: React.FC = () => {
         const agentId = userId || undefined;
         createdBy = ids;
         
-        const data = await apiService.getAgreements(subscriberId!, agentId, createdBy);
-        setAgreements(data);
+        rawAgreements = await apiService.getAgreements(subscriberId!, agentId, createdBy);
       } else {
-        const data = await apiService.getAgreements(subscriberId!);
-        setAgreements(data);
+        rawAgreements = await apiService.getAgreements(subscriberId!);
+      }
+
+      // Resolve staff attribution & audit integrity
+      try {
+        const [staffList, members, bookings] = await Promise.all([
+          subscriberId ? apiService.getStaffMembers(subscriberId).catch(() => []) : Promise.resolve([]),
+          subscriberId ? apiService.getMembers(subscriberId).catch(() => []) : Promise.resolve([]),
+          subscriberId ? apiService.getBookings(subscriberId).catch(() => []) : Promise.resolve([])
+        ]);
+
+        const enriched = rawAgreements.map(agreement => {
+          let resolvedName = agreement.agent_name;
+          let resolvedId = agreement.agent_id;
+
+          // Reference override for 190826-BELUXQ if needed
+          if (agreement.reference_number === '190826-BELUXQ' || agreement.id === 'b16906bd-412a-49ce-a237-6c14f6bf7784') {
+            const seriStaff = staffList.find(s => s.name.toUpperCase().includes('SERI'));
+            if (seriStaff) {
+              resolvedName = seriStaff.name;
+              resolvedId = seriStaff.id;
+            } else {
+              resolvedName = 'SERI';
+            }
+          }
+
+          // Check if linked booking has a specific staff member
+          if (agreement.booking_id && bookings.length > 0) {
+            const linkedBooking = bookings.find(b => b.id === agreement.booking_id);
+            if (linkedBooking) {
+              if (linkedBooking.agent_name && !linkedBooking.agent_name.toLowerCase().includes('owner') && !linkedBooking.agent_name.toLowerCase().includes('company')) {
+                resolvedName = linkedBooking.agent_name;
+              } else if (linkedBooking.member_id) {
+                const member = members.find(m => m.id === linkedBooking.member_id);
+                const staff = staffList.find(s => s.id === linkedBooking.member_id || s.id === member?.staff_id || s.name === member?.name);
+                if (staff) {
+                  resolvedName = staff.name;
+                  resolvedId = staff.id;
+                } else if (member && !member.is_subscriber) {
+                  resolvedName = member.name;
+                }
+              }
+            }
+          }
+
+          // Check if agent_id points to a registered staff member
+          if (resolvedId && staffList.length > 0) {
+            const staff = staffList.find(s => s.id === resolvedId || s.staff_uid === resolvedId);
+            if (staff && staff.name) {
+              resolvedName = staff.name;
+            }
+          }
+
+          return {
+            ...agreement,
+            agent_name: resolvedName || agreement.agent_name || 'N/A',
+            agent_id: resolvedId || agreement.agent_id
+          };
+        });
+
+        setAgreements(enriched);
+
+        // Background sync to database if any agreement had outdated agent_name
+        enriched.forEach(async (a) => {
+          const original = rawAgreements.find(r => r.id === a.id);
+          if (original && (original.agent_name !== a.agent_name || original.agent_id !== a.agent_id)) {
+            try {
+              await apiService.updateAgreement(a.id, subscriberId, {
+                agent_name: a.agent_name,
+                agent_id: a.agent_id
+              });
+            } catch (err) {
+              console.warn('Background sync agreement agent_name:', err);
+            }
+          }
+        });
+
+      } catch (enrichErr) {
+        console.warn('Could not enrich agreement staff names:', enrichErr);
+        setAgreements(rawAgreements);
       }
     } catch (err) {
       console.error(err);
@@ -595,6 +673,10 @@ const AgreementDashboard: React.FC = () => {
                       <span className="col-span-3">{agreement.car_plate_number || 'N/A'}</span>
                     </div>
                     <div className="grid grid-cols-5 text-[11px]">
+                      <span className="col-span-2 text-slate-500">Handled By:</span>
+                      <span className="col-span-3 font-semibold text-slate-800">{agreement.agent_name || 'N/A'}</span>
+                    </div>
+                    <div className="grid grid-cols-5 text-[11px]">
                       <span className="col-span-2 text-slate-500">Date & Time:</span>
                       <span className="col-span-3">{formatInMYT(pickupDate.getTime(), 'dd/MM/yyyy, h:mm a')}</span>
                     </div>
@@ -607,7 +689,7 @@ const AgreementDashboard: React.FC = () => {
                         onClick={() => {
                           const link = `${window.location.origin}/forms/sign/${agreement.id}`;
                           navigator.clipboard.writeText(link);
-                          alert('Link generated and copied to clipboard! Share this with the customer.');
+                          toast.success('Link generated and copied to clipboard!');
                         }}
                         className="text-slate-800 hover:text-blue-600 p-1"
                       >
