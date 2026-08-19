@@ -307,6 +307,7 @@ export interface SaaSActivityLog {
     | 'subscriber_created'
     | 'trial_started'
     | 'trial_converted'
+    | 'trial_expired'
     | 'subscription_activated'
     | 'payment_recorded'
     | 'payment_failed'

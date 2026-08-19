@@ -113,19 +113,52 @@ const SubscriberManager: React.FC = () => {
         apiService.getSaasActivityLogs().catch(() => [])
       ]);
 
-      // Check for expired trials automation
+      // Check for expired trials automation (Auto-expire 30-day trials if no active subscription log/payment exists)
       const now = getNowMYT();
-      const expiredTrials = subsData.filter(sub => 
-        sub.is_trial && 
-        sub.status === 'ACTIVE' && 
-        sub.expiry_date && 
-        utcToMyt(sub.expiry_date) < now
-      );
+      const expiredTrials = subsData.filter(sub => {
+        if (!sub.is_trial || sub.status !== 'ACTIVE') return false;
+
+        const hasActiveSubscriptionLog = logData.some(l => 
+          l.subscriber_id === sub.id && 
+          (l.event_type === 'subscription_activated' || l.event_type === 'payment_recorded')
+        );
+        const hasPaidInvoice = invData.some(inv => inv.subscriber_id === sub.id && inv.status === 'paid');
+
+        // If user already has paid subscription records, do not auto-expire
+        if (hasActiveSubscriptionLog || hasPaidInvoice) return false;
+
+        // Check if expiry date has passed
+        if (sub.expiry_date) {
+          return utcToMyt(sub.expiry_date) < now;
+        }
+
+        // Fallback: if trial has no explicit expiry_date, check 30 days from start date
+        if (sub.subscription_start_date) {
+          const startDate = utcToMyt(sub.subscription_start_date);
+          const diffDays = (now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+          return diffDays >= 30;
+        }
+
+        return false;
+      });
 
       if (expiredTrials.length > 0) {
-        await Promise.all(expiredTrials.map(trial => 
-          apiService.updateCompany(trial.id, { status: 'INACTIVE', is_active: false }).catch(() => {})
-        ));
+        await Promise.all(expiredTrials.map(async trial => {
+          await apiService.updateCompany(trial.id, { 
+            status: 'INACTIVE', 
+            is_active: false,
+            subscription_status: 'expired'
+          }).catch(() => {});
+
+          await apiService.logSaasActivity({
+            subscriber_id: trial.id,
+            subscriber_name: trial.name,
+            event_type: 'trial_expired',
+            description: '30-Day trial expired with no subscription log recorded',
+            plan_tier: trial.tier as SaaSPlanTier
+          }).catch(() => {});
+        }));
+
         const updatedSubs = await apiService.getCompanies().catch(() => subsData);
         setSubscribers(updatedSubs);
       } else {
@@ -228,7 +261,7 @@ const SubscriberManager: React.FC = () => {
     const now = getNowMYT();
 
     if (data.is_trial) {
-      now.setDate(now.getDate() + (data.trial_days || 14));
+      now.setDate(now.getDate() + (data.trial_days || 30));
       expiryDate = now.toISOString();
     } else if (data.billing_cycle === 'annual') {
       now.setDate(now.getDate() + 365);

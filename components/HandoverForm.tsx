@@ -24,6 +24,33 @@ interface DamagePhoto {
   preview: string;
 }
 
+interface PhotoUploadBoxProps {
+  label: string;
+  isRequired?: boolean;
+  preview?: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}
+
+const PhotoUploadBox: React.FC<PhotoUploadBoxProps> = ({ label, isRequired = false, preview, onChange }) => (
+  <div className="relative aspect-square rounded-xl border-2 border-dashed border-slate-300 bg-white overflow-hidden flex flex-col group hover:border-blue-400 transition-colors cursor-pointer shadow-sm">
+    <input 
+      type="file" 
+      accept="image/*" 
+      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+      onChange={onChange}
+    />
+    {preview ? (
+      <img src={preview} alt={label} className="w-full h-full object-cover" />
+    ) : (
+      <div className="flex flex-col items-center justify-center h-full p-2 text-center pointer-events-none">
+        <svg className="w-6 h-6 text-slate-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/></svg>
+        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{label}</span>
+        {isRequired && <span className="text-[8px] font-bold text-rose-500 uppercase mt-1">Required</span>}
+      </div>
+    )}
+  </div>
+);
+
 const HandoverForm: React.FC<HandoverFormProps> = ({ 
   bookingId, 
   car_id, 
@@ -211,28 +238,6 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
     }
   };
 
-  // Reusable component for a single photo upload box
-  const PhotoUploadBox = ({ label, isRequired = false }: { label: string, isRequired?: boolean }) => (
-    <div className="relative aspect-square rounded-xl border-2 border-dashed border-slate-300 bg-white overflow-hidden flex flex-col group hover:border-blue-400 transition-colors cursor-pointer shadow-sm">
-      <input 
-        type="file" 
-        accept="image/*" 
-        /* ❌ REMOVED: capture="environment" */
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-        onChange={(e) => handleRequiredPhotoChange(label, e)}
-      />
-      {photoPreviews[label] ? (
-        <img src={photoPreviews[label]} alt={label} className="w-full h-full object-cover" />
-      ) : (
-        <div className="flex flex-col items-center justify-center h-full p-2 text-center pointer-events-none">
-          <svg className="w-6 h-6 text-slate-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/></svg>
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{label}</span>
-          {isRequired && <span className="text-[8px] font-bold text-rose-500 uppercase mt-1">Required</span>}
-        </div>
-      )}
-    </div>
-  );
-
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md my-auto flex flex-col max-h-[90vh]">
@@ -316,7 +321,9 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
                 <PhotoUploadBox 
                   key={label} 
                   label={label} 
-                  isRequired={handoverType === 'Pickup' || (handoverType === 'Return' && !isGoodCondition)} 
+                  isRequired={handoverType === 'Pickup' || (handoverType === 'Return' && !isGoodCondition)}
+                  preview={photoPreviews[label]}
+                  onChange={(e) => handleRequiredPhotoChange(label, e)}
                 />
               ))}
             </div>
@@ -377,7 +384,12 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
             <div className="grid grid-cols-[100px_1fr] gap-4">
               {/* Dashboard Photo */}
               <div className="h-full">
-                <PhotoUploadBox label="Dashboard" isRequired />
+                <PhotoUploadBox 
+                  label="Dashboard" 
+                  isRequired 
+                  preview={photoPreviews['Dashboard']}
+                  onChange={(e) => handleRequiredPhotoChange('Dashboard', e)}
+                />
               </div>
 
               {/* Meters Inputs */}

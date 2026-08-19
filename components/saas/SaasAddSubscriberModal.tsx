@@ -51,8 +51,10 @@ export const SaasAddSubscriberModal: React.FC<SaasAddSubscriberModalProps> = ({
   const [tier, setTier] = useState<SaaSPlanTier>('Tier 3');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [paymentMethod, setPaymentMethod] = useState('FPX');
-  const [isTrial, setIsTrial] = useState(false);
   const [includeInAnalytics, setIncludeInAnalytics] = useState(true);
+
+  // Derive trial mode directly from Account Type selected in Step 1
+  const isTrial = accountType === 'Demo / Trial';
 
   // Step 3: Sales Attribution Fields
   const [leadSource, setLeadSource] = useState('Threads Organic');
@@ -111,7 +113,7 @@ export const SaasAddSubscriberModal: React.FC<SaasAddSubscriberModalProps> = ({
         billing_cycle: billingCycle,
         payment_method: paymentMethod,
         is_trial: isTrial,
-        trial_days: isTrial ? 14 : undefined,
+        trial_days: isTrial ? 30 : undefined,
         lead_source: leadSource,
         primary_salesperson_name: primarySalesperson.trim(),
         supporting_salesperson_name: supportingSalesperson.trim() || undefined,
@@ -127,9 +129,11 @@ export const SaasAddSubscriberModal: React.FC<SaasAddSubscriberModalProps> = ({
   };
 
   const plan = PLAN_CONFIGS[tier];
-  const priceDisplay = billingCycle === 'annual' 
-    ? `RM ${plan.annualPrice}/yr (RM ${Math.round(plan.annualPrice / 12)}/mo normalized)` 
-    : `RM ${plan.monthlyPrice}/mo`;
+  const priceDisplay = isTrial
+    ? 'RM 0 (30-Day Free Trial)'
+    : billingCycle === 'annual' 
+      ? `RM ${plan.annualPrice}/yr (RM ${Math.round(plan.annualPrice / 12)}/mo normalized)` 
+      : `RM ${plan.monthlyPrice}/mo`;
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
@@ -333,20 +337,6 @@ export const SaasAddSubscriberModal: React.FC<SaasAddSubscriberModalProps> = ({
                   <option value="Stripe">Stripe</option>
                 </select>
               </div>
-            </div>
-
-            {/* Free Trial Toggle */}
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between">
-              <div>
-                <span className="font-bold text-slate-900 block">Free Trial</span>
-                <span className="text-[11px] text-slate-500">Optional 14-day evaluation before paid subscription begins</span>
-              </div>
-              <input
-                type="checkbox"
-                checked={isTrial}
-                onChange={(e) => setIsTrial(e.target.checked)}
-                className="w-4 h-4 rounded-sm text-slate-900 focus:ring-slate-900 cursor-pointer"
-              />
             </div>
 
             <div className="flex justify-between gap-3 pt-4 border-t border-slate-100">

@@ -101,7 +101,7 @@ export const SaasMrrGrowthChart: React.FC<SaasMrrGrowthChartProps> = ({
                 tick={{ fill: '#64748B', fontSize: 11 }}
                 tickFormatter={(val) => `RM ${val}`}
               />
-              <Tooltip content={CustomMrrTooltip} />
+              <Tooltip content={<CustomMrrTooltip />} />
               <Area 
                 type="monotone" 
                 dataKey="mrr" 
