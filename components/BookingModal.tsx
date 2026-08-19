@@ -886,7 +886,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                           value={car.id}
                           className={!isAvail ? "text-rose-500" : "text-slate-900 font-semibold"}
                         >
-                          {car.plate} — {car.name} {isAvail ? "(Available)" : "(Booked / Conflict)"}
+                          {car.plate} — {car.name} {isAvail ? "(Available)" : "(Booked)"}
                         </option>
                       );
                     })}
