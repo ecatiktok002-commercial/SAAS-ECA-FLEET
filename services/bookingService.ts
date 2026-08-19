@@ -11,8 +11,11 @@ export const parseBookingDate = (dateStr: string, timeStr?: string): number => {
 
 export const getBookingEndTime = (b: Booking): number => {
   if (b.actual_end_time) {
-    // Ensure cross-browser safety (e.g. Safari doesn't like spaces in ISO strings)
-    const timeStr = typeof b.actual_end_time === 'string' ? b.actual_end_time.replace(' ', 'T') : b.actual_end_time;
+    const timeStr = typeof b.actual_end_time === 'string' ? b.actual_end_time.trim().replace(' ', 'T') : b.actual_end_time;
+    if (typeof timeStr === 'string' && !timeStr.includes('Z') && !timeStr.includes('+')) {
+      const parsed = mytToUtc(timeStr).getTime();
+      if (!isNaN(parsed)) return parsed;
+    }
     const t = new Date(timeStr).getTime();
     if (!isNaN(t)) {
       return t;
@@ -294,24 +297,37 @@ export const optimizeBookings = (
  * Returns cars that have no bookings overlapping the selected date-time window.
  */
 export const getAvailableCars = (
-  date: Date,
+  dateOrStr: Date | string,
   bookings: Booking[],
   cars: Car[],
+  duration: number = 1,
+  endTime?: string
 ): Car[] => {
-  const checkStart = date.getTime();
-  const checkEnd = checkStart + 1 * 60 * 60 * 1000;
+  let startDate: string;
+  let pickupTime: string;
+
+  if (typeof dateOrStr === 'string') {
+    const parts = dateOrStr.split('T');
+    startDate = parts[0];
+    pickupTime = parts[1] ? (parts[1].length === 5 ? `${parts[1]}:00` : parts[1]) : '00:00:00';
+  } else {
+    startDate = getMYTDateString(dateOrStr);
+    pickupTime = '10:00:00';
+  }
 
   return cars.filter((car) => {
     if (car.status !== "active") return false;
-    const carBookings = bookings.filter(
-      (b) => b.car_id === car.id && b.status !== "cancelled",
+    return validateBooking(
+      {
+        car_id: car.id,
+        start_date: startDate,
+        pickup_time: pickupTime,
+        duration_days: duration,
+        member_id: "",
+        end_time: endTime,
+      },
+      bookings,
     );
-    const hasOverlap = carBookings.some((b) => {
-      const bStart = parseBookingDate(b.start_date, b.pickup_time);
-      const bEnd = getBookingEndTime(b);
-      return checkStart < bEnd && checkEnd > bStart;
-    });
-    return !hasOverlap;
   });
 };
 

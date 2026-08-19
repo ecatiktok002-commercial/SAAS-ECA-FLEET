@@ -270,11 +270,14 @@ const BookingModal: React.FC<BookingModalProps> = ({
           else setMemberId("");
         }
 
-        // If a car was clicked on the calendar row (preselectedCarId), select its model
+        // If a specific car was clicked, switch to specific mode
         if (preselectedCarId) {
+          setBookingMode("specific");
+          setCarId(preselectedCarId);
           const car = cars.find((c) => c.id === preselectedCarId);
           if (car) setSelectedModel(car.name);
         } else {
+          setBookingMode("category");
           setSelectedModel("");
         }
 
@@ -292,24 +295,41 @@ const BookingModal: React.FC<BookingModalProps> = ({
     }
   }, [isOpen, initialDate, editingBooking, preselectedCarId, cars]);
 
-  // For specific mode: Calculate strictly available cars
-  const selectedDate = selectedDateTimeStr
-    ? new Date(selectedDateTimeStr)
-    : null;
-  const specificAvailableCars = selectedDate
-    ? getAvailableCars(
-        selectedDate,
-        existingBookings.filter((b) => b.id !== editingBooking?.id),
-        cars,
-      )
-    : [];
+  // For specific mode: Calculate strictly available cars based on MYT datetime and duration
+  const specificAvailableCars = useMemo(() => {
+    if (!selectedDateTimeStr) return cars.filter((c) => c.status === "active");
+    const otherBookings = existingBookings.filter((b) => b.id !== editingBooking?.id);
+    return getAvailableCars(
+      selectedDateTimeStr,
+      otherBookings,
+      cars,
+      duration,
+      isEarlyReturn && actualEndTime ? actualEndTime : undefined
+    );
+  }, [
+    selectedDateTimeStr,
+    duration,
+    isEarlyReturn,
+    actualEndTime,
+    existingBookings,
+    editingBooking,
+    cars,
+  ]);
 
-  const dropdownCars =
-    editingBooking && !specificAvailableCars.find((c) => c.id === car_id)
-      ? ([...specificAvailableCars, cars.find((c) => c.id === car_id)].filter(
-          Boolean,
-        ) as Car[])
-      : specificAvailableCars;
+  const availableCarIds = useMemo(
+    () => new Set(specificAvailableCars.map((c) => c.id)),
+    [specificAvailableCars]
+  );
+
+  const sortedCarsForDropdown = useMemo(() => {
+    const activeCars = cars.filter((c) => c.status === "active");
+    return [...activeCars].sort((a, b) => {
+      const aAvail = availableCarIds.has(a.id) ? 0 : 1;
+      const bAvail = availableCarIds.has(b.id) ? 0 : 1;
+      if (aAvail !== bAvail) return aAvail - bAvail;
+      return a.plate.localeCompare(b.plate);
+    });
+  }, [cars, availableCarIds]);
 
   // Check if currently selected model is fully booked
   const isSelectedModelFull =
@@ -849,16 +869,27 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 <div className="relative">
                   <select
                     value={car_id}
-                    onChange={(e) => setCarId(e.target.value)}
+                    onChange={(e) => {
+                      setCarId(e.target.value);
+                      setError("");
+                      setUpgradeSuggestion(null);
+                    }}
                     disabled={!isEditable}
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all appearance-none font-semibold text-slate-700 text-sm disabled:opacity-60"
                   >
-                    <option value="">-- Select Available Car --</option>
-                    {dropdownCars.map((car) => (
-                      <option key={car.id} value={car.id}>
-                        {car.plate} — {car.name}
-                      </option>
-                    ))}
+                    <option value="">-- Select Available Vehicle --</option>
+                    {sortedCarsForDropdown.map((car) => {
+                      const isAvail = availableCarIds.has(car.id) || (editingBooking && car.id === editingBooking.car_id);
+                      return (
+                        <option 
+                          key={car.id} 
+                          value={car.id}
+                          className={!isAvail ? "text-rose-500" : "text-slate-900 font-semibold"}
+                        >
+                          {car.plate} — {car.name} {isAvail ? "(Available)" : "(Booked / Conflict)"}
+                        </option>
+                      );
+                    })}
                   </select>
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                     <svg
