@@ -87,11 +87,15 @@ const AgreementSettings: React.FC = () => {
           </div>
           
           <textarea 
-            className="w-full h-40 p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600 outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-            defaultValue="1. The renter agrees to abide by all local traffic laws and regulations.
-2. The renter is responsible for any summons or fines incurred during the rental period.
-3. Smoking and pets are strictly prohibited inside the vehicle.
-4. This agreement is legally binding once signed digitally."
+            className="w-full h-64 p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-mono leading-relaxed"
+            defaultValue={`1. Penggunaan & Pemandu Sah: Kenderaan hanya untuk kegunaan persendirian yang sah. Dilarang untuk e-hailing, penghantaran, perlumbaan, aktiviti haram, sub-rental atau diserahkan/dipinjamkan kepada pihak ketiga. Hanya penyewa atau pemandu tambahan yang telah didaftarkan dan diluluskan oleh syarikat dibenarkan mengambil dan memandu kenderaan.
+2. Pengesahan Identiti: Penyewa mengesahkan bahawa semua IC, Lesen Memandu, nombor telefon, gambar, tandatangan dan maklumat yang diberikan adalah miliknya sendiri dan benar. Penyewa dilarang menyerahkan atau membenarkan orang lain menggunakan identiti, dokumen, akaun WhatsApp, OTP atau akses sewaan miliknya. Sekiranya penyewa dengan sengaja membenarkan pihak lain menggunakan identiti atau mengambil/menggunakan kenderaan bagi pihaknya, penyewa kekal bertanggungjawab bersama pihak tersebut terhadap segala kerugian, kerosakan dan tuntutan yang timbul.
+3. Self-Pickup & Penyerahan Kenderaan: Bagi self-pickup, hanya individu yang telah disahkan oleh syarikat dibenarkan mengambil kenderaan. Pengesahan melalui tandatangan digital, OTP, selfie/video, kod akses atau kaedah pengesahan syarikat dianggap sebagai pengesahan penerimaan kenderaan oleh penyewa.
+4. Aktiviti Haram, Dadah & Sitaan Kenderaan: Dilarang menyimpan, membawa atau menggunakan kenderaan untuk dadah, barang terlarang, jenayah atau sebarang aktiviti menyalahi undang-undang. Sekiranya kenderaan ditahan atau disita akibat perbuatan penyewa atau mana-mana pihak yang mendapat akses kepada kenderaan melalui penyewa, penyewa bertanggungjawab atas kos towing, penyimpanan, pengambilan semula, kerosakan, kehilangan penggunaan, penalti dan kos munasabah berkaitan.
+5. Kerosakan, Kemalangan & Kehilangan: Penyewa bertanggungjawab atas kerosakan, kemalangan, kehilangan atau kecurian yang berlaku sepanjang kenderaan berada dalam jagaan penyewa, termasuk kos pembaikan, towing, excess insurans dan kehilangan penggunaan yang berkaitan. Deposit boleh digunakan dan sebarang baki masih wajib dibayar.
+6. Saman & Kesalahan Trafik: Penyewa bertanggungjawab atas semua saman, kompaun, parkir, tol atau kesalahan yang berlaku sepanjang tempoh sewaan, berdasarkan tarikh dan masa kesalahan, bukan tarikh saman diterima atau dimaklumkan. Saman yang muncul selepas sewaan tamat tetap menjadi tanggungjawab penyewa.
+7. Kerjasama Dengan Pihak Berkuasa: Penyewa bersetuju memberikan kerjasama sekiranya berlaku kemalangan, siasatan polis, tuntutan insurans atau tindakan pihak berkuasa. Syarikat berhak menyerahkan rekod sewaan dan maklumat berkaitan kepada pihak berkuasa apabila diperlukan mengikut undang-undang.
+8. Data Peribadi: Penyewa membenarkan syarikat mengumpul dan memproses IC, Lesen Memandu, gambar, video/selfie pengesahan, nombor telefon, tandatangan dan rekod sewaan bagi tujuan pengesahan identiti, keselamatan, tuntutan, siasatan, pencegahan penipuan dan perlindungan undang-undang.`}
           />
           <div className="mt-4 flex justify-end">
             <button className="bg-slate-900 text-white px-6 py-2 rounded-lg font-bold hover:bg-slate-800 transition-colors">
