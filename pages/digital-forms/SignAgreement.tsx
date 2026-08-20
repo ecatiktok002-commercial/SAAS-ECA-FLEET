@@ -14,6 +14,7 @@ const safeFormat = (dateStr: string | null | undefined, formatStr: string) => {
 };
 import html2pdf from 'html2pdf.js';
 import MalayPrintableAgreementTemplate from '../../components/MalayPrintableAgreementTemplate';
+import { PrivacyNoticeModal } from '../../components/PrivacyNoticeModal';
 
 export default function SignAgreement() {
   const { id } = useParams<{ id: string }>();
@@ -24,6 +25,7 @@ export default function SignAgreement() {
   const [error, setError] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [agreedDriver, setAgreedDriver] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const sigCanvas = useRef<SignatureCanvas>(null);
@@ -481,7 +483,19 @@ export default function SignAgreement() {
                 <p><strong>5. Kerosakan, Kemalangan & Kehilangan:</strong> Penyewa bertanggungjawab atas kerosakan, kemalangan, kehilangan atau kecurian yang berlaku sepanjang kenderaan berada dalam jagaan penyewa, termasuk kos pembaikan, towing, excess insurans dan kehilangan penggunaan yang berkaitan. Deposit boleh digunakan dan sebarang baki masih wajib dibayar.</p>
                 <p><strong>6. Saman & Kesalahan Trafik:</strong> Penyewa bertanggungjawab atas semua saman, kompaun, parkir, tol atau kesalahan yang berlaku sepanjang tempoh sewaan, berdasarkan <strong>tarikh dan masa kesalahan</strong>, bukan tarikh saman diterima atau dimaklumkan. Saman yang muncul selepas sewaan tamat tetap menjadi tanggungjawab penyewa.</p>
                 <p><strong>7. Kerjasama Dengan Pihak Berkuasa:</strong> Penyewa bersetuju memberikan kerjasama sekiranya berlaku kemalangan, siasatan polis, tuntutan insurans atau tindakan pihak berkuasa. Syarikat berhak menyerahkan rekod sewaan dan maklumat berkaitan kepada pihak berkuasa apabila diperlukan mengikut undang-undang.</p>
-                <p><strong>8. Data Peribadi:</strong> Penyewa membenarkan syarikat mengumpul dan memproses IC, Lesen Memandu, gambar, video/selfie pengesahan, nombor telefon, tandatangan dan rekod sewaan bagi tujuan pengesahan identiti, keselamatan, tuntutan, siasatan, pencegahan penipuan dan perlindungan undang-undang.</p>
+                <p>
+                  <strong>8. Data Peribadi:</strong> Penyewa membenarkan syarikat mengumpul dan memproses IC, Lesen Memandu, gambar, video/selfie pengesahan, nombor telefon, tandatangan dan rekod sewaan bagi tujuan pengesahan identiti, keselamatan, tuntutan, siasatan, pencegahan penipuan dan perlindungan undang-undang.
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowPrivacyModal(true);
+                    }}
+                    className="inline-flex items-center text-blue-600 hover:text-blue-800 underline font-semibold ml-1 cursor-pointer print:hidden"
+                  >
+                    [Notis Privasi / PDPA]
+                  </button>
+                </p>
               </div>
 
               {/* Rules Grid */}
@@ -688,6 +702,11 @@ export default function SignAgreement() {
           </button>
         </div>
       )}
+      {/* Privacy Notice (PDPA) Modal */}
+      <PrivacyNoticeModal 
+        isOpen={showPrivacyModal} 
+        onClose={() => setShowPrivacyModal(false)} 
+      />
     </div>
   );
 }
