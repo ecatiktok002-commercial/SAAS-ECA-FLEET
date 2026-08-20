@@ -36,6 +36,7 @@ interface MalayPrintableAgreementTemplateProps {
     signatureUrl?: string;
   };
   signatureImg?: string | null;
+  signedAt?: string | null;
   beforePhotos?: string[];
   paymentReceipts?: string[];
   icLicensePhotos?: string[];
@@ -48,6 +49,7 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
   payment = {}, 
   brandSettings = {},
   signatureImg = null,
+  signedAt = null,
   beforePhotos = [],
   paymentReceipts = [],
   icLicensePhotos = []
@@ -65,6 +67,42 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
     } catch (e) {
       return dateString;
     }
+  };
+
+  const hasIcLicense = icLicensePhotos && icLicensePhotos.length > 0;
+  const hasPaymentReceipts = paymentReceipts && paymentReceipts.length > 0;
+  const hasBeforePhotos = beforePhotos && beforePhotos.length > 0;
+
+  // Electronic Signing Record block
+  const renderElectronicSigningRecord = () => {
+    if (!signatureImg && !signedAt) return null;
+    return (
+      <div className="mt-6 border border-black bg-gray-50 p-3.5 text-black break-inside-avoid">
+        <h4 className="font-bold text-xs uppercase tracking-wider mb-2 border-b border-black pb-1">
+          REKOD TANDATANGAN ELEKTRONIK
+        </h4>
+        <div className="grid grid-cols-2 gap-y-1.5 text-xs">
+          <div>
+            <span className="font-semibold text-gray-700">Booking Reference: </span>
+            <span className="font-bold font-mono">{agreementId || vehicle.plate || '-'}</span>
+          </div>
+          <div>
+            <span className="font-semibold text-gray-700">Signed By: </span>
+            <span className="font-bold uppercase">{customer.name || '-'}</span>
+          </div>
+          <div>
+            <span className="font-semibold text-gray-700">IC: </span>
+            <span className="font-bold">{customer.ic || '-'}</span>
+          </div>
+          <div>
+            <span className="font-semibold text-gray-700">Signed At: </span>
+            <span className="font-bold">
+              {signedAt ? formatInMYT(signedAt, 'dd/MM/yyyy h:mm:ss a') : '-'}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -208,14 +246,23 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
 
             {/* --- SECTION E: PENGESAHAN & TANDATANGAN --- */}
             <div className="mt-4">
-              <h3 className="font-bold bg-gray-200 p-1 border border-black uppercase text-sm mb-4">E. Pengesahan & Tandatangan</h3>
+              <h3 className="font-bold bg-gray-200 p-1 border border-black uppercase text-sm mb-3">E. Pengesahan & Tandatangan</h3>
               
-              <div className="flex items-start gap-2 mb-6">
-                <div className="w-4 h-4 border-2 border-black flex items-center justify-center font-bold text-xs mt-0.5">
+              <div className="flex items-start gap-2 mb-2">
+                <div className="w-4 h-4 border-2 border-black flex items-center justify-center font-bold text-xs mt-0.5 shrink-0">
                   ✓
                 </div>
                 <p className="text-xs font-semibold">
                   Saya dengan ini mengesahkan bahawa saya telah membaca, memahami, dan bersetuju dengan semua Terma & Syarat yang dinyatakan dalam perjanjian ini. Saya juga mengesahkan bahawa butiran yang diberikan adalah benar.
+                </p>
+              </div>
+
+              <div className="flex items-start gap-2 mb-6">
+                <div className="w-4 h-4 border-2 border-black flex items-center justify-center font-bold text-xs mt-0.5 shrink-0">
+                  ✓
+                </div>
+                <p className="text-xs font-semibold">
+                  Saya mengesahkan bahawa hanya individu yang dinamakan dalam perjanjian ini dibenarkan untuk mengambil kenderaan. Sekiranya pihak ketiga diamanahkan untuk mengambil kenderaan tersebut, saya perlu memaklumkan pihak syarikat terlebih dahulu.
                 </p>
               </div>
 
@@ -244,12 +291,15 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
               </div>
             </div>
 
+            {/* Electronic Signing Record on Page 1 if no appendices */}
+            {!hasBeforePhotos && !hasPaymentReceipts && !hasIcLicense && renderElectronicSigningRecord()}
+
             {/* Spacer to ensure footer doesn't overlap content */}
             <div className="mt-auto h-20"></div>
           </div>
 
           {/* PAGE 2+: APPENDIX (CAR PHOTOS) */}
-          {beforePhotos && beforePhotos.length > 0 && (
+          {hasBeforePhotos && (
             <div className="p-10 flex flex-col break-before-page relative">
               <h2 className="text-lg font-bold border-b border-black pb-2 mb-6 uppercase">LAMPIRAN: Keadaan Kenderaan (Sebelum Sewaan)</h2>
               <div className="flex flex-col gap-8">
@@ -260,13 +310,15 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
                   </div>
                 ))}
               </div>
+              {/* Electronic Signing Record if this is the last appendix */}
+              {!hasPaymentReceipts && !hasIcLicense && renderElectronicSigningRecord()}
               {/* Spacer to ensure footer doesn't overlap content */}
               <div className="mt-auto h-20"></div>
             </div>
           )}
 
           {/* PAGE 3+: PAYMENT RECEIPTS */}
-          {paymentReceipts && paymentReceipts.length > 0 && (
+          {hasPaymentReceipts && (
             <div className="p-10 flex flex-col break-before-page relative">
               <h2 className="text-lg font-bold border-b border-black pb-2 mb-6 uppercase">LAMPIRAN: Resit Pembayaran</h2>
               <div className="flex flex-col gap-8">
@@ -277,13 +329,15 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
                   </div>
                 ))}
               </div>
+              {/* Electronic Signing Record if this is the last appendix */}
+              {!hasIcLicense && renderElectronicSigningRecord()}
               {/* Spacer to ensure footer doesn't overlap content */}
               <div className="mt-auto h-20"></div>
             </div>
           )}
 
           {/* PAGE 4+: IC & LICENSE PHOTOS */}
-          {icLicensePhotos && icLicensePhotos.length > 0 && (
+          {hasIcLicense && (
             <div className="p-10 flex flex-col break-before-page relative">
               <h2 className="text-lg font-bold border-b border-black pb-2 mb-6 uppercase">LAMPIRAN: Kad Pengenalan & Lesen Memandu</h2>
               <div className="flex flex-col gap-8">
@@ -294,6 +348,8 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
                   </div>
                 ))}
               </div>
+              {/* Electronic Signing Record on final appendix */}
+              {renderElectronicSigningRecord()}
               {/* Spacer to ensure footer doesn't overlap content */}
               <div className="mt-auto h-20"></div>
             </div>

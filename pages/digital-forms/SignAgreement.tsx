@@ -23,6 +23,7 @@ export default function SignAgreement() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [agreed, setAgreed] = useState(false);
+  const [agreedDriver, setAgreedDriver] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const sigCanvas = useRef<SignatureCanvas>(null);
@@ -76,8 +77,8 @@ export default function SignAgreement() {
   };
 
   const handleSubmit = async () => {
-    if (!agreed) {
-      alert('You must agree to the Terms & Conditions.');
+    if (!agreed || !agreedDriver) {
+      alert('Sila tandakan kedua-dua kotak pengesahan sebelum menandatangani.');
       return;
     }
 
@@ -303,6 +304,7 @@ export default function SignAgreement() {
               contact: company?.contact
             }}
             signatureImg={agreement.signature_data}
+            signedAt={agreement.signed_at}
             beforePhotos={[...(agreement.photos_url || []), ...handoverPhotos]}
             paymentReceipts={(() => {
               if (!agreement.payment_receipt) return [];
@@ -547,32 +549,57 @@ export default function SignAgreement() {
 
           {/* 4. Section D: Ruangan Tandatangan & Footer */}
           <section className="pt-4 print:pt-2 border-t border-slate-200 print:border-slate-800 print:page-break-inside-avoid">
-            {/* Consent Checkbox */}
-            <div 
-              className={`bg-slate-50 print:bg-transparent border border-slate-300 print:border-none p-3 print:p-0 rounded-xl print:rounded-none flex items-start transition-colors mb-4 print:mb-2 ${!agreement?.signature_data ? 'cursor-pointer hover:bg-slate-100 print:hover:bg-transparent' : ''}`} 
-              onClick={() => !agreement?.signature_data && setAgreed(!agreed)}
-            >
-              <div className="flex items-center h-5 print:h-3 mt-0.5 print:mt-0">
-                <input
-                  id="terms"
-                  name="terms"
-                  type="checkbox"
-                  checked={agreed || !!agreement?.signature_data}
-                  disabled={!!agreement?.signature_data}
-                  onChange={(e) => setAgreed(e.target.checked)}
-                  className="focus:ring-slate-900 h-5 w-5 print:h-3 print:w-3 text-slate-900 border-slate-400 rounded cursor-pointer disabled:opacity-50"
-                  onClick={(e) => e.stopPropagation()}
-                />
+            {/* Consent Checkboxes */}
+            <div className="space-y-3 mb-4 print:space-y-2 print:mb-2">
+              <div 
+                className={`bg-slate-50 print:bg-transparent border border-slate-300 print:border-none p-3 print:p-0 rounded-xl print:rounded-none flex items-start transition-colors ${!agreement?.signature_data ? 'cursor-pointer hover:bg-slate-100 print:hover:bg-transparent' : ''}`} 
+                onClick={() => !agreement?.signature_data && setAgreed(!agreed)}
+              >
+                <div className="flex items-center h-5 print:h-3 mt-0.5 print:mt-0">
+                  <input
+                    id="terms"
+                    name="terms"
+                    type="checkbox"
+                    checked={agreed || !!agreement?.signature_data}
+                    disabled={!!agreement?.signature_data}
+                    onChange={(e) => setAgreed(e.target.checked)}
+                    className="focus:ring-slate-900 h-5 w-5 print:h-3 print:w-3 text-slate-900 border-slate-400 rounded cursor-pointer disabled:opacity-50"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+                <div className="ml-3 print:ml-2">
+                  <label htmlFor="terms" className="font-bold text-slate-900 text-xs sm:text-sm print:text-[7pt] cursor-pointer leading-tight uppercase">
+                    DENGAN MENANDATANGANI DI BAWAH, SAYA AKUI SAYA TELAH MEMBACA FAKTA DI ATAS
+                  </label>
+                </div>
               </div>
-              <div className="ml-3 print:ml-2">
-                <label htmlFor="terms" className="font-bold text-slate-900 text-xs sm:text-sm print:text-[7pt] cursor-pointer leading-tight uppercase">
-                  DENGAN MENANDATANGANI DI BAWAH, SAYA AKUI SAYA TELAH MEMBACA FAKTA DI ATAS
-                </label>
+
+              <div 
+                className={`bg-slate-50 print:bg-transparent border border-slate-300 print:border-none p-3 print:p-0 rounded-xl print:rounded-none flex items-start transition-colors ${!agreement?.signature_data ? 'cursor-pointer hover:bg-slate-100 print:hover:bg-transparent' : ''}`} 
+                onClick={() => !agreement?.signature_data && setAgreedDriver(!agreedDriver)}
+              >
+                <div className="flex items-center h-5 print:h-3 mt-0.5 print:mt-0">
+                  <input
+                    id="driver-consent"
+                    name="driver-consent"
+                    type="checkbox"
+                    checked={agreedDriver || !!agreement?.signature_data}
+                    disabled={!!agreement?.signature_data}
+                    onChange={(e) => setAgreedDriver(e.target.checked)}
+                    className="focus:ring-slate-900 h-5 w-5 print:h-3 print:w-3 text-slate-900 border-slate-400 rounded cursor-pointer disabled:opacity-50"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+                <div className="ml-3 print:ml-2">
+                  <label htmlFor="driver-consent" className="font-semibold text-slate-900 text-xs sm:text-sm print:text-[7pt] cursor-pointer leading-normal">
+                    Saya mengesahkan bahawa hanya individu yang dinamakan dalam perjanjian ini dibenarkan untuk mengambil kenderaan. Sekiranya pihak ketiga diamanahkan untuk mengambil kenderaan tersebut, saya perlu memaklumkan pihak syarikat terlebih dahulu.
+                  </label>
+                </div>
               </div>
             </div>
 
             {/* Signature Block */}
-            <div className={`transition-opacity duration-300 ${!agreed ? 'opacity-50 print:opacity-100 pointer-events-none print:pointer-events-auto' : 'opacity-100'}`}>
+            <div className={`transition-opacity duration-300 ${(!agreed || !agreedDriver) && !agreement?.signature_data ? 'opacity-50 print:opacity-100 pointer-events-none print:pointer-events-auto' : 'opacity-100'}`}>
               <div className="max-w-md print:max-w-xs">
                 <div className="flex justify-between items-center mb-1 print:mb-1">
                   <p className="font-bold text-slate-900 uppercase tracking-wider text-[10px] print:text-[8pt]">Tandatangan Pelanggan</p>
@@ -615,7 +642,7 @@ export default function SignAgreement() {
                 <div className="mt-8 hidden sm:flex justify-start print:hidden">
                   <button
                     onClick={handleSubmit}
-                    disabled={submitting || !agreed}
+                    disabled={submitting || !agreed || !agreedDriver}
                     className="w-full sm:w-auto inline-flex justify-center items-center py-4 px-10 border border-transparent shadow-xl text-lg font-bold rounded-xl text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:-translate-y-0.5"
                   >
                     {submitting ? (
@@ -654,7 +681,7 @@ export default function SignAgreement() {
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-200 z-50 sm:hidden">
           <button
             onClick={handleSubmit}
-            disabled={submitting || !agreed}
+            disabled={submitting || !agreed || !agreedDriver}
             className="w-full inline-flex justify-center items-center py-3 px-4 border border-transparent shadow-sm text-base font-bold rounded-lg text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 transition-colors"
           >
             {submitting ? 'Submitting...' : 'Confirm & Sign Agreement'}
