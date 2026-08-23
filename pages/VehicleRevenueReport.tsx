@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/apiService';
+import { supabase } from '../services/supabase';
 import { getAgreementPickupDateTime, getAgreementReturnDateTime, formatInMYT } from '../utils/dateUtils';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell
@@ -11,6 +12,7 @@ import { Car, DollarSign, Calendar, TrendingUp } from 'lucide-react';
 
 const VehicleRevenueReport: React.FC = () => {
   const { subscriberId } = useAuth();
+  const queryClient = useQueryClient();
   
   // Current month start in MYT (+08:00)
   const [selectedMonth, setSelectedMonth] = useState<Date>(() => {
@@ -41,7 +43,7 @@ const VehicleRevenueReport: React.FC = () => {
   }, []);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-dashboard-data', subscriberId],
+    queryKey: ['vehicleRevenueReport', subscriberId],
     queryFn: async () => {
       if (!subscriberId) throw new Error('No subscriber ID');
       const [agreements, cars] = await Promise.all([
@@ -50,8 +52,31 @@ const VehicleRevenueReport: React.FC = () => {
       ]);
       return { agreements, cars };
     },
-    enabled: !!subscriberId
+    enabled: !!subscriberId,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
   });
+
+  // Real-time dynamic updates on vehicle revenue when bookings/agreements change
+  useEffect(() => {
+    if (!subscriberId) return;
+
+    const channel = supabase.channel(`vehicle-revenue-realtime-${subscriberId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agreements', filter: `subscriber_id=eq.${subscriberId}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ['vehicleRevenueReport', subscriberId] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `subscriber_id=eq.${subscriberId}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ['vehicleRevenueReport', subscriberId] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cars', filter: `subscriber_id=eq.${subscriberId}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ['vehicleRevenueReport', subscriberId] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [subscriberId, queryClient]);
 
   const currencyFormatter = new Intl.NumberFormat('en-MY', {
     style: 'currency',
@@ -88,10 +113,13 @@ const VehicleRevenueReport: React.FC = () => {
 
     let totalRev = 0;
     let totalBookingsInMonth = 0;
-    const validStatuses = ['signed', 'completed', 'reconciled'];
 
     data.agreements.forEach(a => {
-      const status = a.status?.toLowerCase().trim() || '';
+      // Must be a valid booking sale: matched with calendar and completed
+      const isMatchedWithCalendar = Boolean(a.booking_id);
+      const isCompleted = a.status?.toLowerCase().trim() === 'completed';
+      if (!isMatchedWithCalendar || !isCompleted) return;
+
       const plate = a.car_plate_number || 'Unknown';
       
       if (!carStats[plate]) {
@@ -109,23 +137,21 @@ const VehicleRevenueReport: React.FC = () => {
         const msInDay = 24 * 60 * 60 * 1000;
         const overlapDays = (overlapEnd - overlapStart) / msInDay;
         
-        if (validStatuses.includes(status)) {
-          // Push interval for union calculation later (prevents double-counting duplicate bookings)
-          carIntervals[plate].push({ start: overlapStart, end: overlapEnd });
+        // Push interval for union calculation later (prevents double-counting duplicate bookings)
+        carIntervals[plate].push({ start: overlapStart, end: overlapEnd });
 
-          // Calculate actual duration days based on start and return times
-          const actualTotalDays = (ret.getTime() - pickup.getTime()) / msInDay;
-          const durationDays = actualTotalDays > 0 ? actualTotalDays : (a.duration_days && a.duration_days > 0 ? a.duration_days : 1);
-          const dailyRate = (Number(a.total_price) || 0) / durationDays;
-          
-          // Use the exact overlap days in this month to calculate the revenue attributable to this month
-          const overlappingRevenue = dailyRate * overlapDays;
-          
-          carStats[plate].total += overlappingRevenue;
-          carStats[plate].count += 1;
-          totalRev += overlappingRevenue;
-          totalBookingsInMonth += 1;
-        }
+        // Calculate actual duration days based on start and return times
+        const actualTotalDays = (ret.getTime() - pickup.getTime()) / msInDay;
+        const durationDays = actualTotalDays > 0 ? actualTotalDays : (a.duration_days && Number(a.duration_days) > 0 ? Number(a.duration_days) : 1);
+        const dailyRate = (Number(a.total_price) || 0) / durationDays;
+        
+        // Use the exact overlap days in this month to calculate the revenue attributable to this month
+        const overlappingRevenue = dailyRate * overlapDays;
+        
+        carStats[plate].total += overlappingRevenue;
+        carStats[plate].count += 1;
+        totalRev += overlappingRevenue;
+        totalBookingsInMonth += 1;
       }
     });
 

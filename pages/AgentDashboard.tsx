@@ -18,6 +18,7 @@ import {
 } from 'recharts';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { supabase } from '../services/supabase';
 
 interface PendingDelivery {
   id: string;
@@ -93,7 +94,33 @@ const AgentDashboard: React.FC = () => {
       return { allBookings, cars, agreements, marketingEvents, members, staff, logisticCredits };
     },
     enabled: !!subscriberId,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
   });
+
+  // Real-time dynamic updates on sales metrics when bookings/agreements change
+  useEffect(() => {
+    if (!subscriberId) return;
+
+    const channel = supabase.channel(`agent-dashboard-realtime-${subscriberId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agreements', filter: `subscriber_id=eq.${subscriberId}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ['agentDashboard', subscriberId] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `subscriber_id=eq.${subscriberId}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ['agentDashboard', subscriberId] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cars', filter: `subscriber_id=eq.${subscriberId}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ['agentDashboard', subscriberId] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'marketing_events', filter: `subscriber_id=eq.${subscriberId}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ['agentDashboard', subscriberId] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [subscriberId, queryClient]);
 
   const error = queryError ? queryError.message : null;
 
@@ -160,11 +187,11 @@ const AgentDashboard: React.FC = () => {
       return key === userId || key === currentStaff?.name || key === userUid || key === currentStaff?.id;
     });
 
-    // 1. Sales Metrics (Completed, Signed, Reconciled Agreements)
-    const validStatuses = ['completed', 'signed', 'reconciled'];
+    // 1. Sales Metrics (Valid Booking: Matched with Calendar & Completed Status)
     const completedAgreements = ownAgreements.filter(a => {
-      const status = a.status?.toLowerCase().trim() || '';
-      return validStatuses.includes(status);
+      const isMatchedWithCalendar = Boolean(a.booking_id);
+      const isCompleted = a.status?.toLowerCase().trim() === 'completed';
+      return isMatchedWithCalendar && isCompleted;
     });
     
     let salesToday = 0;
@@ -173,6 +200,7 @@ const AgentDashboard: React.FC = () => {
     let salesThisMonth = 0;
     
     completedAgreements.forEach(a => {
+      // Sales are attributed by Pickup Date (start_date) in MYT
       const matchDateStr = getMYTDateString(getAgreementPickupDateTime(a));
       const price = Number(a.total_price) || 0;
       if (matchDateStr === todayStr) salesToday += price;

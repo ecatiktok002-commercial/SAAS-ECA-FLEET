@@ -13,6 +13,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { Agreement, Booking, Car as CarType, MarketingEvent, Member } from '../types';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { supabase } from '../services/supabase';
 
 interface AgentStat {
   name: string;
@@ -94,7 +95,33 @@ const AdminDashboard: React.FC = () => {
       return { bookings, cars, agreements, marketingEvents, members };
     },
     enabled: !!subscriberId,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
   });
+
+  // Real-time dynamic updates on sales metrics when bookings/agreements change
+  useEffect(() => {
+    if (!subscriberId) return;
+
+    const channel = supabase.channel(`admin-dashboard-realtime-${subscriberId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agreements', filter: `subscriber_id=eq.${subscriberId}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ['adminDashboard', subscriberId] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `subscriber_id=eq.${subscriberId}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ['adminDashboard', subscriberId] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cars', filter: `subscriber_id=eq.${subscriberId}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ['adminDashboard', subscriberId] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'marketing_events', filter: `subscriber_id=eq.${subscriberId}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ['adminDashboard', subscriberId] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [subscriberId, queryClient]);
 
   const error = queryError ? queryError.message : null;
 
@@ -152,11 +179,11 @@ const AdminDashboard: React.FC = () => {
       };
     });
 
-    // 1. Sales Metrics (Completed, Signed, Reconciled Agreements)
-    const validStatuses = ['completed', 'signed', 'reconciled'];
+    // 1. Sales Metrics (Valid Booking: Matched with Calendar & Completed Status)
     const completedAgreements = agreements.filter(a => {
-      const status = a.status?.toLowerCase().trim() || '';
-      return validStatuses.includes(status);
+      const isMatchedWithCalendar = Boolean(a.booking_id);
+      const isCompleted = a.status?.toLowerCase().trim() === 'completed';
+      return isMatchedWithCalendar && isCompleted;
     });
     
     let salesToday = 0;
@@ -165,8 +192,8 @@ const AdminDashboard: React.FC = () => {
     let salesThisMonth = 0;
     
     completedAgreements.forEach(a => {
-      const pickupDateObj = getAgreementPickupDateTime(a);
-      const matchDateStr = getMYTDateString(pickupDateObj);
+      // Sales are attributed by Pickup Date (start_date) in MYT
+      const matchDateStr = getMYTDateString(getAgreementPickupDateTime(a));
       const price = Number(a.total_price) || 0;
       if (matchDateStr === todayStr) salesToday += price;
       if (matchDateStr >= startOfWeekStr && matchDateStr <= endOfWeekStr) salesThisWeek += price;
