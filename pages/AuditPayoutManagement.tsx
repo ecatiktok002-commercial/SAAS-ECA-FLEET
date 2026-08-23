@@ -99,9 +99,20 @@ const AuditPayoutManagement: React.FC = () => {
   const currentMonthRecords = useMemo(() => {
     const targetMonthStr = formatInMYT(selectedMonth, 'yyyy-MM');
     return records.filter(r => {
-      if (!r.form_start) return false;
-      const recordMonthStr = formatInMYT(r.form_start, 'yyyy-MM');
-      return recordMonthStr === targetMonthStr;
+      const dateVal = r.form_start || r.booking_start || r.created_at;
+      if (!dateVal) return false;
+      let monthStr = '';
+      if (typeof dateVal === 'string' && dateVal.includes('/')) {
+        const parts = dateVal.split('/');
+        if (parts.length === 3) monthStr = `${parts[2]}-${parts[1].padStart(2, '0')}`;
+      } else {
+        try {
+          monthStr = formatInMYT(dateVal, 'yyyy-MM');
+        } catch (e) {
+          monthStr = String(dateVal).substring(0, 7);
+        }
+      }
+      return monthStr === targetMonthStr;
     });
   }, [records, selectedMonth]);
 

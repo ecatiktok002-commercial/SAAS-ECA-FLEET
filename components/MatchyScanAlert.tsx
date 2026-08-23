@@ -251,43 +251,74 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
 
         <div className="divide-y divide-slate-100">
           {/* List Orphaned Agreements */}
-          {displayAgreements.map((agreement) => (
-            <div key={agreement.form_id || agreement.id} className="p-4 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <div className="mt-1 w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)] animate-pulse shrink-0" />
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                      <FileText className="w-3 h-3" /> Agreement
-                    </span>
-                    <span className="text-sm font-bold text-slate-900">{agreement.customer_name}</span>
+          {displayAgreements.map((agreement) => {
+            const refNumber = agreement.reference_number || (agreement.booking_id ? `BK-${agreement.booking_id.substring(0, 8)}` : (agreement.form_id || agreement.id)?.substring(0, 8));
+            const startDate = agreement.start_date || agreement.form_start;
+            const endDate = agreement.end_date || agreement.form_end;
+            const duration = agreement.duration_days || agreement.booking_duration;
+
+            return (
+              <div key={agreement.form_id || agreement.id} className="p-4 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="mt-1 w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)] animate-pulse shrink-0" />
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                        <FileText className="w-3 h-3" /> Agreement
+                      </span>
+                      <span className="text-sm font-bold text-slate-900">{agreement.customer_name}</span>
+                      {agreement.reference_number && (
+                        <span className="text-[11px] font-mono font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md border border-blue-200" title="Agreement Reference">
+                           {agreement.reference_number}
+                        </span>
+                      )}
+                      {agreement.booking_id ? (
+                        <span className="text-[11px] font-mono font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-200" title="Booking ID">
+                          Booking ID: {agreement.booking_id.substring(0, 8)}
+                        </span>
+                      ) : !agreement.reference_number && (
+                        <span className="text-[11px] font-mono font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md border border-slate-200" title="Agreement ID">
+                          ID: {(agreement.form_id || agreement.id)?.substring(0, 8)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
+                      <span className="font-semibold text-slate-700">{agreement.car_plate_number}</span>
+                      <span>•</span>
+                      <span>Agent: <strong className="text-slate-700 font-medium">{agreement.agent_name || 'N/A'}</strong></span>
+                      {startDate && (
+                        <>
+                          <span>•</span>
+                          <span className="text-slate-400">
+                            {safeFormat(startDate, 'dd/MM/yyyy')}{endDate ? ` → ${safeFormat(endDate, 'dd/MM/yyyy')}` : ''}{duration ? ` (${duration}d)` : ''}
+                          </span>
+                        </>
+                      )}
+                    </p>
                   </div>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {agreement.car_plate_number} • RM {agreement.total_price} • Agent: {agreement.agent_name}
-                  </p>
+                </div>
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <button 
+                    onClick={() => setLinkModal({ 
+                      isOpen: true, 
+                      type: 'agreement', 
+                      sourceId: agreement.form_id || agreement.id, 
+                      sourceLabel: `${refNumber ? `[${refNumber}] ` : ''}${agreement.customer_name} (${agreement.car_plate_number})` 
+                    })}
+                    className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 hover:text-blue-600 transition-colors flex items-center gap-1.5"
+                  >
+                    <LinkIcon className="w-3 h-3" /> Link Booking
+                  </button>
+                  <button 
+                    onClick={() => handleDelete('agreement', agreement.form_id || agreement.id)}
+                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
-              <div className="flex items-center gap-2 self-end sm:self-auto">
-                <button 
-                  onClick={() => setLinkModal({ 
-                    isOpen: true, 
-                    type: 'agreement', 
-                    sourceId: agreement.form_id || agreement.id, 
-                    sourceLabel: `${agreement.customer_name} (${agreement.car_plate_number})` 
-                  })}
-                  className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 hover:text-blue-600 transition-colors flex items-center gap-1.5"
-                >
-                  <LinkIcon className="w-3 h-3" /> Link Booking
-                </button>
-                <button 
-                  onClick={() => handleDelete('agreement', agreement.form_id || agreement.id)}
-                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -311,7 +342,7 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
                   Selected {linkModal.type === 'booking' ? 'Booking' : 'Agreement'}
                 </label>
-                <div className="p-3 bg-slate-50 rounded-lg text-sm font-medium text-slate-700 border border-slate-200">
+                <div className="p-3 bg-slate-50 rounded-lg text-sm font-medium text-slate-700 border border-slate-200 font-mono">
                   {linkModal.sourceLabel}
                 </div>
               </div>
@@ -327,14 +358,18 @@ const MatchyScanAlert: React.FC<MatchyScanAlertProps> = ({
                 >
                   <option value="">-- Select a match --</option>
                   {linkModal.type === 'booking' 
-                    ? displayAgreements.map(a => (
-                        <option key={a.form_id || a.id} value={a.form_id || a.id}>
-                          {a.customer_name} - {a.car_plate_number} (RM {a.total_price})
-                        </option>
-                      ))
+                    ? displayAgreements.map(a => {
+                        const price = Number(a.total_price ?? a.form_price ?? 0);
+                        const ref = a.reference_number || (a.form_id || a.id)?.substring(0, 8);
+                        return (
+                          <option key={a.form_id || a.id} value={a.form_id || a.id}>
+                            [{ref}] {a.customer_name} - {a.car_plate_number} (RM {price.toFixed(2)})
+                          </option>
+                        );
+                      })
                     : orphanedBookings.map(b => (
                         <option key={b.id} value={b.id}>
-                          {b.cars?.plate || 'Unknown'} - {safeFormat(b.start_date)} ({b.duration_days} Days)
+                          [ID: {b.id.substring(0, 8)}] {b.cars?.plate || b.car_plate_number || 'Unknown'} - {safeFormat(b.start_date || b.pickup_datetime)} ({b.duration_days ?? b.duration ?? 1} Days)
                         </option>
                       ))
                   }

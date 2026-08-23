@@ -2957,6 +2957,7 @@ export const apiService = {
     validateSubscriber(subscriberId);
     const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
+      // 1. Fetch from subscriber_payout_records_view
       let query = supabase
         .from('subscriber_payout_records_view')
         .select('form_id, subscriber_id, agent_id, agent_name, customer_name, car_plate_number, form_price, form_start, form_end, commission_earned, payout_status, is_receipt_verified, status, reference_number, created_at, booking_id, booking_price, booking_start, booking_duration, booking_start_date, booking_end_date, booking_pickup_time, booking_return_time, has_discrepancy, is_dates_matched, discrepancy_reason, has_pending_changes, pending_changes, payment_receipt, ic_license_photos, transaction_date');
@@ -2973,10 +2974,10 @@ export const apiService = {
       const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) {
-        logSupabaseError('getAuditRecords', error);
-        throw new Error('Failed to fetch audit records');
+        logSupabaseError('getAuditRecords:view', error);
       }
-      return (data || []).map(d => {
+
+      const processedViewRecords: AuditRecord[] = (data || []).map(d => {
         let hasReceipt = false;
         if (d.payment_receipt && d.payment_receipt !== '[]' && d.payment_receipt !== 'null') {
            hasReceipt = true;
@@ -2997,6 +2998,90 @@ export const apiService = {
           ic_license_photos: hasIc ? 'exists' : null
         };
       });
+
+      // 2. Fetch all agreements directly from agreements table to include any agreements
+      // omitted by the view's status/receipt WHERE clause (e.g. signed without receipt or orphaned)
+      try {
+        let agQuery = supabase
+          .from('agreements')
+          .select('id, subscriber_id, agent_id, agent_name, customer_name, car_plate_number, total_price, start_date, end_date, commission_earned, payout_status, is_receipt_verified, status, reference_number, created_at, transaction_date, booking_id, has_pending_changes, pending_changes')
+          .eq('subscriber_id', targetSubscriberId);
+
+        if (startDate) {
+          agQuery = agQuery.gte('created_at', startDate);
+        }
+        if (endDate) {
+          agQuery = agQuery.lte('created_at', endDate);
+        }
+
+        const { data: allAgreements, error: agError } = await agQuery.order('created_at', { ascending: false });
+
+        if (!agError && allAgreements) {
+          const existingFormIds = new Set(processedViewRecords.map(r => r.form_id));
+          const missingAgreements = allAgreements.filter(a => !existingFormIds.has(a.id));
+
+          if (missingAgreements.length > 0) {
+            const missingBookingIds = missingAgreements
+              .map(a => a.booking_id)
+              .filter(Boolean) as string[];
+
+            const bookingMap = new Map<string, any>();
+            if (missingBookingIds.length > 0) {
+              const { data: missingBookings } = await supabase
+                .from('bookings')
+                .select('id, total_price, start_date, duration_days, end_date, pickup_time, return_time, has_discrepancy, is_dates_matched, discrepancy_reason')
+                .in('id', missingBookingIds);
+
+              (missingBookings || []).forEach(b => {
+                bookingMap.set(b.id, b);
+              });
+            }
+
+            const additionalRecords: AuditRecord[] = missingAgreements.map(a => {
+              const b = a.booking_id ? bookingMap.get(a.booking_id) : null;
+              return {
+                form_id: a.id,
+                subscriber_id: a.subscriber_id,
+                agent_id: a.agent_id,
+                agent_name: a.agent_name,
+                customer_name: a.customer_name,
+                car_plate_number: a.car_plate_number,
+                form_price: Number(a.total_price) || 0,
+                form_start: a.start_date,
+                form_end: a.end_date,
+                payment_receipt: null,
+                transaction_date: a.transaction_date,
+                ic_license_photos: null,
+                commission_earned: Number(a.commission_earned) || 0,
+                payout_status: (a.payout_status as any) || 'pending',
+                is_receipt_verified: Boolean(a.is_receipt_verified),
+                status: a.status || 'signed',
+                reference_number: a.reference_number,
+                created_at: a.created_at,
+                booking_id: a.booking_id || null,
+                booking_price: b ? Number(b.total_price) : null,
+                booking_start: b ? b.start_date : null,
+                booking_duration: b ? b.duration_days : null,
+                booking_start_date: b ? b.start_date : null,
+                booking_end_date: b ? b.end_date : null,
+                booking_pickup_time: b ? b.pickup_time : null,
+                booking_return_time: b ? b.return_time : null,
+                has_discrepancy: b ? Boolean(b.has_discrepancy) : false,
+                is_dates_matched: b ? Boolean(b.is_dates_matched) : true,
+                discrepancy_reason: b ? b.discrepancy_reason : null,
+                has_pending_changes: Boolean(a.has_pending_changes),
+                pending_changes: a.pending_changes || null
+              };
+            });
+
+            processedViewRecords.push(...additionalRecords);
+          }
+        }
+      } catch (fallbackErr) {
+        console.error('Error in fallback agreement fetch for audit records:', fallbackErr);
+      }
+
+      return processedViewRecords;
     });
   },
 
