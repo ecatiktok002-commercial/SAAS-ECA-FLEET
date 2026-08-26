@@ -22,6 +22,7 @@ const SignAgreement = lazy(() => import('./pages/digital-forms/SignAgreement'));
 const UpgradePlanPage = lazy(() => import('./pages/UpgradePlanPage'));
 const PublicHandoverPage = lazy(() => import('./pages/PublicHandoverPage'));
 const VehicleRevenueReport = lazy(() => import('./pages/VehicleRevenueReport'));
+const HelpPage = lazy(() => import('./pages/HelpPage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -183,6 +184,11 @@ const AppRoutes: React.FC = () => {
             <StrictTierGate allowedTiers={[1, 2, 3]} allowStaff={false}><StaffManagementPage /></StrictTierGate>
           } />
           
+          {/* Help & Tutorials: Accessible to all tiers and roles */}
+          <Route path="help" element={
+            <StrictTierGate allowedTiers={[1, 2, 3]}><HelpPage /></StrictTierGate>
+          } />
+
           {/* Subscribers: Superadmin only */}
           <Route path="subscribers" element={
             <StrictTierGate allowedTiers={[1, 2, 3]} allowStaff={false}><SubscriberManager /></StrictTierGate>

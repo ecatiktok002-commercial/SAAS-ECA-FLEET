@@ -141,21 +141,61 @@ const AdminDashboard: React.FC = () => {
     const startOfMonthStr = `${currentMytYear}-${currentMonthStr}-01`;
     const endOfMonthStr = `${currentMytYear}-${currentMonthStr}-${monthDays.toString().padStart(2, '0')}`;
     
-    // Calculate start/end of week in MYT (Sunday to Saturday)
+    // Calculate standardized week periods in MYT:
+    // Week 1: Day 1 - 7
+    // Week 2: Day 8 - 15
+    // Week 3: Day 16 - 23
+    // Week 4: Day 24 - 30/31 (end of month)
     const mytZonedDate = utcToMyt(now);
-    const dayOfWeek = mytZonedDate.getDay();
+    const currentDayOfMonth = mytZonedDate.getDate();
     
-    const startOfWeekZoned = new Date(mytZonedDate);
-    startOfWeekZoned.setDate(mytZonedDate.getDate() - dayOfWeek);
-    const startOfWeekStr = format(startOfWeekZoned, 'yyyy-MM-dd');
-    
-    const endOfWeekZoned = new Date(startOfWeekZoned);
-    endOfWeekZoned.setDate(startOfWeekZoned.getDate() + 6);
-    const endOfWeekStr = format(endOfWeekZoned, 'yyyy-MM-dd');
-    
-    const startOfLastWeekZoned = new Date(startOfWeekZoned);
-    startOfLastWeekZoned.setDate(startOfWeekZoned.getDate() - 7);
-    const startOfLastWeekStr = format(startOfLastWeekZoned, 'yyyy-MM-dd');
+    let startDayThisWeek = 1;
+    let endDayThisWeek = 7;
+    let thisWeekCycleLabel = `Week 1 (Day 1 - 7)`;
+    let startOfLastWeekStr = '';
+    let endOfLastWeekStr = '';
+
+    if (currentDayOfMonth >= 1 && currentDayOfMonth <= 7) {
+      startDayThisWeek = 1;
+      endDayThisWeek = 7;
+      thisWeekCycleLabel = `Week 1 (Day 1 - 7)`;
+
+      // Last week is Previous Month's Week 4 (Day 24 to End of Prev Month)
+      let prevYear = currentMytYear;
+      let prevMonth = currentMytMonth - 1;
+      if (prevMonth <= 0) {
+        prevMonth = 12;
+        prevYear -= 1;
+      }
+      const prevMonthDays = new Date(prevYear, prevMonth, 0).getDate();
+      const prevMonthStr = prevMonth.toString().padStart(2, '0');
+      startOfLastWeekStr = `${prevYear}-${prevMonthStr}-24`;
+      endOfLastWeekStr = `${prevYear}-${prevMonthStr}-${prevMonthDays.toString().padStart(2, '0')}`;
+    } else if (currentDayOfMonth >= 8 && currentDayOfMonth <= 15) {
+      startDayThisWeek = 8;
+      endDayThisWeek = 15;
+      thisWeekCycleLabel = `Week 2 (Day 8 - 15)`;
+
+      startOfLastWeekStr = `${currentMytYear}-${currentMonthStr}-01`;
+      endOfLastWeekStr = `${currentMytYear}-${currentMonthStr}-07`;
+    } else if (currentDayOfMonth >= 16 && currentDayOfMonth <= 23) {
+      startDayThisWeek = 16;
+      endDayThisWeek = 23;
+      thisWeekCycleLabel = `Week 3 (Day 16 - 23)`;
+
+      startOfLastWeekStr = `${currentMytYear}-${currentMonthStr}-08`;
+      endOfLastWeekStr = `${currentMytYear}-${currentMonthStr}-15`;
+    } else {
+      startDayThisWeek = 24;
+      endDayThisWeek = monthDays;
+      thisWeekCycleLabel = `Week 4 (Day 24 - ${monthDays})`;
+
+      startOfLastWeekStr = `${currentMytYear}-${currentMonthStr}-16`;
+      endOfLastWeekStr = `${currentMytYear}-${currentMonthStr}-23`;
+    }
+
+    const startOfWeekStr = `${currentMytYear}-${currentMonthStr}-${startDayThisWeek.toString().padStart(2, '0')}`;
+    const endOfWeekStr = `${currentMytYear}-${currentMonthStr}-${endDayThisWeek.toString().padStart(2, '0')}`;
 
     // Past 6 months sales tracking
     const past6MonthsSales = Array.from({ length: 6 }).map((_, i) => {
@@ -197,7 +237,7 @@ const AdminDashboard: React.FC = () => {
       const price = Number(a.total_price) || 0;
       if (matchDateStr === todayStr) salesToday += price;
       if (matchDateStr >= startOfWeekStr && matchDateStr <= endOfWeekStr) salesThisWeek += price;
-      if (matchDateStr >= startOfLastWeekStr && matchDateStr < startOfWeekStr) salesLastWeek += price;
+      if (matchDateStr >= startOfLastWeekStr && matchDateStr <= endOfLastWeekStr) salesLastWeek += price;
       if (matchDateStr >= startOfMonthStr && matchDateStr <= endOfMonthStr) salesThisMonth += price;
 
       // Populate past 6 months
@@ -311,6 +351,7 @@ const AdminDashboard: React.FC = () => {
         salesThisMonth,
         salesLastMonth,
         past6MonthsSales,
+        thisWeekCycleLabel,
         idleVehicles: Math.max(0, idleVehicles),
         serviceAlerts
       },
@@ -442,13 +483,15 @@ const AdminDashboard: React.FC = () => {
             {stats.salesLastWeek > 0 ? (
               <div className={`flex items-center text-xs font-medium mt-2 ${stats.salesThisWeek >= stats.salesLastWeek ? 'text-emerald-600' : 'text-rose-600'}`}>
                 {stats.salesThisWeek >= stats.salesLastWeek ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-                {stats.salesThisWeek >= stats.salesLastWeek ? '+' : ''}{(((stats.salesThisWeek - stats.salesLastWeek) / stats.salesLastWeek) * 100).toFixed(1)}% vs last week
+                {stats.salesThisWeek >= stats.salesLastWeek ? '+' : ''}{(((stats.salesThisWeek - stats.salesLastWeek) / stats.salesLastWeek) * 100).toFixed(1)}% vs previous cycle
               </div>
             ) : stats.salesThisWeek > 0 ? (
               <div className="flex items-center text-emerald-600 text-xs font-medium mt-2">
-                <TrendingUp className="w-3 h-3 mr-1" /> +100% vs last week
+                <TrendingUp className="w-3 h-3 mr-1" /> +100% vs previous cycle
               </div>
-            ) : null}
+            ) : (
+              <p className="text-[11px] text-slate-400 mt-2 font-medium">{stats.thisWeekCycleLabel}</p>
+            )}
           </div>
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm group relative">
             <h3 className="text-slate-500 text-sm font-medium mb-2">Sales This Month</h3>

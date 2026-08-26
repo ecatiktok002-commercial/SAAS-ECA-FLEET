@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Calendar, FileText, Users, Car, Settings, LogOut, ChevronLeft, ChevronRight, X, Lock, FileCheck, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Calendar, FileText, Users, Car, Settings, LogOut, ChevronLeft, ChevronRight, X, Lock, FileCheck, BarChart3, HelpCircle } from 'lucide-react';
 import UpsellModal from './UpsellModal';
 
 interface SidebarProps {
@@ -99,6 +99,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
         icon: <Settings className="w-5 h-5" />,
         allowedTiers: [1, 2, 3],
         adminOnly: true
+      },
+      { 
+        name: 'Help & Tutorials', 
+        path: '/help', 
+        icon: <HelpCircle className="w-5 h-5" />,
+        allowedTiers: [1, 2, 3],
+        adminOnly: false
       }
     ];
 

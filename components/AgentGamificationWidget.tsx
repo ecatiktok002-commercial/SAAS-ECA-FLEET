@@ -121,41 +121,41 @@ export const AgentGamificationWidget: React.FC<AgentGamificationWidgetProps> = (
   }, [eventProgress, celebratedEvents]);
 
   return (
-    <div className="space-y-6 mb-8">
+    <div className="space-y-6">
       {/* Sales Progress Widget */}
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 w-full relative overflow-hidden">
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 w-full relative overflow-hidden">
         <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
-          <Trophy className="w-32 h-32" />
+          <Trophy className="w-32 h-32 text-slate-800" />
         </div>
         
         <div className="relative z-10">
-          <div className="flex justify-between items-end mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-4">
             <div>
-              <p className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-1">Current Sales</p>
-              <h2 className="text-3xl font-bold text-slate-900">{formatRM(salesThisMonth)}</h2>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Commission Tier Progress</p>
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-900">{formatRM(salesThisMonth)}</h2>
             </div>
-            <div className="text-right">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Active Tier</p>
-              <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold bg-slate-50 ${activeTier.text}`}>
+            <div className="text-left sm:text-right">
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Active Tier</p>
+              <span className={`inline-block px-3 py-1 rounded-full text-xs font-black uppercase tracking-wide bg-slate-100 ${activeTier.text} border border-slate-200/80`}>
                 {activeTier.name}
               </span>
             </div>
           </div>
 
-          <div className="relative w-full h-4 bg-slate-100 rounded-full overflow-hidden my-4">
+          <div className="relative w-full h-3.5 bg-slate-100 rounded-full overflow-hidden my-3">
             <div 
               className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ease-out ${isMaxTier ? 'bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-400 animate-shimmer bg-[length:200%_100%]' : activeTier.color}`}
               style={{ width: `${isMaxTier ? 100 : Math.max(progressPercent, 2)}%` }}
             ></div>
           </div>
 
-          <div className="mt-4 text-center">
+          <div className="mt-3 text-center">
             {isMaxTier ? (
-              <p className="text-sm font-bold text-amber-600 animate-pulse">
-                🔥 Elite Status Unlocked. You've reached the top tier! Keep setting the standard for the rest of the team.
+              <p className="text-xs sm:text-sm font-bold text-amber-600 animate-pulse">
+                🔥 Elite Status Unlocked. You've reached the top tier! Keep setting the standard for the team.
               </p>
             ) : nextTier ? (
-              <p className="text-sm text-slate-500 font-medium">
+              <p className="text-xs sm:text-sm text-slate-600 font-medium">
                 Just <span className={`font-bold ${nextTier.text}`}>{formatRM(remainingToNext)}</span> more to unlock <span className="font-bold text-slate-900">{nextTier.name}</span>!
               </p>
             ) : null}
@@ -165,42 +165,42 @@ export const AgentGamificationWidget: React.FC<AgentGamificationWidgetProps> = (
 
       {/* Dynamic Goal Progress Widget */}
       <div className="space-y-4">
-        <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-          <Zap className="w-5 h-5 text-amber-500" /> Active Bonus Events
+        <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+          <Zap className="w-4 h-4 text-amber-500" /> Active Bonus Events
         </h3>
         
         {eventProgress.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {eventProgress.map(event => (
               <div 
                 key={event.id} 
-                className={`bg-white p-6 rounded-2xl shadow-sm border-2 transition-all relative overflow-hidden ${
-                  event.isCompleted ? 'border-emerald-500 bg-emerald-50/30' : 'border-slate-100'
+                className={`bg-white p-5 rounded-2xl shadow-sm border transition-all relative overflow-hidden ${
+                  event.isCompleted ? 'border-emerald-500 bg-emerald-50/20' : 'border-slate-200'
                 }`}
               >
                 {event.isCompleted && (
                   <div className="absolute -right-6 -top-6 bg-emerald-500 text-white p-8 rounded-full shadow-lg transform rotate-12">
-                    <CheckCircle2 className="w-8 h-8" />
+                    <CheckCircle2 className="w-7 h-7" />
                   </div>
                 )}
 
-                <div className="flex justify-between items-start mb-4">
+                <div className="flex justify-between items-start mb-3.5">
                   <div>
-                    <h4 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                    <h4 className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
                       🔥 {event.name}
                     </h4>
-                    <p className="text-sm text-slate-500 flex items-center gap-1 mt-1">
-                      <Clock className="w-4 h-4" /> Time Left: {event.timeLeft}
+                    <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                      <Clock className="w-3.5 h-3.5" /> Time Left: {event.timeLeft}
                     </p>
                   </div>
                   <div className="text-right">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Reward</span>
-                    <p className="text-xl font-black text-emerald-600">RM {event.reward_amount}</p>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Reward</span>
+                    <p className="text-lg font-black text-emerald-600">RM {event.reward_amount}</p>
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <div className="flex justify-between items-end text-sm">
+                <div className="space-y-2.5">
+                  <div className="flex justify-between items-end text-xs">
                     <span className="font-bold text-slate-600">
                       {event.goal_type === 'Total Orders' 
                         ? `${event.current} / ${event.target_goal} Orders` 
@@ -211,7 +211,7 @@ export const AgentGamificationWidget: React.FC<AgentGamificationWidgetProps> = (
                     </span>
                   </div>
                   
-                  <div className="h-4 bg-slate-100 rounded-full overflow-hidden relative">
+                  <div className="h-3 bg-slate-100 rounded-full overflow-hidden relative">
                     <div 
                       className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ease-out ${
                         event.isCompleted ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'bg-gradient-to-r from-indigo-500 to-purple-600'
@@ -220,15 +220,15 @@ export const AgentGamificationWidget: React.FC<AgentGamificationWidgetProps> = (
                     ></div>
                   </div>
 
-                  <div className="pt-2">
+                  <div className="pt-1.5">
                     {event.isCompleted ? (
-                      <div className="flex items-center justify-center gap-2 text-emerald-600 font-black animate-bounce">
-                        <Star className="w-5 h-5 fill-emerald-600" />
+                      <div className="flex items-center justify-center gap-2 text-emerald-600 text-xs font-black animate-bounce">
+                        <Star className="w-4 h-4 fill-emerald-600" />
                         BONUS UNLOCKED!
-                        <Star className="w-5 h-5 fill-emerald-600" />
+                        <Star className="w-4 h-4 fill-emerald-600" />
                       </div>
                     ) : (
-                      <p className="text-sm text-slate-500 text-center font-medium">
+                      <p className="text-xs text-slate-500 text-center font-medium">
                         Just <span className="text-indigo-600 font-bold">
                           {event.goal_type === 'Total Orders' 
                             ? `${event.target_goal - event.current} more orders` 
@@ -242,9 +242,9 @@ export const AgentGamificationWidget: React.FC<AgentGamificationWidgetProps> = (
             ))}
           </div>
         ) : (
-          <div className="bg-white p-10 rounded-2xl border border-dashed border-slate-300 text-center">
-            <Zap className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-            <p className="text-slate-500 font-medium">No Active Bonus Events. Stay tuned!</p>
+          <div className="bg-white p-8 rounded-2xl border border-dashed border-slate-200 text-center">
+            <Zap className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+            <p className="text-slate-500 text-xs font-medium">No Active Bonus Events. Stay tuned!</p>
           </div>
         )}
       </div>
