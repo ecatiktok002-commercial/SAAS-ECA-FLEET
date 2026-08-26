@@ -1439,34 +1439,52 @@ const AgentDashboard: React.FC = () => {
               <div>
                 <p className="text-emerald-200/90 text-xs font-bold uppercase tracking-widest mb-1.5">THIS WEEK SALES</p>
                 <p className="text-2xl font-black text-white">{currencyFormatter.format(stats.salesThisWeek)}</p>
-                {stats.salesLastWeek > 0 ? (
-                  <div className="flex items-center text-[11px] font-bold mt-1 text-white/90">
-                    {stats.salesThisWeek >= stats.salesLastWeek ? <TrendingUp className="w-3.5 h-3.5 mr-1 text-emerald-300" /> : <TrendingDown className="w-3.5 h-3.5 mr-1 text-rose-300" />}
-                    {stats.salesThisWeek >= stats.salesLastWeek ? '+' : ''}{(((stats.salesThisWeek - stats.salesLastWeek) / stats.salesLastWeek) * 100).toFixed(1)}% vs previous cycle
-                  </div>
-                ) : stats.salesThisWeek > 0 ? (
-                  <div className="flex items-center text-[11px] font-bold mt-1 text-emerald-300">
-                    <TrendingUp className="w-3.5 h-3.5 mr-1" /> +100% vs previous cycle
-                  </div>
+                {stats.salesThisWeek > 0 ? (
+                  stats.salesLastWeek > 0 ? (
+                    <div className="flex items-center text-[11px] font-bold mt-1 text-white/90">
+                      {stats.salesThisWeek >= stats.salesLastWeek ? (
+                        <TrendingUp className="w-3.5 h-3.5 mr-1 text-emerald-300" />
+                      ) : (
+                        <TrendingDown className="w-3.5 h-3.5 mr-1 text-rose-300" />
+                      )}
+                      <span>
+                        {stats.salesThisWeek >= stats.salesLastWeek ? '↑ +' : '↓ '}{Math.abs(Number((((stats.salesThisWeek - stats.salesLastWeek) / stats.salesLastWeek) * 100).toFixed(1)))}% vs last week
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center text-[11px] font-bold mt-1 text-emerald-300">
+                      <TrendingUp className="w-3.5 h-3.5 mr-1" />
+                      <span>↑ +100% vs last week</span>
+                    </div>
+                  )
                 ) : (
-                  <p className="text-[11px] text-emerald-200/70 mt-1 font-medium">{stats.thisWeekCycleLabel}</p>
+                  <p className="text-[11px] text-emerald-200/70 mt-1 font-medium">No sales recorded yet this week</p>
                 )}
               </div>
 
               <div className="group relative">
                 <p className="text-emerald-200/90 text-xs font-bold uppercase tracking-widest mb-1.5">THIS MONTH SALES</p>
                 <p className="text-2xl font-black text-white">{currencyFormatter.format(stats.salesThisMonth)}</p>
-                {stats.salesLastMonth > 0 ? (
-                  <div className="flex items-center text-[11px] font-bold mt-1 text-white/90">
-                    {stats.salesThisMonth >= stats.salesLastMonth ? <TrendingUp className="w-3.5 h-3.5 mr-1 text-emerald-300" /> : <TrendingDown className="w-3.5 h-3.5 mr-1 text-rose-300" />}
-                    {stats.salesThisMonth >= stats.salesLastMonth ? '+' : ''}{(((stats.salesThisMonth - stats.salesLastMonth) / stats.salesLastMonth) * 100).toFixed(1)}% vs last month
-                  </div>
-                ) : stats.salesThisMonth > 0 ? (
-                  <div className="flex items-center text-[11px] font-bold mt-1 text-emerald-300">
-                    <TrendingUp className="w-3.5 h-3.5 mr-1" /> +100% vs last month
-                  </div>
+                {stats.salesThisMonth > 0 ? (
+                  stats.salesLastMonth > 0 ? (
+                    <div className="flex items-center text-[11px] font-bold mt-1 text-white/90">
+                      {stats.salesThisMonth >= stats.salesLastMonth ? (
+                        <TrendingUp className="w-3.5 h-3.5 mr-1 text-emerald-300" />
+                      ) : (
+                        <TrendingDown className="w-3.5 h-3.5 mr-1 text-rose-300" />
+                      )}
+                      <span>
+                        {stats.salesThisMonth >= stats.salesLastMonth ? '↑ +' : '↓ '}{Math.abs(Number((((stats.salesThisMonth - stats.salesLastMonth) / stats.salesLastMonth) * 100).toFixed(1)))}% vs last month
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center text-[11px] font-bold mt-1 text-emerald-300">
+                      <TrendingUp className="w-3.5 h-3.5 mr-1" />
+                      <span>↑ +100% vs last month</span>
+                    </div>
+                  )
                 ) : (
-                  <p className="text-[11px] text-emerald-200/60 mt-1 font-medium">Current calendar month</p>
+                  <p className="text-[11px] text-emerald-200/70 mt-1 font-medium">No sales recorded yet this month</p>
                 )}
                 
                 {/* Hover Tooltip for 6 Months Sales */}

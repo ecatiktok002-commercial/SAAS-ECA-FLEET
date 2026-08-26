@@ -480,32 +480,38 @@ const AdminDashboard: React.FC = () => {
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
             <h3 className="text-slate-500 text-sm font-medium mb-2">Sales This Week</h3>
             <p className="text-3xl font-bold text-slate-900">{currencyFormatter.format(stats.salesThisWeek)}</p>
-            {stats.salesLastWeek > 0 ? (
-              <div className={`flex items-center text-xs font-medium mt-2 ${stats.salesThisWeek >= stats.salesLastWeek ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {stats.salesThisWeek >= stats.salesLastWeek ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-                {stats.salesThisWeek >= stats.salesLastWeek ? '+' : ''}{(((stats.salesThisWeek - stats.salesLastWeek) / stats.salesLastWeek) * 100).toFixed(1)}% vs previous cycle
-              </div>
-            ) : stats.salesThisWeek > 0 ? (
-              <div className="flex items-center text-emerald-600 text-xs font-medium mt-2">
-                <TrendingUp className="w-3 h-3 mr-1" /> +100% vs previous cycle
-              </div>
+            {stats.salesThisWeek > 0 ? (
+              stats.salesLastWeek > 0 ? (
+                <div className={`flex items-center text-xs font-medium mt-2 ${stats.salesThisWeek >= stats.salesLastWeek ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {stats.salesThisWeek >= stats.salesLastWeek ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                  {stats.salesThisWeek >= stats.salesLastWeek ? '↑ +' : '↓ '}{Math.abs(Number((((stats.salesThisWeek - stats.salesLastWeek) / stats.salesLastWeek) * 100).toFixed(1)))}% vs last week
+                </div>
+              ) : (
+                <div className="flex items-center text-emerald-600 text-xs font-medium mt-2">
+                  <TrendingUp className="w-3 h-3 mr-1" /> ↑ +100% vs last week
+                </div>
+              )
             ) : (
-              <p className="text-[11px] text-slate-400 mt-2 font-medium">{stats.thisWeekCycleLabel}</p>
+              <p className="text-[11px] text-slate-400 mt-2 font-medium">No sales recorded yet this week</p>
             )}
           </div>
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm group relative">
             <h3 className="text-slate-500 text-sm font-medium mb-2">Sales This Month</h3>
             <p className="text-3xl font-bold text-slate-900">{currencyFormatter.format(stats.salesThisMonth)}</p>
-            {stats.salesLastMonth > 0 ? (
-              <div className={`flex items-center text-xs font-medium mt-2 ${stats.salesThisMonth >= stats.salesLastMonth ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {stats.salesThisMonth >= stats.salesLastMonth ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-                {stats.salesThisMonth >= stats.salesLastMonth ? '+' : ''}{(((stats.salesThisMonth - stats.salesLastMonth) / stats.salesLastMonth) * 100).toFixed(1)}% vs last month
-              </div>
-            ) : stats.salesThisMonth > 0 ? (
-              <div className="flex items-center text-emerald-600 text-xs font-medium mt-2">
-                <TrendingUp className="w-3 h-3 mr-1" /> +100% vs last month
-              </div>
-            ) : null}
+            {stats.salesThisMonth > 0 ? (
+              stats.salesLastMonth > 0 ? (
+                <div className={`flex items-center text-xs font-medium mt-2 ${stats.salesThisMonth >= stats.salesLastMonth ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {stats.salesThisMonth >= stats.salesLastMonth ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                  {stats.salesThisMonth >= stats.salesLastMonth ? '↑ +' : '↓ '}{Math.abs(Number((((stats.salesThisMonth - stats.salesLastMonth) / stats.salesLastMonth) * 100).toFixed(1)))}% vs last month
+                </div>
+              ) : (
+                <div className="flex items-center text-emerald-600 text-xs font-medium mt-2">
+                  <TrendingUp className="w-3 h-3 mr-1" /> ↑ +100% vs last month
+                </div>
+              )
+            ) : (
+              <p className="text-[11px] text-slate-400 mt-2 font-medium">No sales recorded yet this month</p>
+            )}
             
             {/* Hover Tooltip for 6 Months Sales */}
             <div className="absolute top-full left-0 mt-2 w-64 bg-slate-800 text-white text-sm rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 p-4">
