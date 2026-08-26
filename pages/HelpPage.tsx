@@ -30,7 +30,13 @@ import {
   Wallet,
   Camera,
   CheckCheck,
-  Award
+  Award,
+  ListTodo,
+  Receipt,
+  TrendingUp,
+  FileSignature,
+  Upload,
+  Layers
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -391,59 +397,183 @@ const HelpPage: React.FC = () => {
   const agentTutorialSteps: TutorialStep[] = [
     {
       id: 1,
-      title: '1. Check Live Vehicle Availability on Calendar',
-      subtitle: 'Find free cars for incoming leads',
-      description: 'Open the Fleet Calendar to inspect active vehicle schedules. Check which car plates are available for your customer’s requested pickup and return dates.',
-      actionText: 'Open Calendar',
-      actionPath: '/calendar',
-      icon: <Calendar className="w-5 h-5 text-emerald-600" />,
+      title: '1. Clear Daily Mission Log & Urgent Actions',
+      subtitle: 'Signatures, payment slips & return tasks',
+      description: 'Check your Daily Mission Log on the Agent Dashboard every morning. Follow up with customers needing e-signatures, request transfer receipts via 1-click WhatsApp reminders, and confirm vehicle returns.',
+      actionText: 'Open Mission Log',
+      actionPath: '/agent-dashboard',
+      icon: <ListTodo className="w-5 h-5 text-blue-600" />,
       tips: [
-        'Always verify turnaround times so the car has at least 1–2 hours buffer for cleaning before pickup.',
-        'Use the model filter at the top to quickly check availability for Axia, Bezza, Myvi, or Vios.'
+        'Use the "WhatsApp Reminder" button on pending deals to send instant pre-formatted e-signing links or payment prompts.',
+        'When an overdue vehicle is returned, click "Mark Returned" to immediately update fleet availability and calendar records.'
       ]
     },
     {
       id: 2,
-      title: '2. Create & Send Digital Agreement via WhatsApp',
-      subtitle: 'Fast e-signature & IC/License collection',
-      description: 'Go to Digital Forms, create a new agreement with customer details, and click "Share to WhatsApp". The customer signs on their phone in under 60 seconds.',
-      actionText: 'Create Agreement',
-      actionPath: '/forms',
-      icon: <FileText className="w-5 h-5 text-blue-600" />,
+      title: '2. Monetize Idle Fleet with "Available to Sell Today"',
+      subtitle: 'Turn unbooked cars into instant commissions',
+      description: 'Inspect the Available to Sell Today section on your dashboard. Browse idle vehicle models, check open days buffers, and copy pre-formatted WhatsApp promo broadcasts with 1 click.',
+      actionText: 'View Opportunities',
+      actionPath: '/agent-dashboard',
+      icon: <Zap className="w-5 h-5 text-amber-600" />,
       tips: [
-        'Make sure the agreement is assigned to your Agent name so your commission is recorded properly.',
-        'Customers can upload both their Malaysian IC / Passport and Driving License photos directly.'
+        'Tap "Copy WhatsApp Promo" to get a ready-to-send marketing message listing vehicle models, daily rates, and date ranges.',
+        'Click "Book This Car" to open a pre-filled booking modal with the car plate and available dates pre-selected.'
       ]
     },
     {
       id: 3,
-      title: '3. Perform Vehicle Handover & Photo Inspection',
-      subtitle: 'Protect against pre-existing damage',
-      description: 'Use the Handover Form inspection link when meeting the customer. Record odometer mileage, fuel bar levels, and upload photos of any existing scratches.',
-      actionText: 'View Digital Forms',
+      title: '3. Create & Send Digital Agreements via WhatsApp',
+      subtitle: 'Paperless contracts & instant identity capture',
+      description: 'Draft legally compliant digital rental agreements in seconds. Send the customer signing link via WhatsApp for mobile e-signatures, IC/License uploads, and emergency contact collection.',
+      actionText: 'Create Agreement',
       actionPath: '/forms',
-      icon: <Camera className="w-5 h-5 text-amber-600" />,
+      icon: <FileSignature className="w-5 h-5 text-indigo-600" />,
       tips: [
-        'Taking 4 clear corner photos takes less than 30 seconds and protects you from damage disputes.',
-        'Make sure the customer confirms the starting fuel gauge level before handing over keys.'
+        'Ensure your Agent profile is selected during agreement creation so commissions are credited to your account.',
+        'Customers can sign on any smartphone browser (Chrome, Safari) without installing any application.'
       ]
     },
     {
       id: 4,
-      title: '4. Track Your Commissions & Returns on Agent Dashboard',
-      subtitle: 'Monitor sales volume & payout stages',
-      description: 'Check your personal Agent Dashboard for real-time commission earnings, upcoming car deliveries, overdue return alerts, and monthly sales targets.',
-      actionText: 'Agent Dashboard',
+      title: '4. Track "My Pocket" Commissions, Payouts & Goals',
+      subtitle: 'Live earnings, Audit Approved balance & 90-day trajectory',
+      description: 'Monitor your Total Earned Today, Audit Approved Pending Payouts, weekly sales trajectories, and accumulated career earnings. Open the Payout Breakdown modal to see individual deals awaiting disbursement.',
+      actionText: 'My Pocket Hub',
       actionPath: '/agent-dashboard',
-      icon: <Wallet className="w-5 h-5 text-purple-600" />,
+      icon: <Wallet className="w-5 h-5 text-emerald-600" />,
       tips: [
-        'Commissions move from Pending Review -> Approved -> Paid once management audits the payment receipt.',
-        'Confirm completed car returns directly with 1-click on your dashboard.'
+        'Click "Breakdown" on the Pending Payout card to inspect all audit-approved deals currently queued in Payout Summary.',
+        'Check your Gamification widget to track progress toward monthly sales targets and commission tier upgrades.'
       ]
     }
   ];
 
   const agentGuides: GuideSection[] = [
+    {
+      id: 'agent-mission-log',
+      category: 'missions',
+      title: 'Daily Mission Log & Action Center',
+      badge: 'New Update',
+      icon: <ListTodo className="w-6 h-6 text-blue-600" />,
+      summary: 'Manage signature-pending forms, upload payment receipts, track upcoming pickups, and resolve overdue returns from a centralized dashboard.',
+      steps: [
+        {
+          title: 'Filter Mission Categories',
+          detail: 'Toggle between "All Missions", "Forms Action" (signature & payment tasks), and "Vehicle Ops" (pickups & overdue returns) to prioritize your work.'
+        },
+        {
+          title: '1-Click WhatsApp Reminders',
+          detail: 'Click "WhatsApp Reminder" next to any signature-pending or payment-pending agreement. The system generates a personalized, formatted message with the customer signing link or bank transfer instructions.'
+        },
+        {
+          title: 'Upload Payment Receipts',
+          detail: 'When a customer transfers rental funds, click "Upload Receipt" to attach the slip directly to the digital agreement so management can audit and approve your commission.'
+        },
+        {
+          title: 'Confirm Completed Returns',
+          detail: 'For overdue vehicle returns, click "Mark Returned" with 1-click confirmation once keys are received and vehicle condition is inspected.'
+        }
+      ],
+      proTips: [
+        'Keeping your Daily Mission Log at zero pending actions guarantees that agreements move swiftly to Audit Payout approval.',
+        'Overdue return cards display the exact hours and minutes elapsed since the scheduled return time.'
+      ],
+      relatedPath: '/agent-dashboard',
+      relatedLabel: 'Open Daily Mission Log'
+    },
+    {
+      id: 'agent-available-to-sell',
+      category: 'available-cars',
+      title: 'Available to Sell Today & WhatsApp Promo Copy',
+      badge: 'Revenue Booster',
+      icon: <Zap className="w-6 h-6 text-amber-600" />,
+      summary: 'Maximize your commission by discovering idle cars in real-time and broadcasting promotional messages to prospective renters.',
+      steps: [
+        {
+          title: 'Real-Time Idle Fleet Detection',
+          detail: 'The engine scans your fleet 24/7 to identify active cars with no bookings today, calculating potential revenue based on daily rates and available days.'
+        },
+        {
+          title: 'Grouped Model Opportunities',
+          detail: 'View vehicles grouped by model (e.g. Perodua Bezza, Proton Saga, Perodua Axia) with available quantity and open date ranges.'
+        },
+        {
+          title: '1-Click WhatsApp Promo Copy',
+          detail: 'Click "Copy WhatsApp Promo" on any vehicle group to copy a ready-to-post message formatted for WhatsApp status updates or customer group chats.'
+        },
+        {
+          title: 'Instant Booking Pre-Fill',
+          detail: 'Click "Book This Car" to open the reservation dialog with the exact car plate and rental dates pre-selected, eliminating manual data entry.'
+        }
+      ],
+      proTips: [
+        'Promote available economy cars every morning to capture last-minute travelers and business renters.',
+        'Opportunity cards display the customer name and pickup time of the next booking so you know the exact return deadline.'
+      ],
+      relatedPath: '/agent-dashboard',
+      relatedLabel: 'View Available Cars'
+    },
+    {
+      id: 'agent-pocket-commissions',
+      category: 'sales-hub',
+      title: 'My Pocket: Commissions & Payout Breakdown',
+      badge: 'Earnings & Audit',
+      icon: <Wallet className="w-6 h-6 text-emerald-600" />,
+      summary: 'Track live commission earnings, view audit-approved payout balances, inspect individual deal records, and analyze weekly sales cycles.',
+      steps: [
+        {
+          title: 'Total Earned Today',
+          detail: 'Real-time commission calculated from valid completed agreements starting today in Malaysian Time (MYT).'
+        },
+        {
+          title: 'Pending Payout (Audit Approved)',
+          detail: 'Displays commissions that have passed management Matchy Scan audit and are queued in the Payout Summary for monthly disbursement.'
+        },
+        {
+          title: 'Interactive Payout Breakdown Modal',
+          detail: 'Click "Breakdown" to open a modal listing every approved deal with reference number, customer name, vehicle plate, rental price, and earned commission.'
+        },
+        {
+          title: 'Cycle Comparisons & 6-Month Sales History',
+          detail: 'Track sales performance across standardized 4-week cycles (Week 1–4) and hover over "This Month Sales" to review revenue across the past 6 months.'
+        }
+      ],
+      proTips: [
+        'Deals with uploaded payment receipts and linked calendar bookings get audited and approved significantly faster by management.',
+        'Commissions in review (+RM X in review) represent completed bookings currently undergoing receipt and Matchy verification.'
+      ],
+      relatedPath: '/agent-dashboard',
+      relatedLabel: 'Open My Pocket'
+    },
+    {
+      id: 'agent-gamification-analytics',
+      category: 'sales-hub',
+      title: 'Sales Goals, Gamification & Logistic Credits',
+      badge: 'Growth & Incentives',
+      icon: <TrendingUp className="w-6 h-6 text-purple-600" />,
+      summary: 'Hit monthly sales quota targets, unlock higher commission tier bonuses, review 90-day commission trends, and track vehicle handling credits.',
+      steps: [
+        {
+          title: 'Gamification & Quota Widget',
+          detail: 'View your live progress bar toward monthly sales milestones (e.g. RM5,000 Base, RM8,000 Premium, RM10,000+ Prestige tiers).'
+        },
+        {
+          title: 'Weekly Earnings Performance Chart',
+          detail: 'Interactive 90-day bar chart showing weekly commission trajectory and income trends over the last 13 weeks.'
+        },
+        {
+          title: 'Logistic Credits Ledger',
+          detail: 'Log of additional bonus credits awarded for vehicle handling, delivery runs, and customer handovers.'
+        }
+      ],
+      proTips: [
+        'Reaching higher monthly sales volumes can automatically qualify you for higher commission tier percentages (e.g., 20% -> 25% -> 30%).',
+        'Use the 90-day trajectory chart to track your seasonal sales performance and identify peak booking periods.'
+      ],
+      relatedPath: '/agent-dashboard',
+      relatedLabel: 'View Sales Goals'
+    },
     {
       id: 'agent-digital-forms',
       category: 'forms',
@@ -505,34 +635,6 @@ const HelpPage: React.FC = () => {
       relatedLabel: 'Open Calendar'
     },
     {
-      id: 'agent-dashboard-guide',
-      category: 'dashboard',
-      title: 'Agent Dashboard & Commission Tracking',
-      badge: 'Personal Stats',
-      icon: <Wallet className="w-6 h-6 text-purple-600" />,
-      summary: 'Monitor your monthly sales revenue, commission pipeline (Pending vs Paid), and upcoming customer delivery tasks.',
-      steps: [
-        {
-          title: 'Personal Sales & Commission Meter',
-          detail: 'View your total sales volume, completed agreements, and earned commission for the current month.'
-        },
-        {
-          title: 'Commission Payout Stages',
-          detail: 'Pending Review (awaiting admin audit) -> Approved (verified) -> Paid (disbursed to your account).'
-        },
-        {
-          title: 'Upcoming Deliveries & Overdue Returns',
-          detail: 'See list of cars scheduled for handover today, and vehicles overdue for return so you can follow up with the renter.'
-        }
-      ],
-      proTips: [
-        'Check the Gamification & Sales Target widget to see your progress toward monthly milestone incentives.',
-        'Use the 1-click "Confirm Return" button on your dashboard once the customer returns the keys and vehicle is inspected.'
-      ],
-      relatedPath: '/agent-dashboard',
-      relatedLabel: 'Open Agent Dashboard'
-    },
-    {
       id: 'agent-handover',
       category: 'handover',
       title: 'Vehicle Handover & Return Inspection',
@@ -564,9 +666,39 @@ const HelpPage: React.FC = () => {
 
   const agentFaqs: FAQItem[] = [
     {
+      category: 'missions',
+      question: 'How do I use the Daily Mission Log on the Agent Dashboard?',
+      answer: 'The Daily Mission Log automatically aggregates all tasks requiring your immediate attention: agreements waiting for customer signature, signed forms missing payment receipts, scheduled vehicle pickups today, and overdue vehicle returns. You can filter by "Forms Action" or "Vehicle Ops", use 1-click WhatsApp reminders to message customers, upload payment slips, and mark returns completed with one tap.'
+    },
+    {
+      category: 'available-cars',
+      question: 'How does "Available to Sell Today" help me get more bookings?',
+      answer: 'It continuously analyzes your fleet schedule and displays all vehicles currently sitting idle. It calculates potential revenue for open windows and groups cars by model. You can click "Copy WhatsApp Promo" to get a pre-written promotional broadcast with pricing and date ranges, or click "Book This Car" to immediately open a pre-filled booking modal.'
+    },
+    {
       category: 'commissions',
-      question: 'When will my commission be paid?',
-      answer: 'Commissions are audited and disbursed according to your company’s payout schedule (e.g. weekly or monthly). Once the customer completes their rental and the payment receipt is verified by management, your commission status changes from "Pending" to "Approved" and then "Paid".'
+      question: 'What is the difference between "Total Earned Today", "Pending Payout (Audit Approved)", and "In Review"?',
+      answer: '"Total Earned Today" is your live commission from completed bookings starting today. "Pending Payout (Audit Approved)" represents commissions that management has reviewed via Matchy Scan and approved for the next payout cycle. "In Review" refers to deals that are completed but are currently awaiting manager audit of payment receipts.'
+    },
+    {
+      category: 'commissions',
+      question: 'How does the Pending Payout Breakdown modal work?',
+      answer: 'When you click "Breakdown" on the Pending Payout card in My Pocket, a detailed modal opens showing every individual approved agreement. It details the customer name, agreement reference number, vehicle plate, rental price, and your exact approved commission amount.'
+    },
+    {
+      category: 'commissions',
+      question: 'When will my commission be disbursed to my bank account?',
+      answer: 'Commissions are audited and disbursed according to your company’s scheduled payout period (typically monthly or bi-weekly). Once approved in the Audit & Payout ledger, management marks them as "Paid" during payout processing, which updates your Total Payout Received total.'
+    },
+    {
+      category: 'sales',
+      question: 'How are weekly sales cycles (Week 1–4) and 6-month comparisons calculated?',
+      answer: 'Weekly sales are standardized into 4 monthly cycles: Week 1 (Days 1–7), Week 2 (Days 8–15), Week 3 (Days 16–23), and Week 4 (Days 24 to month end). The dashboard compares your current cycle against the previous cycle. Hovering over "This Month Sales" reveals your complete sales performance across the past 6 months.'
+    },
+    {
+      category: 'logistics',
+      question: 'What are Logistic Credits and how do I earn them?',
+      answer: 'Logistic Credits are bonus allowances awarded by management for operational duties such as vehicle deliveries, inter-branch transfers, and vehicle handovers. Your accumulated credit balance and event log are displayed in the Logistic Credits card on your dashboard.'
     },
     {
       category: 'permissions',
@@ -906,9 +1038,11 @@ const HelpPage: React.FC = () => {
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
               {(viewMode === 'agent' ? [
                 { id: 'all', label: 'All Guides' },
+                { id: 'missions', label: 'Mission Log' },
+                { id: 'available-cars', label: 'Available to Sell' },
+                { id: 'sales-hub', label: 'Commissions & Quota' },
                 { id: 'forms', label: 'Digital Agreements' },
                 { id: 'calendar', label: 'Fleet Calendar' },
-                { id: 'dashboard', label: 'Commission & Dashboard' },
                 { id: 'handover', label: 'Inspection / Handover' }
               ] : [
                 { id: 'all', label: 'All Modules' },

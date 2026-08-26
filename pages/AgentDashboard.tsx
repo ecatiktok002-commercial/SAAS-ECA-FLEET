@@ -10,12 +10,13 @@ import {
   Wallet, BarChart3, ListTodo, X, FileSignature, FileText,
   Copy, MessageCircle, ExternalLink, Sparkles, Filter,
   Eye, ShieldCheck, AlertCircle, RefreshCw, Upload, Check, Info,
-  Receipt, ArrowUpRight
+  Receipt, ArrowUpRight, HelpCircle, Pencil, Plus, Calendar
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Agreement, Booking, MarketingEvent } from '../types';
 import { AgentGamificationWidget } from '../components/AgentGamificationWidget';
 import { AvailableToSellCard, AvailableCarOpportunity, GroupedOpportunity } from '../components/AvailableToSellCard';
+import BookingModal from '../components/BookingModal';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
   ResponsiveContainer, Cell 
@@ -39,7 +40,7 @@ interface OverdueReturn {
 }
 
 const AgentDashboard: React.FC = () => {
-  const { subscriberId, userId, userUid } = useAuth();
+  const { subscriberId, userId, userUid, userName, staffRole } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   
@@ -48,6 +49,46 @@ const AgentDashboard: React.FC = () => {
   const [currentTime, setCurrentTime] = useState<Date>(() => new Date());
   const [missionFilter, setMissionFilter] = useState<'all' | 'forms' | 'vehicles'>('all');
   const [showPayoutModal, setShowPayoutModal] = useState(false);
+
+  // Booking Modal State
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [selectedBookingDate, setSelectedBookingDate] = useState<Date | null>(null);
+  const [editingBookingModal, setEditingBookingModal] = useState<Booking | null>(null);
+
+  // Custom Agent Name (saved in Frontend localStorage)
+  const customNameStorageKey = `agent_custom_display_name_${subscriberId || 'default'}_${userUid || userId || 'default'}`;
+  const [customAgentName, setCustomAgentName] = useState<string>(() => {
+    try {
+      return localStorage.getItem(customNameStorageKey) || '';
+    } catch {
+      return '';
+    }
+  });
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempAgentName, setTempAgentName] = useState('');
+
+  // Greeting based on Malaysian Time hour
+  const greeting = useMemo(() => {
+    const hour = parseInt(formatInMYT(currentTime.getTime(), 'H'), 10);
+    if (hour >= 5 && hour < 12) return 'Good Morning';
+    if (hour >= 12 && hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
+  }, [currentTime]);
+
+  const handleSaveCustomName = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = tempAgentName.trim();
+    if (trimmed) {
+      localStorage.setItem(customNameStorageKey, trimmed);
+      setCustomAgentName(trimmed);
+      toast.success(`Display name updated to "${trimmed}"`);
+    } else {
+      localStorage.removeItem(customNameStorageKey);
+      setCustomAgentName('');
+      toast.success('Reset to default staff name');
+    }
+    setIsEditingName(false);
+  };
 
   // Periodically refresh current time every 30 seconds so vehicle availability is continuously live
   useEffect(() => {
@@ -104,7 +145,7 @@ const AgentDashboard: React.FC = () => {
         }
       }
 
-      return { allBookings, cars, agreements, marketingEvents, members, staff, logisticCredits };
+      return { allBookings, cars, agreements, marketingEvents, members, staff, staffMembers, logisticCredits };
     },
     enabled: !!subscriberId,
     refetchInterval: 15000,
@@ -694,6 +735,59 @@ const AgentDashboard: React.FC = () => {
     return parts.join(' ');
   };
 
+  const handleSaveBooking = async (bookingData: Omit<Booking, 'id'>, staffName: string) => {
+    if (!subscriberId) return;
+    try {
+      const membersList: any[] = data?.members || [];
+      const staffList: any[] = data?.staffMembers || [];
+      const selectedMember = membersList.find(m => m.id === bookingData.member_id || m.staff_id === bookingData.member_id);
+      
+      let actualAgentId = selectedMember?.staff_id;
+      if (!actualAgentId && selectedMember) {
+        if (selectedMember.is_subscriber) {
+          actualAgentId = subscriberId;
+        } else {
+          const foundStaff = staffList.find(s => s.id === selectedMember.id || s.name.toLowerCase() === selectedMember.name.toLowerCase());
+          if (foundStaff) actualAgentId = foundStaff.id;
+        }
+      }
+      if (!actualAgentId) {
+        actualAgentId = userId || subscriberId;
+      }
+
+      const finalStaffName = staffName || selectedMember?.name || customAgentName || currentStaff?.name || '';
+      const bookingWithAgent = {
+        ...bookingData,
+        agent_id: actualAgentId,
+        agent_name: finalStaffName,
+        subscriber_id: subscriberId,
+        created_by: (editingBookingModal && editingBookingModal.created_by) ? editingBookingModal.created_by : (userUid || userId || '')
+      };
+
+      await apiService.saveBooking(bookingWithAgent, subscriberId, editingBookingModal?.id);
+      toast.success(editingBookingModal ? 'Booking updated successfully' : 'Booking created successfully');
+
+      setIsBookingModalOpen(false);
+      setEditingBookingModal(null);
+      queryClient.invalidateQueries({ queryKey: ['agentDashboard', subscriberId] });
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save booking');
+    }
+  };
+
+  const handleDeleteBooking = async (id: string, staffName: string) => {
+    if (!subscriberId) return;
+    try {
+      await apiService.deleteBooking(id, subscriberId);
+      toast.success('Booking deleted');
+      setIsBookingModalOpen(false);
+      setEditingBookingModal(null);
+      queryClient.invalidateQueries({ queryKey: ['agentDashboard', subscriberId] });
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete booking');
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-8 max-w-7xl mx-auto flex items-center justify-center h-64">
@@ -751,12 +845,120 @@ const AgentDashboard: React.FC = () => {
   const totalVehicleOpsCount = pendingDeliveries.length + overdueReturns.length;
   const totalMissionsCount = totalUrgentFormsCount + totalVehicleOpsCount;
 
+  const defaultStaffName = currentStaff?.name || userName || userUid || (userId ? `Staff (${userId.slice(0, 6)})` : 'Staff');
+  const displayStaffName = customAgentName.trim() || defaultStaffName;
+
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
-        <div>
-          <h1 className="text-3xl font-semibold text-slate-900 tracking-tight">Personal Performance Hub</h1>
-          <p className="text-slate-500 mt-2 text-sm">Real-time fleet operations, sales analytics, and team performance.</p>
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Compact Agent Command Bar */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          {/* Left: Greeting, Editable Staff Name & System Live Status */}
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">
+                {greeting},
+              </span>
+              
+              {isEditingName ? (
+                <form onSubmit={handleSaveCustomName} className="inline-flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={tempAgentName}
+                    onChange={(e) => setTempAgentName(e.target.value)}
+                    placeholder="Enter your name"
+                    className="px-2.5 py-1 text-base sm:text-lg font-bold text-slate-900 bg-slate-50 border border-blue-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-xs max-w-[200px]"
+                    autoFocus
+                  />
+                  <button
+                    type="submit"
+                    className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors shadow-2xs cursor-pointer"
+                    title="Save Name"
+                  >
+                    <Check className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingName(false)}
+                    className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors cursor-pointer"
+                    title="Cancel"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </form>
+              ) : (
+                <div className="inline-flex items-center gap-1.5">
+                  <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                    {displayStaffName}
+                  </span>
+                  <button
+                    onClick={() => {
+                      setTempAgentName(customAgentName || defaultStaffName);
+                      setIsEditingName(true);
+                    }}
+                    className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                    title="Change display name (saved on frontend)"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Date & System Live Indicator */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="text-xs sm:text-sm font-semibold text-slate-500">
+                {formatInMYT(currentTime.getTime(), 'EEEE, d MMMM')}
+              </span>
+              <span className="text-slate-300">•</span>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 text-xs font-bold shadow-2xs">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span>System Live</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Compact Action Buttons */}
+          <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+            <button
+              onClick={() => {
+                setEditingBookingModal(null);
+                setSelectedBookingDate(new Date());
+                setIsBookingModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all cursor-pointer active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ New Booking</span>
+            </button>
+
+            <Link
+              to="/calendar"
+              className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold shadow-2xs transition-all cursor-pointer"
+            >
+              <Calendar className="w-4 h-4 text-slate-500" />
+              <span>View Calendar</span>
+            </Link>
+
+            <Link
+              to="/forms"
+              className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all cursor-pointer active:scale-95"
+            >
+              <FileSignature className="w-4 h-4 text-slate-300" />
+              <span>Create Form</span>
+            </Link>
+
+            <Link
+              to="/help"
+              className="p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-xl border border-slate-200/60 transition-colors ml-0.5 cursor-pointer"
+              title="Agent Help & Tutorials"
+            >
+              <HelpCircle className="w-4 h-4" />
+            </Link>
+          </div>
         </div>
 
         {/* Enhanced Daily Mission Log & Action Center */}
@@ -1292,10 +1494,10 @@ const AgentDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Analytics & Logistics Row (Balanced Grid) */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Analytics & Logistics Row (Balanced Grid - Collapses when Logistic Credits is empty) */}
+        <div className={logisticCredits && logisticCredits.length > 0 ? "grid grid-cols-1 lg:grid-cols-3 gap-6" : "grid grid-cols-1 gap-6"}>
           {/* Weekly Earnings Performance Chart */}
-          <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div className={`${logisticCredits && logisticCredits.length > 0 ? 'lg:col-span-2' : 'col-span-1'} bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between`}>
             <div>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
@@ -1352,45 +1554,41 @@ const AgentDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Logistic Credits Log */}
-          <div className="lg:col-span-1 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-                    <Car className="w-5 h-5" />
+          {/* Logistic Credits Log (Collapsed when empty) */}
+          {logisticCredits && logisticCredits.length > 0 && (
+            <div className="lg:col-span-1 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                      <Car className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-sm uppercase tracking-tight">Logistic Credits</h3>
+                      <p className="text-xs text-slate-500">Fleet handover & return bonuses</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-sm uppercase tracking-tight">Logistic Credits</h3>
-                    <p className="text-xs text-slate-500">Fleet handover & return bonuses</p>
-                  </div>
+                  <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg text-xs font-black">
+                    {currencyFormatter.format(logisticCredits.reduce((sum, r) => sum + (r.logistic_credit || 0), 0))}
+                  </span>
                 </div>
-                <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg text-xs font-black">
-                  {currencyFormatter.format(logisticCredits.reduce((sum, r) => sum + (r.logistic_credit || 0), 0))}
-                </span>
+              </div>
+
+              <div className="h-56 overflow-y-auto pr-1 space-y-2 mt-2">
+                {logisticCredits.map(record => (
+                  <div key={record.id} className="p-3 bg-slate-50 hover:bg-slate-100/70 transition-colors rounded-xl border border-slate-100 flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-slate-900">{record.cars?.plate || 'Vehicle Delivery'}</div>
+                      <div className="text-[10px] text-slate-500">{formatInMYT(new Date(record.created_at).getTime(), 'dd MMM yyyy, HH:mm')}</div>
+                    </div>
+                    <div className="text-xs font-black text-blue-600 bg-blue-50/80 px-2 py-1 rounded-md">
+                      +{currencyFormatter.format(record.logistic_credit)}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-
-            <div className="h-56 overflow-y-auto pr-1 space-y-2 mt-2">
-              {logisticCredits.length > 0 ? logisticCredits.map(record => (
-                <div key={record.id} className="p-3 bg-slate-50 hover:bg-slate-100/70 transition-colors rounded-xl border border-slate-100 flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-bold text-slate-900">{record.cars?.plate || 'Vehicle Delivery'}</div>
-                    <div className="text-[10px] text-slate-500">{formatInMYT(new Date(record.created_at).getTime(), 'dd MMM yyyy, HH:mm')}</div>
-                  </div>
-                  <div className="text-xs font-black text-blue-600 bg-blue-50/80 px-2 py-1 rounded-md">
-                    +{currencyFormatter.format(record.logistic_credit)}
-                  </div>
-                </div>
-              )) : (
-                <div className="h-full flex flex-col items-center justify-center text-center p-6 bg-slate-50/70 rounded-xl border border-dashed border-slate-200">
-                  <Car className="w-8 h-8 text-slate-300 mb-2" />
-                  <p className="text-slate-600 font-bold text-xs">No logistic credits logged</p>
-                  <p className="text-slate-400 text-xs mt-0.5">Credits awarded for vehicle handling will appear here.</p>
-                </div>
-              )}
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Pending Payout Breakdown Modal */}
@@ -1477,6 +1675,29 @@ const AgentDashboard: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* New / Edit Booking Modal */}
+        {isBookingModalOpen && (
+          <BookingModal
+            isOpen={isBookingModalOpen}
+            onClose={() => {
+              setIsBookingModalOpen(false);
+              setEditingBookingModal(null);
+            }}
+            initialDate={selectedBookingDate}
+            editingBooking={editingBookingModal}
+            onSave={handleSaveBooking}
+            onDelete={handleDeleteBooking}
+            existingBookings={bookings}
+            cars={data?.cars || []}
+            members={data?.members || []}
+            subscriberId={subscriberId}
+            currentStaff={currentStaff}
+            currentUserId={userId}
+            userUid={userUid}
+            staffRole={staffRole}
+          />
         )}
       </div>
     </div>
