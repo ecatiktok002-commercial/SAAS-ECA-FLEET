@@ -57,16 +57,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
         {
           title: 'SAAS PLATFORM',
           items: [
-            { name: 'SaaS Command Center', path: '/subscribers', icon: <LayoutDashboard className="w-4 h-4" /> },
-            { name: 'Subscribers', path: '/subscribers?tab=subscribers', icon: <Users className="w-4 h-4" /> },
-            { name: 'Billing & Invoices', path: '/subscribers?tab=billing', icon: <FileCheck className="w-4 h-4" /> },
-            { name: 'Commission Ledger', path: '/subscribers?tab=commissions', icon: <BarChart3 className="w-4 h-4" /> }
+            { name: 'SaaS Command Center', path: '/subscribers', icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
+            { name: 'Subscribers', path: '/subscribers?tab=subscribers', icon: <Users className="w-4.5 h-4.5" /> },
+            { name: 'Billing & Invoices', path: '/subscribers?tab=billing', icon: <FileCheck className="w-4.5 h-4.5" /> },
+            { name: 'Commission Ledger', path: '/subscribers?tab=commissions', icon: <BarChart3 className="w-4.5 h-4.5" /> }
           ]
         },
         {
           title: 'SUPPORT',
           items: [
-            { name: 'Help & Tutorials', path: '/help', icon: <HelpCircle className="w-4 h-4" /> }
+            { name: 'Help & Tutorials', path: '/help', icon: <HelpCircle className="w-4.5 h-4.5" /> }
           ]
         }
       ];
@@ -79,21 +79,21 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
           { 
             name: isAdmin ? 'Overview' : 'Overview', 
             path: '/', 
-            icon: <LayoutDashboard className="w-4 h-4" />,
+            icon: <LayoutDashboard className="w-4.5 h-4.5" />,
             allowedTiers: [3],
             adminOnly: false
           },
           { 
             name: 'Digital Form', 
             path: '/forms', 
-            icon: <FileText className="w-4 h-4" />,
+            icon: <FileText className="w-4.5 h-4.5" />,
             allowedTiers: [1, 2, 3],
             adminOnly: false
           },
           { 
             name: 'Calendar', 
             path: '/calendar', 
-            icon: <Calendar className="w-4 h-4" />,
+            icon: <Calendar className="w-4.5 h-4.5" />,
             allowedTiers: [2, 3],
             adminOnly: false
           }
@@ -105,35 +105,35 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
           {
             name: 'Vehicle Revenue',
             path: '/revenue',
-            icon: <BarChart3 className="w-4 h-4" />,
+            icon: <BarChart3 className="w-4.5 h-4.5" />,
             allowedTiers: [3],
             adminOnly: true
           },
           { 
             name: 'Audit & Payout', 
             path: '/audit', 
-            icon: <FileCheck className="w-4 h-4" />,
+            icon: <FileCheck className="w-4.5 h-4.5" />,
             allowedTiers: [3],
             adminOnly: true
           },
           { 
             name: 'Fleet Guardian', 
             path: '/fleet', 
-            icon: <Car className="w-4 h-4" />,
+            icon: <Car className="w-4.5 h-4.5" />,
             allowedTiers: [3],
             adminOnly: true
           },
           { 
             name: 'Customers / CRM', 
             path: '/customers', 
-            icon: <Users className="w-4 h-4" />,
+            icon: <Users className="w-4.5 h-4.5" />,
             allowedTiers: [3],
             adminOnly: true
           },
           { 
             name: 'Staff Management', 
             path: '/staff', 
-            icon: <Settings className="w-4 h-4" />,
+            icon: <Settings className="w-4.5 h-4.5" />,
             allowedTiers: [1, 2, 3],
             adminOnly: true
           }
@@ -145,7 +145,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
           { 
             name: 'Help & Tutorials', 
             path: '/help', 
-            icon: <HelpCircle className="w-4 h-4" />,
+            icon: <HelpCircle className="w-4.5 h-4.5" />,
             allowedTiers: [1, 2, 3],
             adminOnly: false
           }
@@ -268,7 +268,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
                         ? 'text-slate-500 hover:bg-slate-900/60 cursor-pointer'
                         : isActive 
                           ? 'bg-blue-600 text-white font-semibold shadow-sm shadow-blue-900/30' 
-                          : 'text-slate-400 hover:bg-slate-900/80 hover:text-slate-100'
+                          : 'text-slate-300 hover:bg-slate-900/80 hover:text-slate-100'
                     }`
                   }
                   title={!isExpanded ? item.name : undefined}
@@ -277,16 +277,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
                     {item.icon}
                   </div>
                   
-                  <span className={`ml-3 flex-1 flex items-center justify-between text-xs font-medium transition-opacity duration-300 ${isExpanded ? 'opacity-100' : 'opacity-0 hidden'}`}>
+                  <span className={`ml-3 flex-1 flex items-center justify-between text-sm font-medium transition-opacity duration-300 ${isExpanded ? 'opacity-100' : 'opacity-0 hidden'}`}>
                     <span>{item.name}</span>
-                    {item.isLocked && <Lock className="w-3.5 h-3.5 text-slate-500 shrink-0" />}
+                    {item.isLocked && <Lock className="w-4 h-4 text-slate-500 shrink-0" />}
                   </span>
                   
                   {/* Tooltip for collapsed state */}
                   {!isExpanded && (
-                    <div className="absolute left-full ml-2.5 px-2.5 py-1 bg-slate-800 text-white text-xs font-medium rounded-md shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap flex items-center gap-2 border border-slate-700/60">
+                    <div className="absolute left-full ml-2.5 px-2.5 py-1.5 bg-slate-800 text-white text-sm font-medium rounded-md shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap flex items-center gap-2 border border-slate-700/60">
                       {item.name}
-                      {item.isLocked && <Lock className="w-3 h-3 text-slate-400" />}
+                      {item.isLocked && <Lock className="w-3.5 h-3.5 text-slate-400" />}
                     </div>
                   )}
                 </NavLink>
