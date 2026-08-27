@@ -2,6 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  /* Hide scrollbar for Chrome, Safari, Opera, iOS Safari, Android Chrome */
+  .no-scrollbar::-webkit-scrollbar,
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .no-scrollbar,
+  .scrollbar-none {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 body {
   font-family: 'Inter', sans-serif;
   background-color: #f8fafc;

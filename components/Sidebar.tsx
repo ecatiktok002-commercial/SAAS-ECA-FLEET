@@ -244,7 +244,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
         </div>
         
         {/* Navigation Sections */}
-        <nav className="flex-1 px-3 py-3 space-y-4 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+        <nav className="flex-1 px-3 py-2 space-y-3 overflow-y-auto overflow-x-hidden no-scrollbar scrollbar-none">
           {getCategorizedMenu().map((section, sectionIdx) => (
             <div key={section.title} className="space-y-1">
               {/* Category Header */}
