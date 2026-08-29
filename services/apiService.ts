@@ -2506,7 +2506,7 @@ export const apiService = {
     return withRetry(async () => {
       const { data, error } = await supabase
         .from('agreements')
-        .select('id')
+        .select('*')
         .eq('booking_id', bookingId)
         .eq('subscriber_id', subscriberId)
         .limit(1)

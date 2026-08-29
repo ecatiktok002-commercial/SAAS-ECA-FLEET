@@ -26,6 +26,7 @@ import {
 } from "../utils/dateUtils";
 import HandoverForm from "./HandoverForm";
 import PinModal from "./PinModal";
+import { copyCombinedItinerary } from "../utils/itineraryHelper";
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -102,6 +103,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
   // Digital Form Mapping State
   const [linkedAgreement, setLinkedAgreement] = useState<any | null>(null);
   const [isMatchingForm, setIsMatchingForm] = useState(false);
+  const [isCopyingItinerary, setIsCopyingItinerary] = useState(false);
+  const [itineraryCopied, setItineraryCopied] = useState(false);
 
   // Fetch signed URLs when viewing a record
   useEffect(() => {
@@ -673,6 +676,27 @@ const BookingModal: React.FC<BookingModalProps> = ({
     toast.success(`${type} link copied to clipboard!`);
   };
 
+  const handleGenerateItinerary = async () => {
+    if (!editingBooking) return;
+    setIsCopyingItinerary(true);
+    try {
+      const selectedCar = cars.find((c) => c.id === editingBooking.car_id);
+      const selectedMember = members.find((m) => m.id === editingBooking.member_id);
+      const success = await copyCombinedItinerary({
+        booking: editingBooking,
+        car: selectedCar,
+        member: selectedMember,
+        agreement: linkedAgreement,
+      });
+      if (success) {
+        setItineraryCopied(true);
+        setTimeout(() => setItineraryCopied(false), 2500);
+      }
+    } finally {
+      setIsCopyingItinerary(false);
+    }
+  };
+
   return (
     <>
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
@@ -1032,6 +1056,56 @@ const BookingModal: React.FC<BookingModalProps> = ({
             )}
 
             <div className="flex flex-col gap-3 pt-4">
+              {editingBooking && (
+                <button
+                  type="button"
+                  onClick={handleGenerateItinerary}
+                  disabled={isCopyingItinerary}
+                  className={`w-full py-4 rounded-xl text-white font-bold uppercase text-xs tracking-widest transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-sm ${
+                    itineraryCopied
+                      ? "bg-emerald-600 hover:bg-emerald-700"
+                      : "bg-indigo-600 hover:bg-indigo-700"
+                  }`}
+                >
+                  {isCopyingItinerary ? (
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : itineraryCopied ? (
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+                      />
+                    </svg>
+                  )}
+                  {isCopyingItinerary
+                    ? "Copying..."
+                    : itineraryCopied
+                      ? "Itinerary Copied!"
+                      : "Generate Itinerary"}
+                </button>
+              )}
+
               {editingBooking &&
                 isEditable &&
                 (subscriptionTier === "tier_2" ? (
