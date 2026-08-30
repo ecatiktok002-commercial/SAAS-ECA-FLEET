@@ -1180,48 +1180,66 @@ export const apiService = {
 
         // Sync Booking changes to Digital Forms and Agreements (Always sync)
         try {
-          const { data: carData } = await supabase
-            .from('cars')
-            .select('plate, plate_number, make, model')
-            .eq('id', finalBooking.car_id)
-            .single();
+          let carData: any = null;
+          if (finalBooking.car_id) {
+            const { data: fetchedCar } = await supabase
+              .from('cars')
+              .select('plate, plate_number, make, model, name')
+              .eq('id', finalBooking.car_id)
+              .maybeSingle();
+            carData = fetchedCar;
+          }
+
+          // We use the updated booking data returned from the DB to ensure we have the latest values
+          const updatedBooking = data[0];
+          const bookingStartDate = updatedBooking.start_date;
+          const bookingDuration = Number(updatedBooking.duration_days || updatedBooking.duration || 1);
+          const bookingPickupTime = updatedBooking.pickup_time || '00:00';
+          
+          const calculatedEndDate = updatedBooking.end_date || (bookingStartDate ? formatInMYT(addDays(parseISO(bookingStartDate), bookingDuration), 'yyyy-MM-dd') : undefined);
+          const returnTime = updatedBooking.return_time || bookingPickupTime;
+          
+          const updatePayload: any = {
+            start_date: bookingStartDate,
+            pickup_time: bookingPickupTime,
+            end_date: calculatedEndDate,
+            return_time: returnTime,
+            duration_days: bookingDuration
+          };
 
           if (carData) {
-            const carModel = `${carData.make} ${carData.model}`.trim();
-            
-            // We use the updated booking data returned from the DB to ensure we have the latest values
-            const updatedBooking = data[0];
-            const bookingStartDate = updatedBooking.start_date;
-            const bookingDuration = updatedBooking.duration_days || updatedBooking.duration;
-            const bookingPickupTime = updatedBooking.pickup_time;
-            
-            const calculatedEndDate = updatedBooking.end_date || format(addDays(parseISO(bookingStartDate), bookingDuration), 'yyyy-MM-dd');
-            
-            const updatePayload: any = {
-              car_plate_number: carData.plate || carData.plate_number,
-              car_model: carModel,
-              start_date: bookingStartDate,
-              pickup_time: bookingPickupTime,
-              end_date: calculatedEndDate,
-              return_time: updatedBooking.return_time || bookingPickupTime,
-              duration_days: bookingDuration
-            };
+            const carModel = ((carData.make && carData.model) ? `${carData.make} ${carData.model}` : carData.name || '').trim();
+            const carPlate = carData.plate || carData.plate_number;
+            if (carPlate) updatePayload.car_plate_number = carPlate;
+            if (carModel) updatePayload.car_model = carModel;
+          }
 
-            // Only update total_price if it was explicitly provided in the update
-            if (finalBooking.total_price !== undefined) {
-              updatePayload.total_price = finalBooking.total_price;
-            }
+          if (finalBooking.agent_id) {
+            updatePayload.agent_id = finalBooking.agent_id;
+          }
+          if (finalBooking.agent_name) {
+            updatePayload.agent_name = finalBooking.agent_name;
+          }
 
-            // Update Agreements
-            const { error: agError } = await supabase
-              .from('agreements')
-              .update(updatePayload)
-              .eq('booking_id', id)
-              .eq('subscriber_id', targetSubscriberId);
-              
-            if (agError) {
-                console.error('Error updating linked agreement:', agError);
-            }
+          // Only update total_price if it was explicitly provided in the update
+          if (finalBooking.total_price !== undefined) {
+            updatePayload.total_price = finalBooking.total_price;
+          }
+
+          // Update Agreements
+          let agQuery = supabase
+            .from('agreements')
+            .update(updatePayload)
+            .eq('booking_id', id);
+
+          if (targetSubscriberId) {
+            agQuery = agQuery.eq('subscriber_id', targetSubscriberId);
+          }
+
+          const { error: agError } = await agQuery;
+            
+          if (agError) {
+            console.error('Error updating linked agreement:', agError);
           }
         } catch (syncError) {
           console.error('Failed to sync booking changes to forms/agreements:', syncError);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { format } from 'date-fns';
+import { format, addDays, parseISO } from 'date-fns';
 import { formatInMYT, getNowMYT } from '../../utils/dateUtils';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -90,17 +90,25 @@ const AgreementDashboard: React.FC = () => {
         rawAgreements = await apiService.getAgreements(subscriberId!);
       }
 
-      // Resolve staff attribution & audit integrity
+      // Resolve staff attribution, booking dates/car sync & audit integrity
       try {
-        const [staffList, members, bookings] = await Promise.all([
+        const [staffList, members, bookings, carList] = await Promise.all([
           subscriberId ? apiService.getStaffMembers(subscriberId).catch(() => []) : Promise.resolve([]),
           subscriberId ? apiService.getMembers(subscriberId).catch(() => []) : Promise.resolve([]),
-          subscriberId ? apiService.getBookings(subscriberId).catch(() => []) : Promise.resolve([])
+          subscriberId ? apiService.getBookings(subscriberId).catch(() => []) : Promise.resolve([]),
+          subscriberId ? apiService.getCars(subscriberId).catch(() => []) : Promise.resolve([])
         ]);
 
         const enriched = rawAgreements.map(agreement => {
           let resolvedName = agreement.agent_name;
           let resolvedId = agreement.agent_id;
+          let resolvedStartDate = agreement.start_date;
+          let resolvedEndDate = agreement.end_date;
+          let resolvedPickupTime = agreement.pickup_time;
+          let resolvedReturnTime = agreement.return_time;
+          let resolvedDuration = agreement.duration_days;
+          let resolvedPlate = agreement.car_plate_number;
+          let resolvedModel = agreement.car_model;
 
           // Reference override for 190826-BELUXQ if needed
           if (agreement.reference_number === '190826-BELUXQ' || agreement.id === 'b16906bd-412a-49ce-a237-6c14f6bf7784') {
@@ -113,7 +121,7 @@ const AgreementDashboard: React.FC = () => {
             }
           }
 
-          // Check if linked booking has a specific staff member
+          // Check if linked booking has updated dates, times, car plate, or staff member
           if (agreement.booking_id && bookings.length > 0) {
             const linkedBooking = bookings.find(b => b.id === agreement.booking_id);
             if (linkedBooking) {
@@ -127,6 +135,25 @@ const AgreementDashboard: React.FC = () => {
                   resolvedId = staff.id;
                 } else if (member && !member.is_subscriber) {
                   resolvedName = member.name;
+                }
+              }
+
+              if (linkedBooking.start_date) {
+                resolvedStartDate = linkedBooking.start_date;
+              }
+              if (linkedBooking.pickup_time) {
+                resolvedPickupTime = linkedBooking.pickup_time;
+              }
+              const dur = Number(linkedBooking.duration_days || (linkedBooking as any).duration || resolvedDuration || 1);
+              resolvedDuration = dur;
+              resolvedEndDate = linkedBooking.end_date || (resolvedStartDate ? formatInMYT(addDays(parseISO(resolvedStartDate), dur), 'yyyy-MM-dd') : resolvedEndDate);
+              resolvedReturnTime = linkedBooking.return_time || resolvedPickupTime || resolvedReturnTime;
+
+              if (linkedBooking.car_id && carList.length > 0) {
+                const car = carList.find(c => c.id === linkedBooking.car_id);
+                if (car) {
+                  resolvedPlate = car.plate || car.plateNumber || resolvedPlate;
+                  resolvedModel = ((car.make && car.model) ? `${car.make} ${car.model}` : car.name || '').trim() || resolvedModel;
                 }
               }
             }
@@ -143,29 +170,46 @@ const AgreementDashboard: React.FC = () => {
           return {
             ...agreement,
             agent_name: resolvedName || agreement.agent_name || 'N/A',
-            agent_id: resolvedId || agreement.agent_id
+            agent_id: resolvedId || agreement.agent_id,
+            start_date: resolvedStartDate,
+            end_date: resolvedEndDate,
+            pickup_time: resolvedPickupTime,
+            return_time: resolvedReturnTime,
+            duration_days: resolvedDuration,
+            car_plate_number: resolvedPlate,
+            car_model: resolvedModel
           };
         });
 
         setAgreements(enriched);
 
-        // Background sync to database if any agreement had outdated agent_name
+        // Background sync to database if any agreement had outdated fields
         enriched.forEach(async (a) => {
           const original = rawAgreements.find(r => r.id === a.id);
-          if (original && (original.agent_name !== a.agent_name || original.agent_id !== a.agent_id)) {
-            try {
-              await apiService.updateAgreement(a.id, subscriberId, {
-                agent_name: a.agent_name,
-                agent_id: a.agent_id
-              });
-            } catch (err) {
-              console.warn('Background sync agreement agent_name:', err);
+          if (original) {
+            const diff: any = {};
+            if (original.agent_name !== a.agent_name) diff.agent_name = a.agent_name;
+            if (original.agent_id !== a.agent_id) diff.agent_id = a.agent_id;
+            if (original.start_date !== a.start_date) diff.start_date = a.start_date;
+            if (original.end_date !== a.end_date) diff.end_date = a.end_date;
+            if (original.pickup_time !== a.pickup_time) diff.pickup_time = a.pickup_time;
+            if (original.return_time !== a.return_time) diff.return_time = a.return_time;
+            if (original.duration_days !== a.duration_days) diff.duration_days = a.duration_days;
+            if (original.car_plate_number !== a.car_plate_number) diff.car_plate_number = a.car_plate_number;
+            if (original.car_model !== a.car_model) diff.car_model = a.car_model;
+
+            if (Object.keys(diff).length > 0) {
+              try {
+                await apiService.updateAgreement(a.id, subscriberId, diff);
+              } catch (err) {
+                console.warn('Background sync agreement details:', err);
+              }
             }
           }
         });
 
       } catch (enrichErr) {
-        console.warn('Could not enrich agreement staff names:', enrichErr);
+        console.warn('Could not enrich agreement staff names & booking details:', enrichErr);
         setAgreements(rawAgreements);
       }
     } catch (err) {

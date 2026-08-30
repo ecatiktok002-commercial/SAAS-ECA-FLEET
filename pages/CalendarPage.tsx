@@ -10,7 +10,7 @@ import { parseBookingDate } from '../services/bookingService';
 import { supabase } from '../services/supabase';
 import { exportBookingsToExcel } from '../services/exportService';
 import { optimizeBookings } from '../services/bookingService';
-import { format } from 'date-fns';
+import { format, addDays, parseISO } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { AlertTriangle } from 'lucide-react';
 import { getNowMYT, utcToMyt, formatInMYT, mytToUtc } from '../utils/dateUtils';
@@ -288,14 +288,32 @@ const CalendarPage: React.FC = () => {
       };
       const savedBooking = await apiService.saveBooking(bookingWithAgent, currentSubscriberId, editingBooking?.id);
       
-      // If there is an existing linked agreement for this booking, sync agent_id & agent_name
-      if (editingBooking?.id && actualAgentId) {
+      // If there is an existing linked agreement for this booking, sync all details (dates, times, plate, model, staff)
+      if (editingBooking?.id) {
+        const selectedCar = cars.find(c => c.id === bookingData.car_id);
+        const carPlate = selectedCar?.plate || selectedCar?.plateNumber || (selectedCar as any)?.plate_number || '';
+        const carModel = ((selectedCar?.make && selectedCar?.model) ? `${selectedCar.make} ${selectedCar.model}` : selectedCar?.name || '').trim();
+        const durationDays = Number(bookingData.duration_days || 1);
+        const calculatedEndDate = bookingData.end_date || (bookingData.start_date ? formatInMYT(addDays(parseISO(bookingData.start_date), durationDays), 'yyyy-MM-dd') : undefined);
+        const pickupTime = bookingData.pickup_time || '00:00';
+        const returnTime = bookingData.return_time || pickupTime;
+
         apiService.getLinkedAgreementForBooking(editingBooking.id, currentSubscriberId).then(linkedAgr => {
-          if (linkedAgr && (linkedAgr.agent_id !== actualAgentId || linkedAgr.agent_name !== finalStaffName)) {
-            apiService.updateAgreement(linkedAgr.id, currentSubscriberId, {
-              agent_id: actualAgentId,
-              agent_name: finalStaffName
-            }).catch(e => console.error("Could not sync linked agreement staff:", e));
+          if (linkedAgr) {
+            const agreementUpdates: any = {
+              start_date: bookingData.start_date,
+              pickup_time: pickupTime,
+              end_date: calculatedEndDate,
+              return_time: returnTime,
+              duration_days: durationDays
+            };
+            if (carPlate) agreementUpdates.car_plate_number = carPlate;
+            if (carModel) agreementUpdates.car_model = carModel;
+            if (actualAgentId) agreementUpdates.agent_id = actualAgentId;
+            if (finalStaffName) agreementUpdates.agent_name = finalStaffName;
+
+            apiService.updateAgreement(linkedAgr.id, currentSubscriberId, agreementUpdates)
+              .catch(e => console.error("Could not sync linked agreement details:", e));
           }
         }).catch(e => console.error("Linked agreement check failed:", e));
       }

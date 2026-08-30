@@ -153,6 +153,39 @@ export default function EditAgreement() {
         setHandledByStaffId(data.agent_id || '');
         setHandledByStaffName(data.agent_name || '');
 
+        let currentCarPlate = data.car_plate_number || '';
+        let currentCarModel = data.car_model || '';
+        let currentStartDate = data.start_date || '';
+        let currentEndDate = data.end_date || '';
+        let currentPickupTime = data.pickup_time || '';
+        let currentReturnTime = data.return_time || '';
+        let currentDurationDays = data.duration_days?.toString() || '';
+
+        if (data.booking_id && subscriberId) {
+          try {
+            const booking = await apiService.getBookingById(data.booking_id, subscriberId);
+            if (booking) {
+              if (booking.start_date) currentStartDate = booking.start_date;
+              if (booking.pickup_time) currentPickupTime = booking.pickup_time;
+              const dur = Number(booking.duration_days || (booking as any).duration || 1);
+              currentDurationDays = dur.toString();
+              currentEndDate = booking.end_date || (booking.start_date ? formatInMYT(addDays(parseISO(booking.start_date), dur), 'yyyy-MM-dd') : currentEndDate);
+              currentReturnTime = booking.return_time || booking.pickup_time || currentReturnTime;
+
+              if (booking.car_id) {
+                const cars = await apiService.getCars(subscriberId);
+                const car = cars.find(c => c.id === booking.car_id);
+                if (car) {
+                  currentCarPlate = car.plate || car.plateNumber || currentCarPlate;
+                  currentCarModel = ((car.make && car.model) ? `${car.make} ${car.model}` : car.name || '').trim() || currentCarModel;
+                }
+              }
+            }
+          } catch (bErr) {
+            console.warn('Could not sync linked booking in EditAgreement:', bErr);
+          }
+        }
+
         setFormData({
           customer_name: data.customer_name || '',
           identity_number: data.identity_number || '',
@@ -163,15 +196,15 @@ export default function EditAgreement() {
           rental_purpose: data.rental_purpose || '',
           custom_rental_purpose: '',
           usage: data.usage || '',
-          car_plate_number: data.car_plate_number || '',
-          car_model: data.car_model || '',
-          start_date: data.start_date || '',
-          end_date: data.end_date || '',
+          car_plate_number: currentCarPlate,
+          car_model: currentCarModel,
+          start_date: currentStartDate,
+          end_date: currentEndDate,
           total_price: data.total_price?.toString() || '',
           deposit: data.deposit?.toString() || '',
-          duration_days: data.duration_days?.toString() || '',
-          pickup_time: data.pickup_time || '',
-          return_time: data.return_time || '',
+          duration_days: currentDurationDays,
+          pickup_time: currentPickupTime,
+          return_time: currentReturnTime,
           transaction_date: data.transaction_date || '',
           need_einvoice: data.need_einvoice || false,
         });
