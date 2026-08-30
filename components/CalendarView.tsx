@@ -1,9 +1,10 @@
 
-import React, { useMemo, useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useState, useRef, useCallback } from 'react';
 import { Booking, Car, Member } from '../types';
-import { isBookingOnDate, getBookingSegmentData, assignTracks } from '../services/bookingService';
+import { isBookingOnDate, getBookingSegmentData, assignTracksForWeek } from '../services/bookingService';
 import { getNowMYT } from '../utils/dateUtils';
 import BookingPill from './BookingPill';
+import { ZoomIn, ZoomOut, RotateCcw, Move } from 'lucide-react';
 
 // Calendar View Component
 interface CalendarViewProps {
@@ -16,8 +17,56 @@ interface CalendarViewProps {
   onDeleteBooking: (id: string) => void;
 }
 
-const CalendarView: React.FC<CalendarViewProps> = ({ currentMonth, bookings, cars, members, onDateClick, onBookingClick, onDeleteBooking }) => {
+const MIN_ZOOM = 1.0;
+const MAX_ZOOM = 2.8;
+
+const CalendarView: React.FC<CalendarViewProps> = ({ 
+  currentMonth, 
+  bookings, 
+  cars, 
+  members, 
+  onDateClick, 
+  onBookingClick, 
+  onDeleteBooking 
+}) => {
   const [isMobile, setIsMobile] = useState(false);
+  const [zoom, setZoom] = useState(1.0);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isInteracting, setIsInteracting] = useState(false);
+  const [showHint, setShowHint] = useState(true);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Touch tracking references
+  const touchStateRef = useRef<{
+    startX: number;
+    startY: number;
+    initialPanX: number;
+    initialPanY: number;
+    initialDist: number;
+    initialZoom: number;
+    pinchCenterX: number;
+    pinchCenterY: number;
+    isPinching: boolean;
+    isPanning: boolean;
+    hasMoved: boolean;
+  }>({
+    startX: 0,
+    startY: 0,
+    initialPanX: 0,
+    initialPanY: 0,
+    initialDist: 0,
+    initialZoom: 1.0,
+    pinchCenterX: 0,
+    pinchCenterY: 0,
+    isPinching: false,
+    isPanning: false,
+    hasMoved: false,
+  });
+
+  const isDraggingRef = useRef(false);
+  const dragTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -26,7 +75,195 @@ const CalendarView: React.FC<CalendarViewProps> = ({ currentMonth, bookings, car
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const bookingsWithTracks = useMemo(() => assignTracks(bookings), [bookings]);
+  // Reset zoom & pan when month changes
+  useEffect(() => {
+    setZoom(1.0);
+    setPan({ x: 0, y: 0 });
+  }, [currentMonth]);
+
+  // Clamp pan based on current zoom and viewport dimensions
+  const clampPan = useCallback((newPan: { x: number; y: number }, currentZoom: number) => {
+    if (!containerRef.current) return newPan;
+    const container = containerRef.current;
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+
+    if (currentZoom <= 1.0) {
+      return { x: 0, y: 0 };
+    }
+
+    const maxPanX = 0;
+    const minPanX = containerWidth * (1 - currentZoom);
+
+    const maxPanY = 0;
+    const minPanY = containerHeight * (1 - currentZoom);
+
+    return {
+      x: Math.min(maxPanX, Math.max(minPanX, newPan.x)),
+      y: Math.min(maxPanY, Math.max(minPanY, newPan.y)),
+    };
+  }, []);
+
+  // Handle Zoom In/Out helper
+  const handleZoomChange = (delta: number) => {
+    setShowHint(false);
+    setZoom((prevZoom) => {
+      const nextZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round((prevZoom + delta) * 10) / 10));
+      if (nextZoom === 1.0) {
+        setPan({ x: 0, y: 0 });
+      } else {
+        setPan((prevPan) => clampPan(prevPan, nextZoom));
+      }
+      return nextZoom;
+    });
+  };
+
+  const handleResetZoom = () => {
+    setShowHint(false);
+    setZoom(1.0);
+    setPan({ x: 0, y: 0 });
+  };
+
+  // Touch Event Handlers for Native Pinch & Pan
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      setShowHint(false);
+      const touches = e.touches;
+
+      if (touches.length === 1) {
+        const touch = touches[0];
+        touchStateRef.current = {
+          ...touchStateRef.current,
+          startX: touch.clientX,
+          startY: touch.clientY,
+          initialPanX: pan.x,
+          initialPanY: pan.y,
+          isPinching: false,
+          isPanning: zoom > 1.0,
+          hasMoved: false,
+        };
+        setIsInteracting(false);
+      } else if (touches.length === 2) {
+        // Pinch start
+        const t1 = touches[0];
+        const t2 = touches[1];
+        const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+        const rect = container.getBoundingClientRect();
+        const centerX = (t1.clientX + t2.clientX) / 2 - rect.left;
+        const centerY = (t1.clientY + t2.clientY) / 2 - rect.top;
+
+        touchStateRef.current = {
+          ...touchStateRef.current,
+          initialDist: dist,
+          initialZoom: zoom,
+          initialPanX: pan.x,
+          initialPanY: pan.y,
+          pinchCenterX: centerX,
+          pinchCenterY: centerY,
+          isPinching: true,
+          isPanning: false,
+          hasMoved: true,
+        };
+        setIsInteracting(true);
+        isDraggingRef.current = true;
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const touches = e.touches;
+
+      if (touches.length === 2 && touchStateRef.current.isPinching) {
+        // Handle Pinch to Zoom
+        e.preventDefault(); // Prevent native browser screen zoom
+        const t1 = touches[0];
+        const t2 = touches[1];
+        const currentDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+
+        if (touchStateRef.current.initialDist > 0) {
+          const scaleMultiplier = currentDist / touchStateRef.current.initialDist;
+          let newZoom = touchStateRef.current.initialZoom * scaleMultiplier;
+          newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, newZoom));
+
+          // Adjust pan to zoom towards pinch center
+          const prevZoom = touchStateRef.current.initialZoom;
+          const centerX = touchStateRef.current.pinchCenterX;
+          const centerY = touchStateRef.current.pinchCenterY;
+
+          const ratio = newZoom / prevZoom;
+          const newPanX = centerX - (centerX - touchStateRef.current.initialPanX) * ratio;
+          const newPanY = centerY - (centerY - touchStateRef.current.initialPanY) * ratio;
+
+          setZoom(newZoom);
+          setPan(clampPan({ x: newPanX, y: newPanY }, newZoom));
+        }
+      } else if (touches.length === 1 && (zoom > 1.0 || touchStateRef.current.isPanning)) {
+        // Handle Single Finger Pan when zoomed in
+        const touch = touches[0];
+        const dx = touch.clientX - touchStateRef.current.startX;
+        const dy = touch.clientY - touchStateRef.current.startY;
+
+        if (Math.hypot(dx, dy) > 8) {
+          touchStateRef.current.hasMoved = true;
+          isDraggingRef.current = true;
+          setIsInteracting(true);
+          e.preventDefault(); // Prevent container scroll while panning smoothly
+
+          const nextX = touchStateRef.current.initialPanX + dx;
+          const nextY = touchStateRef.current.initialPanY + dy;
+          setPan(clampPan({ x: nextX, y: nextY }, zoom));
+        }
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (touchStateRef.current.hasMoved) {
+        if (dragTimeoutRef.current) clearTimeout(dragTimeoutRef.current);
+        dragTimeoutRef.current = setTimeout(() => {
+          isDraggingRef.current = false;
+        }, 120);
+      } else {
+        isDraggingRef.current = false;
+      }
+
+      touchStateRef.current.isPinching = false;
+      touchStateRef.current.isPanning = false;
+      setIsInteracting(false);
+
+      // Re-clamp on release
+      setPan((currentPan) => clampPan(currentPan, zoom));
+    };
+
+    // Wheel zoom support (e.g. trackpad pinch or Ctrl+wheel)
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const delta = -e.deltaY * 0.005;
+        setZoom((prevZoom) => {
+          const nextZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prevZoom + delta));
+          setPan((prevPan) => clampPan(prevPan, nextZoom));
+          return nextZoom;
+        });
+      }
+    };
+
+    container.addEventListener('touchstart', onTouchStart, { passive: false });
+    container.addEventListener('touchmove', onTouchMove, { passive: false });
+    container.addEventListener('touchend', onTouchEnd, { passive: false });
+    container.addEventListener('touchcancel', onTouchEnd, { passive: false });
+    container.addEventListener('wheel', onWheel, { passive: false });
+
+    return () => {
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
+      container.removeEventListener('touchend', onTouchEnd);
+      container.removeEventListener('touchcancel', onTouchEnd);
+      container.removeEventListener('wheel', onWheel);
+      if (dragTimeoutRef.current) clearTimeout(dragTimeoutRef.current);
+    };
+  }, [zoom, pan, clampPan]);
 
   const days = useMemo(() => {
     const year = currentMonth.getFullYear();
@@ -35,8 +272,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({ currentMonth, bookings, car
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     
-    // Calculate padding for Monday start (Mon=0, Sun=6)
-    // Standard JS getDay(): Sun=0, Mon=1...
     const startDayOfWeek = firstDay.getDay(); 
     const daysInPrevMonth = (startDayOfWeek + 6) % 7; 
     
@@ -46,12 +281,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({ currentMonth, bookings, car
     const todayYear = todayMYT.getFullYear();
     const todayMonth = todayMYT.getMonth();
     const todayDate = todayMYT.getDate();
-
-    const getDayContent = (d: Date) => {
-      const dayBookings = bookingsWithTracks.filter(b => isBookingOnDate(b, d));
-      const maxTrack = dayBookings.length > 0 ? Math.max(...dayBookings.map(b => b.track ?? 0)) : -1;
-      return { dayBookings, maxTrack };
-    };
 
     const isDateToday = (d: Date) => {
       return d.getFullYear() === todayYear && d.getMonth() === todayMonth && d.getDate() === todayDate;
@@ -75,44 +304,125 @@ const CalendarView: React.FC<CalendarViewProps> = ({ currentMonth, bookings, car
       return allDays;
     };
 
-    return buildDays().map(day => ({
-      ...day,
-      ...getDayContent(day.date)
-    }));
-  }, [currentMonth, bookingsWithTracks]);
+    const baseDays = buildDays();
+    const resultDays: any[] = [];
 
-  // Updated week order: MON -> SUN
+    // Process each 7-day week row independently for Per-Week Track Compaction
+    for (let w = 0; w < baseDays.length; w += 7) {
+      const weekDaysSlice = baseDays.slice(w, w + 7);
+      const weekStartDate = weekDaysSlice[0].date;
+      const weekEndDate = weekDaysSlice[weekDaysSlice.length - 1].date;
+
+      const weekTrackedBookings = assignTracksForWeek(bookings, weekStartDate, weekEndDate);
+
+      weekDaysSlice.forEach((dayObj) => {
+        const dayBookings = weekTrackedBookings.filter((b) => isBookingOnDate(b, dayObj.date));
+        const maxTrack = dayBookings.length > 0 ? Math.max(...dayBookings.map((b) => b.track ?? 0)) : -1;
+        resultDays.push({
+          ...dayObj,
+          dayBookings,
+          maxTrack,
+        });
+      });
+    }
+
+    return resultDays;
+  }, [currentMonth, bookings]);
+
+  // Week order: MON -> SUN
   const weekDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
   
-  // trackSpacing must match the value used in BookingPill.tsx
-  // REDUCED: Desktop 20px (was 32), Mobile 16px (was 26)
-  const trackSpacing = isMobile ? 16 : 20; 
+  // Track spacing adapts when zoomed for optimal legibility
+  const trackSpacing = isMobile ? (zoom > 1.4 ? 19 : 16) : 20; 
+
+  const handleCellClick = (d: Date) => {
+    if (isDraggingRef.current) return;
+    onDateClick(d);
+  };
+
+  const handlePillClick = (b: Booking) => {
+    if (isDraggingRef.current) return;
+    onBookingClick(b);
+  };
 
   return (
-    <div className="flex-1 flex flex-col bg-white select-none overflow-hidden h-full font-sans">
-      <div className="flex flex-col h-full min-w-[340px]">
-        {/* Header stays sticky at the top */}
-        <div className="grid grid-cols-7 bg-white sticky top-0 z-30 shrink-0 border-b border-slate-100">
+    <div 
+      ref={containerRef}
+      className="relative flex-1 flex flex-col bg-white select-none overflow-hidden h-full font-sans touch-none"
+      style={{ touchAction: zoom > 1.0 ? 'none' : 'pan-y' }}
+    >
+      {/* Floating Zoom & Navigation Controls (Mobile & Desktop) */}
+      <div className="absolute bottom-3 right-3 z-40 flex items-center gap-1.5 p-1.5 rounded-2xl bg-slate-900/90 text-white backdrop-blur-md shadow-lg border border-slate-700/60">
+        <button
+          type="button"
+          onClick={() => handleZoomChange(-0.3)}
+          disabled={zoom <= MIN_ZOOM}
+          className="p-1.5 rounded-xl hover:bg-white/10 active:bg-white/20 disabled:opacity-30 transition-all text-white"
+          title="Zoom Out"
+          aria-label="Zoom Out"
+        >
+          <ZoomOut className="w-4 h-4" />
+        </button>
+
+        <button
+          type="button"
+          onClick={handleResetZoom}
+          className="px-2 py-1 rounded-lg hover:bg-white/10 text-[11px] font-bold tracking-wider text-slate-200 transition-all flex items-center gap-1"
+          title="Reset Zoom to 100%"
+        >
+          <span>{Math.round(zoom * 100)}%</span>
+          {zoom > 1.05 && <RotateCcw className="w-3 h-3 text-emerald-400" />}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleZoomChange(0.3)}
+          disabled={zoom >= MAX_ZOOM}
+          className="p-1.5 rounded-xl hover:bg-white/10 active:bg-white/20 disabled:opacity-30 transition-all text-white"
+          title="Zoom In"
+          aria-label="Zoom In"
+        >
+          <ZoomIn className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Floating touch hint (displays on mobile when at 100% zoom) */}
+      {isMobile && showHint && zoom === 1.0 && (
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-30 pointer-events-none bg-slate-900/80 text-white text-[10px] font-medium px-3 py-1.5 rounded-full shadow-md backdrop-blur-sm flex items-center gap-1.5 animate-pulse">
+          <Move className="w-3 h-3 text-sky-400" />
+          <span>Pinch to zoom & drag to pan calendar</span>
+        </div>
+      )}
+
+      {/* Scalable & Pannable Viewport */}
+      <div 
+        ref={contentRef}
+        className="flex flex-col h-full w-full min-w-[340px] will-change-transform"
+        style={{
+          transform: `translate3d(${pan.x}px, ${pan.y}px, 0px) scale(${zoom})`,
+          transformOrigin: '0 0',
+          transition: isInteracting ? 'none' : 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+          width: '100%',
+          height: '100%',
+        }}
+      >
+        {/* Header stays aligned with columns */}
+        <div className="grid grid-cols-7 bg-white sticky top-0 z-30 shrink-0 border-b border-slate-100 shadow-sm">
           {weekDays.map(day => (
-            <div key={day} className="py-3 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            <div key={day} className="py-2.5 md:py-3 text-center text-[10px] md:text-[11px] font-bold text-slate-400 uppercase tracking-widest">
               {day}
             </div>
           ))}
         </div>
 
-        {/* 
-          Grid uses auto-rows-min and content-start to ensure rows only 
-          occupy the space they need.
-        */}
+        {/* Calendar Grid */}
         <div className="grid grid-cols-7 flex-1 auto-rows-min content-start h-full overflow-y-auto bg-white pb-20 md:pb-0">
           {days.map((day: any, idx) => {
             const isLastColumn = (idx % 7) === 6;
-            // Minimalist borders: only right and bottom, very light
-            // Reduced min-h to match compact aesthetic (was 80/110)
             return (
               <div 
                 key={idx} 
-                onClick={() => onDateClick(day.date)}
+                onClick={() => handleCellClick(day.date)}
                 className={`
                   relative flex flex-col transition-colors cursor-pointer group border-b border-r border-slate-100
                   ${(idx + 1) % 7 === 0 ? 'border-r-0' : ''} 
@@ -121,9 +431,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({ currentMonth, bookings, car
                 `}
               >
                 {/* Day Number */}
-                <div className="flex justify-between items-start px-2 pt-2 shrink-0 z-10">
+                <div className="flex justify-between items-start px-2 pt-1.5 md:pt-2 shrink-0 z-10">
                   <span className={`
-                    text-xs md:text-sm font-medium transition-all w-6 h-6 flex items-center justify-center rounded-full
+                    text-xs md:text-sm font-medium transition-all w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full
                     ${day.isToday 
                       ? 'bg-slate-900 text-white font-bold' 
                       : day.isCurrentMonth ? 'text-slate-700' : 'text-slate-300'}
@@ -137,7 +447,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({ currentMonth, bookings, car
                   className="relative flex-1 w-full mt-1"
                   style={{ 
                     overflow: 'visible',
-                    // Reduced bottom buffer from +12 to +4
                     minHeight: day.maxTrack >= 0 
                       ? `${(day.maxTrack + 1) * trackSpacing + 4}px` 
                       : '100%'
@@ -156,7 +465,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ currentMonth, bookings, car
                         segment={segment}
                         left={left}
                         width={width}
-                        onBookingClick={onBookingClick}
+                        onBookingClick={handlePillClick}
                         onDelete={onDeleteBooking}
                         isLastColumn={isLastColumn}
                       />

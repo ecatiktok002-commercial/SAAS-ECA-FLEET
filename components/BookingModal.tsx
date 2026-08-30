@@ -326,13 +326,14 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
   const sortedCarsForDropdown = useMemo(() => {
     const activeCars = cars.filter((c) => c.status === "active");
-    return [...activeCars].sort((a, b) => {
-      const aAvail = availableCarIds.has(a.id) ? 0 : 1;
-      const bAvail = availableCarIds.has(b.id) ? 0 : 1;
-      if (aAvail !== bAvail) return aAvail - bAvail;
-      return a.plate.localeCompare(b.plate);
-    });
-  }, [cars, availableCarIds]);
+    // specificAvailableCars is already sorted in Smart Allocation order!
+    const availableSet = new Set(specificAvailableCars.map((c) => c.id));
+    const unavailableCars = activeCars
+      .filter((c) => !availableSet.has(c.id))
+      .sort((a, b) => a.plate.localeCompare(b.plate));
+
+    return [...specificAvailableCars, ...unavailableCars];
+  }, [cars, specificAvailableCars]);
 
   // Check if currently selected model is fully booked
   const isSelectedModelFull =

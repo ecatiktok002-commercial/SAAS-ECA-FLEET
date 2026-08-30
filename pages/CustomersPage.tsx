@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
-import { Users, Search, Phone, CreditCard, Download, MessageCircle, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Users, Search, Phone, CreditCard, Download, MessageCircle, ExternalLink, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { formatInMYT, getNowMYT } from '../utils/dateUtils';
 import { apiService } from '../services/apiService';
@@ -29,12 +29,24 @@ const CustomersPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortField, setSortField] = useState<string>('last_rental_date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const itemsPerPage = 15;
   const queryClient = useQueryClient();
   const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
   const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
   const [isDocsLoading, setIsDocsLoading] = useState(false);
   const [currentDocIndex, setCurrentDocIndex] = useState(0);
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection(field === 'full_name' ? 'asc' : 'desc');
+    }
+    setCurrentPage(1);
+  };
 
   const handleViewDocs = async (customerId: string) => {
     setIsDocsLoading(true);
@@ -62,13 +74,15 @@ const CustomersPage: React.FC = () => {
   }, [searchTerm]);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['customers', subscriberId, currentPage, debouncedSearchTerm],
+    queryKey: ['customers', subscriberId, currentPage, debouncedSearchTerm, sortField, sortDirection],
     queryFn: () => {
       if (!subscriberId) return { data: [], count: 0 };
       return apiService.getCustomersCRM(subscriberId, {
         page: currentPage,
         pageSize: itemsPerPage,
-        searchTerm: debouncedSearchTerm
+        searchTerm: debouncedSearchTerm,
+        sortBy: sortField,
+        sortOrder: sortDirection
       });
     },
     enabled: !!subscriberId,
@@ -131,7 +145,11 @@ const CustomersPage: React.FC = () => {
     try {
       toast.loading('Preparing export...', { id: 'export' });
       // Fetch all customers for export
-      const allData = await apiService.getCustomersCRM(subscriberId, { searchTerm: debouncedSearchTerm });
+      const allData = await apiService.getCustomersCRM(subscriberId, { 
+        searchTerm: debouncedSearchTerm,
+        sortBy: sortField,
+        sortOrder: sortDirection
+      });
       
       const dataToExport = allData.data.map(c => ({
         'Name': c.full_name,
@@ -215,16 +233,34 @@ const CustomersPage: React.FC = () => {
 
       <main className="max-w-7xl mx-auto px-4 py-8">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-slate-100 bg-slate-50/50">
-            <div className="relative">
+          <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row gap-3 items-center justify-between">
+            <div className="relative flex-1 w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input 
                 type="text"
-                placeholder="Search by Name or Phone..."
+                placeholder="Search by Name, Phone, or IC..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+                className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-sm"
               />
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <button
+                onClick={() => handleSort('total_bookings')}
+                className={`px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
+                  sortField === 'total_bookings'
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-sm'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+                title="Sort by Total Bookings"
+              >
+                <span>Sort by Bookings</span>
+                {sortField === 'total_bookings' ? (
+                  sortDirection === 'desc' ? <ArrowDown className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" /> : <ArrowUp className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
+                ) : (
+                  <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                )}
+              </button>
             </div>
           </div>
 
@@ -232,13 +268,56 @@ const CustomersPage: React.FC = () => {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50/50 text-slate-500 text-xs font-bold uppercase tracking-wider">
-                  <th className="px-6 py-4">Name</th>
+                  <th 
+                    className="px-6 py-4 cursor-pointer select-none group hover:bg-slate-100/70 transition-colors"
+                    onClick={() => handleSort('full_name')}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Name</span>
+                      {sortField === 'full_name' ? (
+                        sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-600 font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-600 font-bold" />
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </div>
+                  </th>
                   <th className="px-6 py-4">IC / Passport</th>
                   <th className="px-6 py-4">Phone Number</th>
-                  <th className="px-6 py-4 text-center">Total Bookings</th>
+                  <th 
+                    className={`px-6 py-4 text-center cursor-pointer select-none group transition-colors ${
+                      sortField === 'total_bookings' ? 'bg-emerald-50/80 text-emerald-800' : 'hover:bg-slate-100/70'
+                    }`}
+                    onClick={() => handleSort('total_bookings')}
+                    title="Click to sort by Total Bookings"
+                  >
+                    <div className="flex items-center justify-center gap-1.5 font-bold">
+                      <span>Total Bookings</span>
+                      {sortField === 'total_bookings' ? (
+                        sortDirection === 'asc' ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 opacity-50 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </div>
+                  </th>
                   <th className="px-6 py-4">Agent</th>
                   <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4">Last Rental</th>
+                  <th 
+                    className="px-6 py-4 cursor-pointer select-none group hover:bg-slate-100/70 transition-colors"
+                    onClick={() => handleSort('last_rental_date')}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Last Rental</span>
+                      {sortField === 'last_rental_date' ? (
+                        sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-600 font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-600 font-bold" />
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

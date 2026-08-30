@@ -2868,7 +2868,7 @@ export const apiService = {
     });
   },
 
-  async getCustomersCRM(subscriberId: string, options?: { page?: number, pageSize?: number, searchTerm?: string }): Promise<{ data: any[], count: number }> {
+  async getCustomersCRM(subscriberId: string, options?: { page?: number, pageSize?: number, searchTerm?: string, sortBy?: string, sortOrder?: 'asc' | 'desc' }): Promise<{ data: any[], count: number }> {
     validateSubscriber(subscriberId);
     const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
@@ -2883,8 +2883,10 @@ export const apiService = {
         query = query.or(`full_name.ilike.${term},ic_passport.ilike.${term},phone_number.ilike.${term}`);
       }
 
-      // Default sort
-      query = query.order('last_rental_date', { ascending: false, nullsFirst: false });
+      // Sort
+      const sortBy = options?.sortBy || 'last_rental_date';
+      const isAsc = options?.sortOrder === 'asc';
+      query = query.order(sortBy, { ascending: isAsc, nullsFirst: false });
 
       if (options?.page && options?.pageSize) {
         const from = (options.page - 1) * options.pageSize;
@@ -2907,6 +2909,10 @@ export const apiService = {
         if (options?.searchTerm) {
           const term = `%${options.searchTerm}%`;
           rawQuery = rawQuery.or(`full_name.ilike.${term},ic_passport.ilike.${term},phone_number.ilike.${term}`);
+        }
+
+        if (options?.sortBy && ['full_name', 'phone_number', 'ic_passport', 'acquired_by_agent'].includes(options.sortBy)) {
+          rawQuery = rawQuery.order(options.sortBy, { ascending: isAsc, nullsFirst: false });
         }
 
         if (options?.page && options?.pageSize) {
