@@ -241,6 +241,38 @@ const HelpPage: React.FC = () => {
       relatedLabel: 'Open Fleet Calendar'
     },
     {
+      id: 'generate-itinerary',
+      category: 'calendar',
+      title: '1-Click "Generate Itinerary" for WhatsApp',
+      badge: 'New Feature',
+      icon: <Send className="w-6 h-6 text-indigo-600" />,
+      summary: 'Instantly generate and copy structured booking itinerary details (Nama, Masa Ambil, Payment Status) and a snapshot card to WhatsApp with 1 click.',
+      steps: [
+        {
+          title: 'Open Booking Details',
+          detail: 'From the Fleet Calendar, click on any active reservation card to open the booking details modal.'
+        },
+        {
+          title: 'Click "Generate Itinerary"',
+          detail: 'Tap the "Generate Itinerary" button located below the booking form. The system executes instantly without popup interruptions.'
+        },
+        {
+          title: 'Automatic Clipboard Packaging',
+          detail: 'The engine automatically formats customer name, pickup schedule, and payment status (PAID / NO) into both high-res PNG image and clean text formats.'
+        },
+        {
+          title: 'Paste Straight into WhatsApp',
+          detail: 'Open WhatsApp Web or WhatsApp Desktop and press Ctrl+V (or Cmd+V) to send the complete itinerary message to your customer immediately.'
+        }
+      ],
+      proTips: [
+        'Payment status automatically displays "PAID" if the digital agreement is completed or reconciled, otherwise it shows "NO".',
+        'Customer name is automatically retrieved from the linked digital agreement or customer profile.'
+      ],
+      relatedPath: '/calendar',
+      relatedLabel: 'Open Calendar'
+    },
+    {
       id: 'fleet-guardian',
       category: 'fleet',
       title: 'Fleet Guardian: Vehicle Health & Road Tax',
@@ -383,6 +415,11 @@ const HelpPage: React.FC = () => {
       category: 'calendar',
       question: 'How do I handle booking date extensions or early returns?',
       answer: 'On the Calendar or Digital Forms page, click on the active booking and edit the Return Date / Time. The system will recalculate the duration and prompt for any additional payment or commission adjustments.'
+    },
+    {
+      category: 'calendar',
+      question: 'How does the 1-Click "Generate Itinerary" feature work?',
+      answer: 'When viewing any booking on the Calendar, click "Generate Itinerary". The system instantly packages the 3 vital rental details (1. Nama, 2. Masa Ambil, 3. Payment Status) together with a visual itinerary snapshot card directly into your clipboard. You can immediately switch to WhatsApp and paste (Ctrl+V) without needing to download files or navigate extra popups.'
     },
     {
       category: 'agreements',
@@ -635,6 +672,38 @@ const HelpPage: React.FC = () => {
       relatedLabel: 'Open Calendar'
     },
     {
+      id: 'agent-generate-itinerary',
+      category: 'calendar',
+      title: '1-Click WhatsApp Itinerary Generator',
+      badge: 'New Feature',
+      icon: <Send className="w-6 h-6 text-indigo-600" />,
+      summary: 'Copy clean, pre-formatted rental itineraries with customer name, pickup time, and payment status straight to WhatsApp in 1 click.',
+      steps: [
+        {
+          title: 'Select Active Booking',
+          detail: 'Open any customer booking from the Fleet Calendar or your agent dashboard to view reservation specifics.'
+        },
+        {
+          title: 'Tap "Generate Itinerary"',
+          detail: 'Click the "Generate Itinerary" button at the bottom of the modal. The button will momentarily change to "Itinerary Copied!" with a green checkmark.'
+        },
+        {
+          title: 'Multi-Format Clipboard Copy',
+          detail: 'Both the formatted text block (Nama, Masa Ambil, Payment Status) and the high-resolution snapshot card are copied simultaneously.'
+        },
+        {
+          title: 'Send via WhatsApp',
+          detail: 'Navigate to your customer\'s WhatsApp chat and paste (Ctrl+V / Cmd+V) to provide immediate pickup instructions and payment verification.'
+        }
+      ],
+      proTips: [
+        'Saves time during daily vehicle handovers by eliminating manual typing of pickup dates and payment verification.',
+        'Payment Status is automatically synchronized with Matchy Scan audit and agreement completion status.'
+      ],
+      relatedPath: '/calendar',
+      relatedLabel: 'Open Calendar'
+    },
+    {
       id: 'agent-handover',
       category: 'handover',
       title: 'Vehicle Handover & Return Inspection',
@@ -714,6 +783,11 @@ const HelpPage: React.FC = () => {
       category: 'agreements',
       question: 'What if the customer does not have an internet connection to sign?',
       answer: 'You can open the signing link on your own phone or tablet and hand it to the customer in person so they can review terms and sign directly on your screen.'
+    },
+    {
+      category: 'calendar',
+      question: 'How do I use "Generate Itinerary" to send pickup instructions to customers?',
+      answer: 'Click on any booking in the Fleet Calendar and click "Generate Itinerary". The system copies the customer name, pickup time, payment status (PAID/NO), and an itinerary card image to your clipboard. Switch to WhatsApp, paste with Ctrl+V (Cmd+V), and hit send in seconds without extra dialog popups.'
     },
     {
       category: 'returns',

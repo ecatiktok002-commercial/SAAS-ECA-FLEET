@@ -16,7 +16,7 @@ import { AlertTriangle } from 'lucide-react';
 import { getNowMYT, utcToMyt, formatInMYT, mytToUtc } from '../utils/dateUtils';
 
 const CalendarPage: React.FC = () => {
-  const { subscriberId: currentSubscriberId, userId: currentUserId, userUid, staffRole } = useAuth();
+  const { subscriberId: currentSubscriberId, userId: currentUserId, userUid, userName, staffRole } = useAuth();
   const location = useLocation();
   
   const [currentStaff, setCurrentStaff] = useState<StaffMember | null>(null);
@@ -202,6 +202,38 @@ const CalendarPage: React.FC = () => {
     };
   }, [currentUserId, currentSubscriberId]);
 
+  // Helper to determine the actor name for Activity Logs:
+  // If a Staff member makes the change -> their Name (e.g. "NABIHAH")
+  // If the Subscriber makes the change -> "ADMIN"
+  const getActorName = (staffPinName?: string): string => {
+    // If the logged-in session is a Subscriber (Admin/Owner), always record as ADMIN
+    const isStaffSession = (staffRole === 'staff' || staffRole === 'agent') && !!userName && userName !== 'Super Admin';
+    if (!isStaffSession && !currentStaff) {
+      return 'ADMIN';
+    }
+
+    // If a staff member specifically authenticated via PIN in a staff session
+    if (staffPinName && staffPinName !== 'ADMIN') {
+      const foundStaff = staffMembers.find(s => s.name.toLowerCase() === staffPinName.toLowerCase());
+      if (foundStaff) {
+        return foundStaff.name;
+      }
+    }
+
+    // If currently logged in as a specific staff member
+    if (currentStaff?.name) {
+      return currentStaff.name;
+    }
+
+    // If logged in under staff or agent role with a valid staff userName
+    if (isStaffSession) {
+      return userName;
+    }
+
+    // Default fallback is ADMIN
+    return 'ADMIN';
+  };
+
   const handlePrevMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
   };
@@ -280,10 +312,11 @@ const CalendarPage: React.FC = () => {
         const car = cars.find(c => c.id === bookingData.car_id);
         const action = editingBooking ? 'Updated' : 'Created';
         const startDate = formatInMYT(parseBookingDate(bookingData.start_date, bookingData.pickup_time), 'dd/MM/yyyy HH:mm');
+        const actor = getActorName(staffName);
         
         await apiService.addLog({
-          userId: currentUserId,
-          staff_name: staffName,
+          userId: actor === 'ADMIN' ? 'ADMIN' : (currentUserId || actor),
+          staff_name: actor,
           action: action,
           details: `Booking for ${car?.plate || 'Unknown Car'} (${car?.name}) starting ${startDate} for ${bookingData.duration_days} days.`
         }, currentSubscriberId);
@@ -310,10 +343,11 @@ const CalendarPage: React.FC = () => {
       if (currentUserId && booking) {
         const car = cars.find(c => c.id === booking.car_id);
         const startDate = formatInMYT(parseBookingDate(booking.start_date, booking.pickup_time), 'dd/MM/yyyy HH:mm');
+        const actor = getActorName(staffName);
         
         await apiService.addLog({
-          userId: currentUserId,
-          staff_name: staffName,
+          userId: actor === 'ADMIN' ? 'ADMIN' : (currentUserId || actor),
+          staff_name: actor,
           action: 'Deleted',
           details: `Booking for ${car?.plate || 'Unknown Car'} on ${startDate}.`
         }, currentSubscriberId);
@@ -365,8 +399,10 @@ const CalendarPage: React.FC = () => {
         }
         
         if (currentUserId) {
+          const actor = getActorName();
           await apiService.addLog({
-            userId: currentUserId,
+            userId: actor === 'ADMIN' ? 'ADMIN' : (currentUserId || actor),
+            staff_name: actor,
             action: 'Updated',
             details: `Ran Auto-Shuffle Optimization. Re-assigned ${successCount} bookings.`
           }, currentSubscriberId);
@@ -393,8 +429,10 @@ const CalendarPage: React.FC = () => {
       
       if (currentUserId && currentSubscriberId) {
         const car = cars.find(c => c.id === id);
+        const actor = getActorName();
         await apiService.addLog({
-          userId: currentUserId,
+          userId: actor === 'ADMIN' ? 'ADMIN' : (currentUserId || actor),
+          staff_name: actor,
           action: 'Updated',
           details: `Changed status of car ${car?.plate} to ${status}`
         }, currentSubscriberId);
@@ -417,8 +455,10 @@ const CalendarPage: React.FC = () => {
       setCars(prev => [...prev, addedCar]);
       
       if (currentUserId) {
+        const actor = getActorName();
         await apiService.addLog({
-          userId: currentUserId,
+          userId: actor === 'ADMIN' ? 'ADMIN' : (currentUserId || actor),
+          staff_name: actor,
           action: 'Created',
           details: `Added new vehicle to fleet: ${newCar.plate} (${newCar.name})`
         }, currentSubscriberId);
@@ -444,8 +484,10 @@ const CalendarPage: React.FC = () => {
       setCars(prev => prev.filter(c => c.id !== id));
       
       if (currentUserId && car) {
+        const actor = getActorName();
         await apiService.addLog({
-          userId: currentUserId,
+          userId: actor === 'ADMIN' ? 'ADMIN' : (currentUserId || actor),
+          staff_name: actor,
           action: 'Deleted',
           details: `Removed vehicle from fleet: ${car.plate}`
         }, currentSubscriberId);

@@ -62,6 +62,30 @@ const ActivityLogModal: React.FC<ActivityLogModalProps> = ({ isOpen, onClose, su
     fetchLogs(nextPage);
   };
 
+  const getDisplayActor = (log: LogEntry): string => {
+    // If the log was created by the Subscriber account (matching subscriberId or marked ADMIN)
+    if (
+      !log.userId ||
+      log.userId.toUpperCase() === 'ADMIN' ||
+      (subscriberId && log.userId.toLowerCase() === subscriberId.toLowerCase())
+    ) {
+      return 'ADMIN';
+    }
+
+    const staffName = log.staff_name?.trim();
+    if (staffName) {
+      if (staffName.toUpperCase() === 'ADMIN') return 'ADMIN';
+      return staffName.toUpperCase();
+    }
+
+    // If it's a raw UUID and matches subscriber ID or is the company owner UUID
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(log.userId)) {
+      return 'ADMIN';
+    }
+
+    return log.userId.toUpperCase();
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -90,34 +114,39 @@ const ActivityLogModal: React.FC<ActivityLogModalProps> = ({ isOpen, onClose, su
             </div>
           ) : (
             <>
-              {logs.map(log => (
-                <div key={log.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-2">
-                  <div className="flex justify-between items-start">
-                    <span className={`
-                      text-[10px] font-bold px-2 py-1 rounded-lg uppercase tracking-wide
-                      ${log.action === 'Created' ? 'bg-emerald-100 text-emerald-700' : ''}
-                      ${log.action === 'Updated' ? 'bg-blue-100 text-blue-700' : ''}
-                      ${log.action === 'Deleted' ? 'bg-rose-100 text-rose-700' : ''}
-                    `}>
-                      {log.action}
-                    </span>
-                    <span className="text-[10px] font-mono text-slate-400">
-                      {formatInMYT(new Date(log.timestamp).getTime(), 'dd/MM/yyyy HH:mm')}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                    {log.details}
-                  </p>
-                  <div className="flex items-center gap-2 pt-2 border-t border-slate-50 mt-1">
-                    <div className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[8px] font-bold">
-                      {log.userId.substring(0,1)}
+              {logs.map(log => {
+                const actor = getDisplayActor(log);
+                const avatarLetter = actor.charAt(0).toUpperCase() || 'A';
+
+                return (
+                  <div key={log.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-2">
+                    <div className="flex justify-between items-start">
+                      <span className={`
+                        text-[10px] font-bold px-2 py-1 rounded-lg uppercase tracking-wide
+                        ${log.action === 'Created' ? 'bg-emerald-100 text-emerald-700' : ''}
+                        ${log.action === 'Updated' ? 'bg-blue-100 text-blue-700' : ''}
+                        ${log.action === 'Deleted' ? 'bg-rose-100 text-rose-700' : ''}
+                      `}>
+                        {log.action}
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-400">
+                        {formatInMYT(new Date(log.timestamp).getTime(), 'dd/MM/yyyy HH:mm')}
+                      </span>
                     </div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase">
-                      {log.staff_name ? `${log.staff_name} - ${log.userId}` : `ID: ${log.userId}`}
-                    </span>
+                    <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                      {log.details}
+                    </p>
+                    <div className="flex items-center gap-2 pt-2 border-t border-slate-50 mt-1">
+                      <div className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[8px] font-bold shrink-0">
+                        {avatarLetter}
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">
+                        {actor}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               
               {hasMore && (
                 <button 
