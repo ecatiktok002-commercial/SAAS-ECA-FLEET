@@ -351,49 +351,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       className="relative flex-1 flex flex-col bg-white select-none overflow-hidden h-full font-sans touch-none"
       style={{ touchAction: zoom > 1.0 ? 'none' : 'pan-y' }}
     >
-      {/* Floating Zoom & Navigation Controls (Mobile & Desktop) */}
-      <div className="absolute bottom-3 right-3 z-40 flex items-center gap-1.5 p-1.5 rounded-2xl bg-slate-900/90 text-white backdrop-blur-md shadow-lg border border-slate-700/60">
-        <button
-          type="button"
-          onClick={() => handleZoomChange(-0.3)}
-          disabled={zoom <= MIN_ZOOM}
-          className="p-1.5 rounded-xl hover:bg-white/10 active:bg-white/20 disabled:opacity-30 transition-all text-white"
-          title="Zoom Out"
-          aria-label="Zoom Out"
-        >
-          <ZoomOut className="w-4 h-4" />
-        </button>
-
-        <button
-          type="button"
-          onClick={handleResetZoom}
-          className="px-2 py-1 rounded-lg hover:bg-white/10 text-[11px] font-bold tracking-wider text-slate-200 transition-all flex items-center gap-1"
-          title="Reset Zoom to 100%"
-        >
-          <span>{Math.round(zoom * 100)}%</span>
-          {zoom > 1.05 && <RotateCcw className="w-3 h-3 text-emerald-400" />}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleZoomChange(0.3)}
-          disabled={zoom >= MAX_ZOOM}
-          className="p-1.5 rounded-xl hover:bg-white/10 active:bg-white/20 disabled:opacity-30 transition-all text-white"
-          title="Zoom In"
-          aria-label="Zoom In"
-        >
-          <ZoomIn className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Floating touch hint (displays on mobile when at 100% zoom) */}
-      {isMobile && showHint && zoom === 1.0 && (
-        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-30 pointer-events-none bg-slate-900/80 text-white text-[10px] font-medium px-3 py-1.5 rounded-full shadow-md backdrop-blur-sm flex items-center gap-1.5 animate-pulse">
-          <Move className="w-3 h-3 text-sky-400" />
-          <span>Pinch to zoom & drag to pan calendar</span>
-        </div>
-      )}
-
       {/* Scalable & Pannable Viewport */}
       <div 
         ref={contentRef}
