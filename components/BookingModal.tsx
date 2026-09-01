@@ -1497,6 +1497,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
                         <img
                           src={url}
                           alt={`Photo ${index + 1}`}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />

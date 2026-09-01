@@ -36,7 +36,9 @@ import {
   TrendingUp,
   FileSignature,
   Upload,
-  Layers
+  Layers,
+  Fuel,
+  Gauge
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -387,6 +389,38 @@ const HelpPage: React.FC = () => {
       ],
       relatedPath: '/agent-dashboard',
       relatedLabel: 'Open Agent Dashboard'
+    },
+    {
+      id: 'fuel-mileage-inspection',
+      category: 'forms',
+      title: 'Fuel Level & Mileage AI Inspection & Alerts',
+      badge: 'Fleet Ops',
+      icon: <Fuel className="w-6 h-6 text-amber-500" />,
+      summary: 'AI-assisted dashboard meter scanning for integer mileage & fuel level bars, automated pickup vs. return comparison, and data completeness alerts.',
+      steps: [
+        {
+          title: 'AI Dashboard Meter Scanning',
+          detail: 'When staff or customers upload a dashboard photo during Pickup or Return, the integrated Gemini Vision OCR scans the gauge image to automatically detect the left fuel bar (e.g., 8/8 Full, 6/8, 4/8) and the integer odometer reading.'
+        },
+        {
+          title: 'Visual Fuel Gauge & Bar Comparison',
+          detail: 'The system renders high-contrast 8-segment fuel level bars for both Pickup and Return in the Mileage Details Modal, allowing you to instantly detect underfilled returns.'
+        },
+        {
+          title: 'Enforced Cutoff Rule (1 Sept 2026 Onwards)',
+          detail: 'For all bookings starting from 00:00 GMT+8, 1 Sept 2026 onwards that reach "Completed" status, the system validates whether both Pickup and Return dashboard photos, mileage, and fuel levels have been submitted.'
+        },
+        {
+          title: 'Mileage & Photo Input Required Alert',
+          detail: 'If a completed booking lacks pickup/return meter photos, mileage, or fuel data, an amber warning badge alerts staff and subscriber to supply the missing inspection photos.'
+        }
+      ],
+      proTips: [
+        'Click on any agreement\'s mileage badge to open the Mileage & Fuel Inspection Modal and view side-by-side fuel gauge bars and dashboard photos.',
+        'As an admin, you can mark mileage/fuel discrepancies as "Solved" or request amendments if additional fuel charges were settled.'
+      ],
+      relatedPath: '/forms',
+      relatedLabel: 'Open Digital Forms'
     }
   ];
 
@@ -395,6 +429,21 @@ const HelpPage: React.FC = () => {
       category: 'agreements',
       question: 'How do I send an agreement to a customer who doesn’t have the app?',
       answer: 'Customers do NOT need to install anything! Simply click "Share WhatsApp" or copy the signing link from the Digital Forms tab. The customer opens it in any browser (Safari, Chrome) on their phone to review terms, upload photo documents, and sign.'
+    },
+    {
+      category: 'forms',
+      question: 'How does the Fuel Level & Mileage AI Inspection and Alert system work?',
+      answer: 'During vehicle Pickup and Return, staff upload a clear photo of the dashboard. The Gemini Vision AI extracts both the left Fuel Gauge Bar (e.g. 8/8 Full, 4/8 Half) and the integer odometer reading (km). The system automatically tracks usage against the daily mileage limit and compares return fuel against pickup fuel.'
+    },
+    {
+      category: 'forms',
+      question: 'Why do I see a "Mileage & Photo Input Required" alert badge on certain agreements?',
+      answer: 'This alert applies specifically to bookings with start date from 00:00 GMT+8, 1 September 2026 onwards that have reached "Completed" (or Reconciled) status. If either the Pickup or Return record is missing the dashboard photo, odometer reading, or fuel level, the alert prompts your team to complete the records.'
+    },
+    {
+      category: 'forms',
+      question: 'How can I compare customer fuel levels at Pickup vs Return to check for missing fuel?',
+      answer: 'Click on the Mileage badge on any agreement card to open the Mileage & Fuel Detail Modal. It visually shows the starting fuel level (e.g. 8/8 Full) alongside the return fuel level (e.g. 6/8) with graphic fuel bars and full-resolution dashboard photos for audit.'
     },
     {
       category: 'audit',
@@ -706,27 +755,31 @@ const HelpPage: React.FC = () => {
     {
       id: 'agent-handover',
       category: 'handover',
-      title: 'Vehicle Handover & Return Inspection',
+      title: 'Vehicle Handover, AI Fuel Gauge & Mileage Inspection',
       badge: 'Field Ops',
-      icon: <Camera className="w-6 h-6 text-amber-600" />,
-      summary: 'Record pre-existing body scratches, odometer reading, and fuel levels during key handover to protect against disputes.',
+      icon: <Fuel className="w-6 h-6 text-amber-500" />,
+      summary: 'Capture dashboard meter photos with automatic Gemini AI fuel gauge and mileage detection, plus exterior condition photos during Pickup and Return.',
       steps: [
         {
-          title: 'Open Handover Inspection',
-          detail: 'From your signed agreement, click "Handover Form" or open the mobile inspection link on your smartphone.'
+          title: 'Open Mobile Handover Inspection',
+          detail: 'From the signed digital agreement, click "Handover Form" (or use the customer inspection QR code) to open the mobile-optimized inspection page.'
         },
         {
-          title: 'Document Condition & Fuel',
-          detail: 'Input current odometer reading (KM) and fuel gauge level (e.g., 4/8 bars or 100% full).'
+          title: 'Snap Clear Dashboard Photo',
+          detail: 'Upload or snap a straight, glare-free photo of the instrument cluster. The integrated Gemini Vision AI immediately analyzes the image.'
         },
         {
-          title: 'Upload Exterior Photos',
-          detail: 'Take quick photos of the front, rear, left, and right sides to document existing condition before handing over keys.'
+          title: 'Auto-Identify Fuel Level & Odometer',
+          detail: 'The AI extracts the Left Fuel Bar (e.g. "8/8 (Full)", "6/8", "4/8 (Half)", "2/8", "1/8") and the bottom integer odometer reading (km). You can verify or manually adjust if needed.'
+        },
+        {
+          title: 'Resolve "Mileage & Photo Input Required" Alert',
+          detail: 'For all completed bookings starting from 1 Sept 2026 onwards, ensuring both Pickup and Return dashboard photos are submitted will immediately clear the amber inspection alert.'
         }
       ],
       proTips: [
-        'Always ensure the customer is present when noting down starting fuel levels to avoid return disputes.',
-        'If the car returns with less fuel or damages, notify your supervisor immediately with the before/after photos.'
+        'Always ensure the customer is present when capturing starting fuel levels to avoid return disputes.',
+        'Use the visual 8-bar fuel meter in the Handover form to easily confirm exact tank capacity at handover and return.'
       ],
       relatedPath: '/forms',
       relatedLabel: 'View Agreements'
@@ -758,6 +811,21 @@ const HelpPage: React.FC = () => {
       category: 'commissions',
       question: 'When will my commission be disbursed to my bank account?',
       answer: 'Commissions are audited and disbursed according to your company’s scheduled payout period (typically monthly or bi-weekly). Once approved in the Audit & Payout ledger, management marks them as "Paid" during payout processing, which updates your Total Payout Received total.'
+    },
+    {
+      category: 'handover',
+      question: 'How does Gemini AI auto-scan the fuel level and mileage during vehicle handover?',
+      answer: 'When you upload a dashboard photo in the Handover Form, our Gemini Vision AI instantly scans the left side of the meter for the fuel gauge bar (e.g. 8/8 Full, 6/8, 4/8 Half, etc.) and the bottom digital display for the total odometer mileage in km. It auto-fills the fields in seconds.'
+    },
+    {
+      category: 'handover',
+      question: 'Why is there a "Mileage & Photo Input Required" alert on completed bookings, and how do I clear it?',
+      answer: 'For bookings starting from 00:00 GMT+8, 1 Sept 2026 onwards in "Completed" status, the system checks that both Pickup and Return dashboard photos, mileage, and fuel levels are documented. To clear the alert, simply perform the Handover or Return inspection and submit the dashboard photo.'
+    },
+    {
+      category: 'handover',
+      question: 'How does the system compare starting vs return fuel levels (e.g. 8/8 Full vs 6/8)?',
+      answer: 'Click on the Mileage badge on the digital agreement to open the Mileage Details Modal. You can view the Pickup Fuel level and Return Fuel level side-by-side with 8-bar visual gauges and the actual dashboard photos taken during handover.'
     },
     {
       category: 'sales',

@@ -45,11 +45,29 @@ export default defineConfig(({ mode }) => {
       {
         name: 'dashboard-meter-ocr-api',
         configureServer(server) {
-          server.middlewares.use('/api/identify-dashboard', async (req, res) => {
+          server.middlewares.use(async (req, res, next) => {
+            const rawUrl = req.originalUrl || req.url || '';
+            const pathName = rawUrl.split('?')[0];
+
+            if (pathName !== '/api/identify-dashboard' && pathName !== '/api/identify-dashboard/') {
+              return next();
+            }
+
+            // Handle CORS / preflight
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+            res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+            if (req.method === 'OPTIONS') {
+              res.statusCode = 200;
+              res.end();
+              return;
+            }
+
             if (req.method !== 'POST') {
               res.statusCode = 405;
               res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+              res.end(JSON.stringify({ success: false, error: 'Method Not Allowed' }));
               return;
             }
 
@@ -154,9 +172,9 @@ Output JSON only in this format:
                     },
                   });
                 } catch (firstErr: any) {
-                  console.warn('Gemini 2.5 flash error, falling back to gemini-2.0-flash:', firstErr.message);
+                  console.warn('Gemini 2.5 flash error, trying gemini-2.5-pro:', firstErr.message);
                   response = await ai.models.generateContent({
-                    model: 'gemini-2.0-flash',
+                    model: 'gemini-2.5-pro',
                     contents: [
                       {
                         inlineData: {

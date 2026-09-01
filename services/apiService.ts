@@ -1598,12 +1598,21 @@ export const apiService = {
     });
   },
 
-  async getAllHandoverRecords(subscriberId: string): Promise<any[]> {
+  async getAllHandoverRecords(subscriberId: string, options?: { limit?: number; since?: string | Date }): Promise<any[]> {
     validateSubscriber(subscriberId);
     const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       let query = supabase.from('handover_records').select('id, booking_id, car_id, handover_type, mileage, fuel_level, photos_url, created_at');
       query = applySubscriberFilter(query, targetSubscriberId);
+
+      if (options?.since) {
+        const sinceIso = options.since instanceof Date ? options.since.toISOString() : options.since;
+        query = query.gte('created_at', sinceIso);
+      }
+
+      if (options?.limit && options.limit > 0) {
+        query = query.limit(options.limit);
+      }
 
       const { data, error } = await query.order('created_at', { ascending: false });
         

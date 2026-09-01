@@ -50,7 +50,7 @@ const PhotoUploadBox: React.FC<PhotoUploadBoxProps> = ({
     />
     {preview ? (
       <>
-        <img src={preview} alt={label} className="w-full h-full object-cover" />
+        <img src={preview} alt={label} decoding="async" className="w-full h-full object-cover" />
         {isScanning && (
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px] flex flex-col items-center justify-center p-2 text-center text-white z-20 animate-in fade-in duration-150">
             <div className="relative w-8 h-8 mb-2">
@@ -197,7 +197,7 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
     const compressedFile = await compressVehicleImage(file);
     const { data, error } = await supabase.storage
       .from('handover_images')
-      .upload(path, compressedFile, { cacheControl: '3600', upsert: false });
+      .upload(path, compressedFile, { cacheControl: '31536000, immutable', upsert: false });
       
     if (error) throw error;
     
@@ -475,7 +475,7 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
                 {/* Existing Damage Photos */}
                 {damagePhotos.map(photo => (
                   <div key={photo.id} className="relative aspect-square rounded-xl border border-orange-200 overflow-hidden group">
-                    <img src={photo.preview} alt="Damage" className="w-full h-full object-cover" />
+                    <img src={photo.preview} alt="Damage" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                     <button 
                       onClick={() => removeDamagePhoto(photo.id)}
                       className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold uppercase tracking-widest"

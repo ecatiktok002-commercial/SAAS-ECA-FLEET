@@ -58,7 +58,7 @@ export const uploadAgreementImage = async (subscriberId: string, file: File, fol
 
   const { data, error } = await supabase.storage
     .from('handover_images')
-    .upload(path, finalFile, { cacheControl: '3600', upsert: false });
+    .upload(path, finalFile, { cacheControl: '31536000, immutable', upsert: false });
 
   if (error) throw error;
 
