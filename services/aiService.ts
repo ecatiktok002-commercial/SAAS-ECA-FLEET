@@ -99,47 +99,42 @@ export async function identifyDashboardMeters(
           const { GoogleGenAI } = await import('@google/genai');
           const ai = new GoogleGenAI({ apiKey: clientApiKey });
 
-          const prompt = `You are an expert vehicle inspection AI specializing in vehicle meter reading.
-Carefully examine this car instrument cluster / dashboard photo.
+          const prompt = `You are an expert vehicle inspection AI specializing in reading automobile instrument clusters, speedometers, odometers, and fuel gauges.
+Carefully inspect this vehicle meter / dashboard photo. Note that the photo might have ambient reflections, amber/orange/monochrome LCD backlights, or handwritten markings (e.g. car plate initials like JYC written in chalk or digital markup) which you should ignore.
 
-Extract two key readings:
-1. FUEL LEVEL (Left Side Bar / Gauge):
-- The fuel gauge is commonly a vertical bar / segment display or needle gauge from E (Empty) to F (Full).
-- IMPORTANT FUEL BAR SEGMENT COUNTING RULE:
-  * In digital instrument clusters (e.g. Perodua Myvi, Bezza, Axia, Ativa, Proton, Toyota, Honda), the fuel gauge consists of an 8-segment scale.
-  * The bottom-most bar at "E" (Empty/Reserve) is BAR 1. You MUST include this bottom-most lit segment in your total count! Do NOT ignore or skip the bottom base segment.
-  * Count the TOTAL number of lit/filled segments from bottom (E) to top (F):
-    - 8 lit segments (reaches 'F' / all bars filled) => "Full Tank"
-    - 7 lit segments (only 1 blank bar below 'F') => "7 Bar"
-    - 6 lit segments (3/4 tank) => "6 Bar"
-    - 5 lit segments (just above half) => "5 Bar"
-    - 4 lit segments (exactly half gauge) => "4 Bar"
-    - 3 lit segments (just below half) => "3 Bar"
-    - 2 lit segments (1/4 tank) => "2 Bar"
-    - 1 lit segment (reserve / bottom-most bar only) => "1 Bar"
-- If it is an analog needle gauge:
-  * Needle at or pointing to 'F' => "Full Tank"
-  * 7/8 mark => "7 Bar"
-  * 3/4 mark => "6 Bar"
-  * 5/8 mark => "5 Bar"
-  * 1/2 (Center) mark => "4 Bar"
-  * 3/8 mark => "3 Bar"
-  * 1/4 mark => "2 Bar"
-  * At or near 'E' => "1 Bar"
-- Return strictly one of: "1 Bar", "2 Bar", "3 Bar", "4 Bar", "5 Bar", "6 Bar", "7 Bar", "Full Tank".
+Extract these two values:
 
-2. MILEAGE (Bottom Part / Odometer):
-- The total odometer is commonly located at the bottom part or digital LCD display of the instrument cluster (marked with "km" or "ODO", e.g., "128450 km" or "45000 km").
-- Extract the total odometer mileage as a single integer number.
-- Strip any decimal places, "km", "ODO", commas, or trip meters.
-- Return ONLY an integer (e.g. 45000, 128450).
+1. FUEL LEVEL (Left Vertical Bar Gauge or Analog Needle):
+- For digital LCD clusters (e.g. Proton Saga/Persona, Perodua Myvi/Bezza/Axia, Toyota, Honda):
+  * Look for the vertical fuel level bar gauge on the left side between 'E' (bottom) and 'F' (top).
+  * Count the total number of illuminated / dark lit bar blocks starting from the bottom 'E' bar:
+    - 8 bars (up to 'F') => "Full Tank"
+    - 7 bars => "7 Bar"
+    - 6 bars (3/4) => "6 Bar"
+    - 5 bars => "5 Bar"
+    - 4 bars (half) => "4 Bar"
+    - 3 bars => "3 Bar"
+    - 2 bars (1/4) => "2 Bar"
+    - 1 bar (near 'E') => "1 Bar"
+- For analog needle gauges:
+  * Needle at 'F' => "Full Tank"
+  * Needle at 3/4 => "6 Bar"
+  * Needle at 1/2 => "4 Bar"
+  * Needle at 1/4 => "2 Bar"
+  * Needle at 'E' => "1 Bar"
+- Choose strictly the closest value: "1 Bar", "2 Bar", "3 Bar", "4 Bar", "5 Bar", "6 Bar", "7 Bar", "Full Tank".
 
-Output JSON only in this format:
+2. ODOMETER MILEAGE (KM):
+- Look for the digital number next to "ODO", "km", or the main odometer display (e.g. "15952 km", "45200").
+- Disregard the clock (e.g. "3:23") and gear indicator (e.g. "P", "D").
+- Extract ONLY the integer odometer reading (e.g. 15952).
+
+Output strictly valid JSON:
 {
   "mileage": <integer number or null>,
-  "fuel_level": <string or null, e.g. "Full Tank", "7 Bar", "6 Bar", "5 Bar", "4 Bar", "3 Bar", "2 Bar", "1 Bar">,
-  "confidence": <number from 0.0 to 1.0>,
-  "notes": "<short 1-sentence explanation of detected values and bar count from bottom to top>"
+  "fuel_level": <"Full Tank" | "7 Bar" | "6 Bar" | "5 Bar" | "4 Bar" | "3 Bar" | "2 Bar" | "1 Bar" | null>,
+  "confidence": <number 0.0 to 1.0>,
+  "notes": "<short explanation>"
 }`;
 
           let response;
@@ -201,32 +196,46 @@ Output JSON only in this format:
       };
     }
 
-    // Format fuel level to ensure standard format
+    // Format fuel level to ensure standard format compatible with dropdown
     let fuelLevel = data.fuel_level;
     if (fuelLevel) {
-      const flLower = String(fuelLevel).toLowerCase();
-      if (flLower.includes('full') || flLower.includes('8 bar')) {
+      const flLower = String(fuelLevel).toLowerCase().trim();
+      if (flLower.includes('full') || flLower.includes('8') || flLower === 'f' || flLower.includes('100%')) {
         fuelLevel = 'Full Tank';
-      } else if (flLower.includes('7 bar')) {
+      } else if (flLower.includes('7')) {
         fuelLevel = '7 Bar';
-      } else if (flLower.includes('6 bar')) {
+      } else if (flLower.includes('6') || flLower.includes('3/4') || flLower.includes('75%')) {
         fuelLevel = '6 Bar';
-      } else if (flLower.includes('5 bar')) {
+      } else if (flLower.includes('5')) {
         fuelLevel = '5 Bar';
-      } else if (flLower.includes('4 bar') || flLower.includes('half')) {
+      } else if (flLower.includes('4') || flLower.includes('half') || flLower.includes('1/2') || flLower.includes('50%')) {
         fuelLevel = '4 Bar';
-      } else if (flLower.includes('3 bar')) {
+      } else if (flLower.includes('3') || flLower.includes('3/8')) {
         fuelLevel = '3 Bar';
-      } else if (flLower.includes('2 bar')) {
+      } else if (flLower.includes('2') || flLower.includes('1/4') || flLower.includes('25%')) {
         fuelLevel = '2 Bar';
-      } else if (flLower.includes('1 bar') || flLower.includes('empty')) {
+      } else if (flLower.includes('1') || flLower.includes('low') || flLower.includes('empty') || flLower.includes('reserve') || flLower === 'e') {
         fuelLevel = '1 Bar';
+      }
+    }
+
+    let mileageNum: number | null = null;
+    if (data.mileage != null) {
+      if (typeof data.mileage === 'number') {
+        mileageNum = Math.round(data.mileage);
+      } else {
+        const cleanStr = String(data.mileage).replace(/,/g, '').replace(/km/gi, '').replace(/odo/gi, '').trim();
+        const match = cleanStr.match(/\d+/);
+        if (match) {
+          const parsed = parseInt(match[0], 10);
+          mileageNum = isNaN(parsed) ? null : parsed;
+        }
       }
     }
 
     return {
       success: true,
-      mileage: data.mileage != null ? Math.round(Number(data.mileage)) : null,
+      mileage: mileageNum,
       fuelLevel: fuelLevel || null,
       confidence: data.confidence,
       notes: data.notes,
