@@ -18,9 +18,9 @@ export interface DashboardMeterReading {
  */
 export async function prepareMeterImageBase64(
   imageSource: File | string,
-  maxWidth = 1280,
-  maxHeight = 1280,
-  quality = 0.85
+  maxWidth = 800,
+  maxHeight = 800,
+  quality = 0.6
 ): Promise<{ base64: string; mimeType: string }> {
   return new Promise((resolve) => {
     let resolved = false;
@@ -31,7 +31,7 @@ export async function prepareMeterImageBase64(
       }
     };
 
-    // Safety timeout: 3 seconds max for image processing
+    // Safety timeout: 8 seconds max for image processing
     const timer = setTimeout(() => {
       if (typeof imageSource === 'string') {
         const clean = imageSource.includes(',') ? imageSource.split(',')[1] : imageSource;
@@ -39,7 +39,7 @@ export async function prepareMeterImageBase64(
       } else {
         safeResolve({ base64: '', mimeType: 'image/jpeg' });
       }
-    }, 3000);
+    }, 8000);
 
     const processDataUrl = (dataUrl: string) => {
       if (!dataUrl || !dataUrl.startsWith('data:')) {
