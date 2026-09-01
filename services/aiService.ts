@@ -1,6 +1,7 @@
 /**
  * AI Service for Dashboard Meter Identification (Odometer Mileage & Fuel Level Gauge)
  */
+import { supabase } from './supabase';
 
 export interface DashboardMeterReading {
   success: boolean;
@@ -12,57 +13,120 @@ export interface DashboardMeterReading {
 }
 
 /**
- * Converts a File object to a base64 string
+ * Compresses and scales an instrument cluster image via HTML5 canvas for fast, reliable mobile OCR.
+ * Reduces 10MB+ camera photos to ~200KB while preserving sharp LCD contrast.
  */
-export async function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result);
-      } else {
-        reject(new Error('Failed to convert file to base64'));
+export async function prepareMeterImageBase64(
+  imageSource: File | string,
+  maxWidth = 1280,
+  maxHeight = 1280,
+  quality = 0.85
+): Promise<{ base64: string; mimeType: string }> {
+  return new Promise((resolve) => {
+    // If not in a browser canvas environment, fallback
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      if (typeof imageSource === 'string') {
+        const clean = imageSource.includes(',') ? imageSource.split(',')[1] : imageSource;
+        resolve({ base64: clean, mimeType: 'image/jpeg' });
+        return;
       }
+    }
+
+    const processDataUrl = (dataUrl: string) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          let width = img.naturalWidth || img.width;
+          let height = img.naturalHeight || img.height;
+
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedUrl = canvas.toDataURL('image/jpeg', quality);
+            const base64Data = compressedUrl.split(',')[1];
+            resolve({ base64: base64Data, mimeType: 'image/jpeg' });
+            return;
+          }
+        } catch (canvasErr) {
+          console.warn('[prepareMeterImageBase64] Canvas compression fallback:', canvasErr);
+        }
+        // Fallback to original data URL
+        const rawBase64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+        resolve({ base64: rawBase64, mimeType: 'image/jpeg' });
+      };
+
+      img.onerror = () => {
+        const rawBase64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+        resolve({ base64: rawBase64, mimeType: 'image/jpeg' });
+      };
+
+      img.src = dataUrl;
     };
-    reader.onerror = (error) => reject(error);
-    reader.readAsDataURL(file);
+
+    if (imageSource instanceof File) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = (e.target?.result as string) || '';
+        processDataUrl(result);
+      };
+      reader.onerror = () => {
+        resolve({ base64: '', mimeType: 'image/jpeg' });
+      };
+      reader.readAsDataURL(imageSource);
+    } else {
+      if (imageSource.startsWith('data:')) {
+        processDataUrl(imageSource);
+      } else {
+        processDataUrl(`data:image/jpeg;base64,${imageSource}`);
+      }
+    }
   });
 }
 
 /**
  * Identify Dashboard Meters (Left Bar: Fuel Level, Bottom Part: Integer Mileage)
- * Calls the server-side `/api/identify-dashboard` endpoint powered by Gemini AI,
- * with resilient fallback to direct Gemini client if server returns 404/405/500.
+ * Uses a resilient 3-tier approach:
+ * Tier 1: Local /api/identify-dashboard server endpoint
+ * Tier 2: Supabase Edge Function ('receipt-ocr' in dashboard mode)
+ * Tier 3: Direct Gemini Client SDK fallback
  */
 export async function identifyDashboardMeters(
   imageSource: File | string
 ): Promise<DashboardMeterReading> {
   try {
-    let base64String = '';
-    let mimeType = 'image/jpeg';
+    const { base64: cleanBase64, mimeType } = await prepareMeterImageBase64(imageSource);
 
-    if (imageSource instanceof File) {
-      base64String = await fileToBase64(imageSource);
-      mimeType = imageSource.type || 'image/jpeg';
-    } else {
-      base64String = imageSource;
-      if (base64String.startsWith('data:')) {
-        const match = base64String.match(/^data:([^;]+);base64,/);
-        if (match) {
-          mimeType = match[1];
-        }
-      }
+    if (!cleanBase64) {
+      return {
+        success: false,
+        mileage: null,
+        fuelLevel: null,
+        error: 'Unable to process image file. Please try another photo.',
+      };
     }
 
-    let cleanBase64 = base64String;
-    if (cleanBase64.includes(',')) {
-      cleanBase64 = cleanBase64.split(',')[1];
-    }
-
-    // Attempt 1: Call /api/identify-dashboard endpoint
     let apiSuccess = false;
     let data: any = null;
 
+    // --- TIER 1: Server endpoint `/api/identify-dashboard` ---
     try {
       const response = await fetch('/api/identify-dashboard', {
         method: 'POST',
@@ -70,24 +134,43 @@ export async function identifyDashboardMeters(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          imageBase64: base64String,
+          imageBase64: cleanBase64,
           mimeType,
         }),
       });
 
       if (response.ok) {
-        data = await response.json();
-        if (data && data.success) {
+        const resJson = await response.json();
+        if (resJson && resJson.success) {
+          data = resJson;
           apiSuccess = true;
         }
-      } else {
-        console.warn(`[identifyDashboardMeters] Server route returned ${response.status}. Attempting direct fallback...`);
       }
-    } catch (networkErr: any) {
-      console.warn('[identifyDashboardMeters] Fetch failed, attempting direct fallback:', networkErr);
+    } catch (tier1Err) {
+      console.warn('[identifyDashboardMeters] Tier 1 server route unreachable, moving to Tier 2:', tier1Err);
     }
 
-    // Attempt 2: Direct Gemini GenAI fallback if server endpoint is unavailable (e.g. static hosting or 405)
+    // --- TIER 2: Supabase Edge Function ('receipt-ocr' with mode: 'dashboard') ---
+    if (!apiSuccess && supabase) {
+      try {
+        const { data: edgeData, error: edgeError } = await supabase.functions.invoke('receipt-ocr', {
+          body: {
+            mode: 'dashboard',
+            base64Image: cleanBase64,
+            mimeType,
+          },
+        });
+
+        if (!edgeError && edgeData && edgeData.success) {
+          data = edgeData;
+          apiSuccess = true;
+        }
+      } catch (tier2Err) {
+        console.warn('[identifyDashboardMeters] Tier 2 Supabase edge function unreachable:', tier2Err);
+      }
+    }
+
+    // --- TIER 3: Direct Gemini SDK Client fallback ---
     if (!apiSuccess) {
       const clientApiKey = (import.meta as any).env?.VITE_GEMINI_PAID_API_KEY ||
                            (import.meta as any).env?.VITE_GEMINI_API_KEY ||
@@ -100,7 +183,7 @@ export async function identifyDashboardMeters(
           const ai = new GoogleGenAI({ apiKey: clientApiKey });
 
           const prompt = `You are an expert vehicle inspection AI specializing in reading automobile instrument clusters, speedometers, odometers, and fuel gauges.
-Carefully inspect this vehicle meter / dashboard photo. Note that the photo might have ambient reflections, amber/orange/monochrome LCD backlights, or handwritten markings (e.g. car plate initials like JYC written in chalk or digital markup) which you should ignore.
+Carefully inspect this vehicle meter / dashboard photo. Note that the photo might have ambient reflections, amber/orange/monochrome LCD backlights, or handwritten markings (e.g. car plate initials like JYC, BSN written in chalk or digital markup) which you should ignore.
 
 Extract these two values:
 
@@ -108,7 +191,7 @@ Extract these two values:
 - For digital LCD clusters (e.g. Proton Saga/Persona, Perodua Myvi/Bezza/Axia, Toyota, Honda):
   * Look for the vertical fuel level bar gauge on the left side between 'E' (bottom) and 'F' (top).
   * Count the total number of illuminated / dark lit bar blocks starting from the bottom 'E' bar:
-    - 8 bars (up to 'F') => "Full Tank"
+    - 8 bars (up to 'F' / all bars lit) => "Full Tank"
     - 7 bars => "7 Bar"
     - 6 bars (3/4) => "6 Bar"
     - 5 bars => "5 Bar"
@@ -125,9 +208,9 @@ Extract these two values:
 - Choose strictly the closest value: "1 Bar", "2 Bar", "3 Bar", "4 Bar", "5 Bar", "6 Bar", "7 Bar", "Full Tank".
 
 2. ODOMETER MILEAGE (KM):
-- Look for the digital number next to "ODO", "km", or the main odometer display (e.g. "15952 km", "45200").
-- Disregard the clock (e.g. "3:23") and gear indicator (e.g. "P", "D").
-- Extract ONLY the integer odometer reading (e.g. 15952).
+- Look for the digital number next to "ODO", "km", or the main odometer display (e.g. "15952 km", "15028 km", "45200").
+- Disregard the clock (e.g. "5:40", "3:23") and gear indicator (e.g. "P", "D").
+- Extract ONLY the integer odometer reading (e.g. 15028).
 
 Output strictly valid JSON:
 {
@@ -182,7 +265,7 @@ Output strictly valid JSON:
           };
           apiSuccess = true;
         } catch (directAiErr: any) {
-          console.error('[identifyDashboardMeters] Direct Gemini fallback failed:', directAiErr);
+          console.error('[identifyDashboardMeters] Tier 3 direct Gemini fallback failed:', directAiErr);
         }
       }
     }
