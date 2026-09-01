@@ -21,6 +21,7 @@ interface MalayPrintableAgreementTemplateProps {
     returnDate?: string;
     returnTime?: string;
     duration?: number;
+    usage?: string;
   };
   payment?: {
     rentalPrice?: number;
@@ -196,7 +197,9 @@ const MalayPrintableAgreementTemplate: React.FC<MalayPrintableAgreementTemplateP
                   </tr>
                   <tr>
                     <td className="border border-black p-2 font-semibold">Tempoh Sewaan</td>
-                    <td className="border border-black p-2" colSpan={3}>{vehicle.duration || 0} Hari</td>
+                    <td className="border border-black p-2">{vehicle.duration || 0} Hari</td>
+                    <td className="border border-black p-2 font-semibold">Kategori Penggunaan (Usage)</td>
+                    <td className="border border-black p-2 break-words text-xs">{vehicle.usage || '-'}</td>
                   </tr>
                 </tbody>
               </table>

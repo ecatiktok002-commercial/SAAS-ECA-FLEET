@@ -290,7 +290,8 @@ export default function SignAgreement() {
               pickupTime: agreement.pickup_time,
               returnDate: agreement.end_date,
               returnTime: agreement.return_time,
-              duration: agreement.duration_days
+              duration: agreement.duration_days,
+              usage: agreement.usage
             }}
             payment={{
               rentalPrice: agreement.total_price,

@@ -906,54 +906,56 @@ const AgentDashboard: React.FC = () => {
             </div>
 
             {/* Date & System Live Indicator */}
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <span className="text-xs sm:text-sm font-semibold text-slate-500">
-                {formatInMYT(currentTime.getTime(), 'EEEE, d MMMM')}
-              </span>
-              <span className="text-slate-300">•</span>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 text-xs font-bold shadow-2xs">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            <div className="flex items-center justify-between sm:justify-start gap-2.5">
+              <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+                <span className="text-xs sm:text-sm font-semibold text-slate-500">
+                  {formatInMYT(currentTime.getTime(), 'EEEE, d MMMM')}
                 </span>
-                <span>System Live</span>
+                <span className="text-slate-300">•</span>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 text-xs font-bold shadow-2xs">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span>System Live</span>
+                </div>
               </div>
+
+              <Link
+                to="/help"
+                className="lg:hidden p-1.5 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-lg border border-slate-200/60 transition-colors ml-auto cursor-pointer"
+                title="Agent Help & Tutorials"
+              >
+                <HelpCircle className="w-4 h-4" />
+              </Link>
             </div>
           </div>
 
-          {/* Right: Compact Action Buttons */}
-          <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+          {/* Right: Action Buttons (2-Column Grid on Mobile, Flex Row on Desktop) */}
+          <div className="grid grid-cols-2 gap-2.5 w-full lg:w-auto lg:flex lg:items-center lg:gap-2.5">
             <button
               onClick={() => {
                 setEditingBookingModal(null);
                 setSelectedBookingDate(new Date());
                 setIsBookingModalOpen(true);
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all cursor-pointer active:scale-95"
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2.5 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all cursor-pointer active:scale-95 text-center whitespace-nowrap"
             >
-              <Plus className="w-4 h-4" />
-              <span>+ New Booking</span>
+              <Plus className="w-4 h-4 shrink-0" />
+              <span>New Booking</span>
             </button>
 
             <Link
               to="/calendar"
-              className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold shadow-2xs transition-all cursor-pointer"
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2.5 sm:py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold shadow-2xs transition-all cursor-pointer text-center whitespace-nowrap"
             >
-              <Calendar className="w-4 h-4 text-slate-500" />
+              <Calendar className="w-4 h-4 text-slate-500 shrink-0" />
               <span>View Calendar</span>
             </Link>
 
             <Link
-              to="/forms"
-              className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all cursor-pointer active:scale-95"
-            >
-              <FileSignature className="w-4 h-4 text-slate-300" />
-              <span>Create Form</span>
-            </Link>
-
-            <Link
               to="/help"
-              className="p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-xl border border-slate-200/60 transition-colors ml-0.5 cursor-pointer"
+              className="hidden lg:inline-flex p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-xl border border-slate-200/60 transition-colors ml-0.5 cursor-pointer"
               title="Agent Help & Tutorials"
             >
               <HelpCircle className="w-4 h-4" />

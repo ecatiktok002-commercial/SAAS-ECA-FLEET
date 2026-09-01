@@ -6,6 +6,8 @@ import { useAuth } from '../../context/AuthContext';
 import { apiService } from '../../services/apiService';
 import { Agreement } from '../../types';
 import toast from 'react-hot-toast';
+import { evaluateMileageUsage, MileageUsageAnalysis } from '../../utils/mileageUtils';
+import { MileageDetailModal } from '../../components/MileageDetailModal';
 import { 
   FileText, 
   Plus, 
@@ -17,11 +19,13 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
+  AlertTriangle,
   Image as ImageIcon,
   Link as LinkIcon,
   Download,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Gauge
 } from 'lucide-react';
 
 const AgreementDashboard: React.FC = () => {
@@ -36,6 +40,16 @@ const AgreementDashboard: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [showMonthDropdown, setShowMonthDropdown] = useState(false);
+  const [handoverRecordsMap, setHandoverRecordsMap] = useState<Record<string, any[]>>({});
+  const [selectedMileageAlert, setSelectedMileageAlert] = useState<{
+    isOpen: boolean;
+    analysis: MileageUsageAnalysis | null;
+    agreement: Agreement | null;
+  }>({
+    isOpen: false,
+    analysis: null,
+    agreement: null
+  });
   const itemsPerPage = 10;
   const tableRef = useRef<HTMLDivElement>(null);
   const totalButtonRef = useRef<HTMLDivElement>(null);
@@ -92,12 +106,23 @@ const AgreementDashboard: React.FC = () => {
 
       // Resolve staff attribution, booking dates/car sync & audit integrity
       try {
-        const [staffList, members, bookings, carList] = await Promise.all([
+        const [staffList, members, bookings, carList, allHandovers] = await Promise.all([
           subscriberId ? apiService.getStaffMembers(subscriberId).catch(() => []) : Promise.resolve([]),
           subscriberId ? apiService.getMembers(subscriberId).catch(() => []) : Promise.resolve([]),
           subscriberId ? apiService.getBookings(subscriberId).catch(() => []) : Promise.resolve([]),
-          subscriberId ? apiService.getCars(subscriberId).catch(() => []) : Promise.resolve([])
+          subscriberId ? apiService.getCars(subscriberId).catch(() => []) : Promise.resolve([]),
+          subscriberId ? apiService.getAllHandoverRecords(subscriberId).catch(() => []) : Promise.resolve([])
         ]);
+
+        // Build a map of booking_id -> handover_records[]
+        const hMap: Record<string, any[]> = {};
+        allHandovers.forEach((h: any) => {
+          if (h.booking_id) {
+            if (!hMap[h.booking_id]) hMap[h.booking_id] = [];
+            hMap[h.booking_id].push(h);
+          }
+        });
+        setHandoverRecordsMap(hMap);
 
         const enriched = rawAgreements.map(agreement => {
           let resolvedName = agreement.agent_name;
@@ -109,6 +134,7 @@ const AgreementDashboard: React.FC = () => {
           let resolvedDuration = agreement.duration_days;
           let resolvedPlate = agreement.car_plate_number;
           let resolvedModel = agreement.car_model;
+          let resolvedBookingStatus = (agreement as any).booking_status;
 
           // Reference override for 190826-BELUXQ if needed
           if (agreement.reference_number === '190826-BELUXQ' || agreement.id === 'b16906bd-412a-49ce-a237-6c14f6bf7784') {
@@ -125,6 +151,7 @@ const AgreementDashboard: React.FC = () => {
           if (agreement.booking_id && bookings.length > 0) {
             const linkedBooking = bookings.find(b => b.id === agreement.booking_id);
             if (linkedBooking) {
+              resolvedBookingStatus = linkedBooking.status;
               if (linkedBooking.agent_name && !linkedBooking.agent_name.toLowerCase().includes('owner') && !linkedBooking.agent_name.toLowerCase().includes('company')) {
                 resolvedName = linkedBooking.agent_name;
               } else if (linkedBooking.member_id) {
@@ -177,7 +204,8 @@ const AgreementDashboard: React.FC = () => {
             return_time: resolvedReturnTime,
             duration_days: resolvedDuration,
             car_plate_number: resolvedPlate,
-            car_model: resolvedModel
+            car_model: resolvedModel,
+            booking_status: resolvedBookingStatus
           };
         });
 
@@ -227,6 +255,15 @@ const AgreementDashboard: React.FC = () => {
       } catch (err) {
         alert('Failed to delete agreement');
       }
+    }
+  };
+
+  const handleMarkMileageSolved = async (agreementId: string) => {
+    try {
+      localStorage.setItem(`mileage_resolved_${agreementId}`, 'true');
+      setAgreements(prev => prev.map(a => a.id === agreementId ? { ...a, is_mileage_resolved: true } : a));
+    } catch (err) {
+      console.error('Failed to mark mileage alert as resolved:', err);
     }
   };
 
@@ -613,6 +650,59 @@ const AgreementDashboard: React.FC = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
+                        {/* Mileage Usage Alert Icon */}
+                        {(() => {
+                          const isResolved = agreement.is_mileage_resolved || (typeof window !== 'undefined' && localStorage.getItem(`mileage_resolved_${agreement.id}`) === 'true');
+                          if (isResolved) {
+                            return null;
+                          }
+
+                          const handoverList = (agreement.booking_id && handoverRecordsMap[agreement.booking_id]) || [];
+                          const analysis = evaluateMileageUsage(agreement, handoverList);
+                          
+                          if (analysis.isExceeded) {
+                            return (
+                              <button
+                                onClick={() => setSelectedMileageAlert({
+                                  isOpen: true,
+                                  analysis,
+                                  agreement
+                                })}
+                                className="relative p-2 text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-all shadow-sm group animate-pulse"
+                                title={`⚠️ Mileage Exceeded! Used ${analysis.actualMileageUsed?.toLocaleString()} km (Limit: ${analysis.formattedLimit}). Exceeded by ${analysis.excessMileage.toLocaleString()} km. Click for inspection.`}
+                              >
+                                <AlertTriangle className="w-4 h-4 text-red-600 group-hover:scale-110 transition-transform" />
+                                <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
+                                </span>
+                              </button>
+                            );
+                          }
+
+                          if (analysis.isMissingData) {
+                            return (
+                              <button
+                                onClick={() => setSelectedMileageAlert({
+                                  isOpen: true,
+                                  analysis,
+                                  agreement
+                                })}
+                                className="relative p-2 text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-all shadow-sm group animate-pulse"
+                                title={`⚠️ Missing Mileage Photo / Data: ${analysis.missingDataReason}. Click to inspect.`}
+                              >
+                                <AlertTriangle className="w-4 h-4 text-amber-600 group-hover:scale-110 transition-transform" />
+                                <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-600"></span>
+                                </span>
+                              </button>
+                            );
+                          }
+
+                          return null;
+                        })()}
+
                         {agreement.status?.toLowerCase().trim() === 'pending' ? (
                           <button 
                             onClick={() => {
@@ -726,7 +816,62 @@ const AgreementDashboard: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex justify-end items-center gap-5 pt-3 border-t border-slate-100">
+                  <div className="flex justify-end items-center gap-4 pt-3 border-t border-slate-100">
+                    {/* Mileage Usage Alert Icon (Mobile) */}
+                    {(() => {
+                      const isResolved = agreement.is_mileage_resolved || (typeof window !== 'undefined' && localStorage.getItem(`mileage_resolved_${agreement.id}`) === 'true');
+                      if (isResolved) {
+                        return null;
+                      }
+
+                      const handoverList = (agreement.booking_id && handoverRecordsMap[agreement.booking_id]) || [];
+                      const analysis = evaluateMileageUsage(agreement, handoverList);
+                      
+                      if (analysis.isExceeded) {
+                        return (
+                          <button
+                            onClick={() => setSelectedMileageAlert({
+                              isOpen: true,
+                              analysis,
+                              agreement
+                            })}
+                            className="relative flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-all shadow-sm animate-pulse mr-auto"
+                            title={`⚠️ Mileage Exceeded (+${analysis.excessMileage.toLocaleString()} km)`}
+                          >
+                            <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+                            <span>+{analysis.excessMileage.toLocaleString()} km</span>
+                            <span className="flex h-2 w-2 relative">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
+                            </span>
+                          </button>
+                        );
+                      }
+
+                      if (analysis.isMissingData) {
+                        return (
+                          <button
+                            onClick={() => setSelectedMileageAlert({
+                              isOpen: true,
+                              analysis,
+                              agreement
+                            })}
+                            className="relative flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-all shadow-sm animate-pulse mr-auto"
+                            title={`⚠️ Missing Mileage Photo / Data`}
+                          >
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Missing Data</span>
+                            <span className="flex h-2 w-2 relative">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-600"></span>
+                            </span>
+                          </button>
+                        );
+                      }
+
+                      return null;
+                    })()}
+
                     {/* Actions */}
                     {status === 'pending' ? (
                       <button 
@@ -820,6 +965,26 @@ const AgreementDashboard: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Mileage Usage Inspection Details Modal */}
+      {selectedMileageAlert.isOpen && selectedMileageAlert.analysis && selectedMileageAlert.agreement && (
+        <MileageDetailModal
+          isOpen={selectedMileageAlert.isOpen}
+          onClose={() => setSelectedMileageAlert({ isOpen: false, analysis: null, agreement: null })}
+          analysis={selectedMileageAlert.analysis}
+          customerName={selectedMileageAlert.agreement.customer_name}
+          referenceNumber={selectedMileageAlert.agreement.reference_number}
+          carPlate={selectedMileageAlert.agreement.car_plate_number}
+          durationDays={selectedMileageAlert.agreement.duration_days}
+          usageType={selectedMileageAlert.agreement.usage}
+          isSubscriber={!!subscriberId}
+          onMarkSolved={() => {
+            if (selectedMileageAlert.agreement?.id) {
+              return handleMarkMileageSolved(selectedMileageAlert.agreement.id);
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

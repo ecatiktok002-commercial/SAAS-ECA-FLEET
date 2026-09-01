@@ -1598,6 +1598,23 @@ export const apiService = {
     });
   },
 
+  async getAllHandoverRecords(subscriberId: string): Promise<any[]> {
+    validateSubscriber(subscriberId);
+    const targetSubscriberId = await getTenantId();
+    return withRetry(async () => {
+      let query = supabase.from('handover_records').select('id, booking_id, car_id, handover_type, mileage, fuel_level, photos_url, created_at');
+      query = applySubscriberFilter(query, targetSubscriberId);
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+        
+      if (error) {
+        logSupabaseError('getAllHandoverRecords', error);
+        return [];
+      }
+      return data || [];
+    });
+  },
+
   async getLogisticCredits(staffId: string, subscriberId: string): Promise<any[]> {
     validateSubscriber(subscriberId);
     const targetSubscriberId = await getTenantId();
@@ -2442,7 +2459,7 @@ export const apiService = {
     const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       // 🚀 SPEED FIX: Point this to the lightweight view to strip the Base64 payloads
-      let query = supabase.from('agreements').select('id, reference_number, subscriber_id, agent_id, agent_name, customer_id, customer_name, identity_number, customer_phone, billing_address, emergency_contact_name, emergency_contact_relation, rental_purpose, car_plate_number, car_model, start_date, end_date, total_price, deposit, duration_days, pickup_time, return_time, need_einvoice, status, signed_at, created_at, booking_id, is_receipt_verified, payout_status, commission_earned, has_pending_changes');
+      let query = supabase.from('agreements').select('id, reference_number, subscriber_id, agent_id, agent_name, customer_id, customer_name, identity_number, customer_phone, billing_address, emergency_contact_name, emergency_contact_relation, usage, rental_purpose, car_plate_number, car_model, start_date, end_date, total_price, deposit, duration_days, pickup_time, return_time, need_einvoice, status, signed_at, created_at, created_by, booking_id, is_receipt_verified, payout_status, commission_earned, has_pending_changes, pending_changes');
       query = applySubscriberFilter(query, targetSubscriberId);
 
       let resolvedAgentId = agentId;

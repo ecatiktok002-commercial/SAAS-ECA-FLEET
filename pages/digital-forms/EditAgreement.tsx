@@ -12,6 +12,7 @@ import { openDataURL } from '../../utils/fileUtils';
 import toast from 'react-hot-toast';
 import { compressImage } from '../../services/imageCompression';
 import { StaffMember } from '../../types';
+import { CustomUsageModal, parseCustomUsage } from '../../components/CustomUsageModal';
 
 export default function EditAgreement() {
   const { id } = useParams();
@@ -23,6 +24,7 @@ export default function EditAgreement() {
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [handledByStaffId, setHandledByStaffId] = useState<string>('');
   const [handledByStaffName, setHandledByStaffName] = useState<string>('');
+  const [isCustomizeModalOpen, setIsCustomizeModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     customer_name: '',
     identity_number: '',
@@ -488,6 +490,25 @@ export default function EditAgreement() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subscriberId || !id) return;
+
+    // Strict validation for 1-day rental duration when custom usage is selected
+    const durationNum = formData.duration_days ? parseInt(formData.duration_days, 10) : 0;
+    if (formData.usage && formData.usage.startsWith('Customize')) {
+      const { totalDays } = parseCustomUsage(formData.usage, durationNum);
+      if (durationNum === 1 && totalDays > 1) {
+        const errorMsg = `Rental duration is only 1 Day. Custom usage cannot exceed 1 Day (currently selected: ${totalDays} Days). Please adjust your usage breakdown.`;
+        setError(errorMsg);
+        toast.error(errorMsg);
+        return;
+      }
+      if (durationNum === 1 && totalDays === 0) {
+        const errorMsg = 'Please allocate 1 day under Usage Customize (either 1 Day Outstation or 1 Day Within KL/Selangor).';
+        setError(errorMsg);
+        toast.error(errorMsg);
+        return;
+      }
+    }
+
     setLoading(true);
     setError('');
 
@@ -1020,20 +1041,55 @@ export default function EditAgreement() {
               </div>
 
               <div>
-                {renderLabel('Usage', 'usage')}
+                <div className="flex items-center justify-between mb-1">
+                  {renderLabel('Usage', 'usage')}
+                  {formData.usage && !['Within KL/Selangor (200km limit/day)', 'Outstation (500km limit/day)', 'Monthly Subscription (Unlimited)'].includes(formData.usage) && !isLocked && (
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomizeModalOpen(true)}
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 underline cursor-pointer"
+                    >
+                      Edit Custom Days
+                    </button>
+                  )}
+                </div>
                 <select
                   name="usage"
                   required
                   disabled={isLocked}
                   value={formData.usage}
-                  onChange={handleChange}
+                  onChange={(e) => {
+                    if (e.target.value === 'Customize') {
+                      setIsCustomizeModalOpen(true);
+                    } else {
+                      handleChange(e);
+                    }
+                  }}
                   className="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm bg-white disabled:bg-slate-100 disabled:text-slate-500"
                 >
                   <option value="">-- SELECT USAGE --</option>
                   <option value="Within KL/Selangor (200km limit/day)">Within KL/Selangor (200km limit/day)</option>
                   <option value="Outstation (500km limit/day)">Outstation (500km limit/day)</option>
                   <option value="Monthly Subscription (Unlimited)">Monthly Subscription (Unlimited)</option>
+                  {formData.usage && !['Within KL/Selangor (200km limit/day)', 'Outstation (500km limit/day)', 'Monthly Subscription (Unlimited)'].includes(formData.usage) && (
+                    <option value={formData.usage}>{formData.usage}</option>
+                  )}
+                  <option value="Customize">Customize</option>
                 </select>
+                {formData.usage && !['Within KL/Selangor (200km limit/day)', 'Outstation (500km limit/day)', 'Monthly Subscription (Unlimited)'].includes(formData.usage) && (
+                  <div className="mt-1.5 flex items-center justify-between text-xs bg-blue-50 border border-blue-200 text-blue-800 px-3 py-1.5 rounded-lg">
+                    <span className="truncate font-medium">{formData.usage}</span>
+                    {!isLocked && (
+                      <button
+                        type="button"
+                        onClick={() => setIsCustomizeModalOpen(true)}
+                        className="ml-2 font-bold text-blue-700 hover:text-blue-900 underline shrink-0 cursor-pointer"
+                      >
+                        Edit Breakdown
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -1476,6 +1532,16 @@ export default function EditAgreement() {
           </div>
         </div>
       )}
+      {/* Custom Usage Breakdown Modal */}
+      <CustomUsageModal
+        isOpen={isCustomizeModalOpen}
+        onClose={() => setIsCustomizeModalOpen(false)}
+        initialUsage={formData.usage}
+        totalDurationDays={formData.duration_days}
+        onApply={(formattedUsage) => {
+          setFormData(prev => ({ ...prev, usage: formattedUsage }));
+        }}
+      />
     </div>
   );
 }

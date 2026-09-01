@@ -154,6 +154,8 @@ export interface Agreement {
   payout_status?: 'pending' | 'pending_review' | 'approved' | 'paid';
   has_pending_changes?: boolean;
   pending_changes?: any;
+  is_mileage_resolved?: boolean;
+  booking_status?: string;
 }
 
 export interface DigitalForm {
