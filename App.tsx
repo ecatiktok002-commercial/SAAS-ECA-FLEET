@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, Component, ErrorInfo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -9,20 +9,101 @@ import ConfigError from './components/ConfigError';
 import SupabaseErrorBanner from './components/SupabaseErrorBanner';
 import { isConfigured } from './services/supabase';
 
-const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
-const AgentDashboard = lazy(() => import('./pages/AgentDashboard'));
-const CalendarPage = lazy(() => import('./pages/CalendarPage'));
-const StaffManagementPage = lazy(() => import('./pages/StaffManagementPage'));
-const DigitalFormPage = lazy(() => import('./pages/DigitalFormPage'));
-const CustomersPage = lazy(() => import('./pages/CustomersPage'));
-const FleetGuardianPage = lazy(() => import('./pages/FleetGuardianPage'));
-const AuditPayoutManagement = lazy(() => import('./pages/AuditPayoutManagement'));
-const SubscriberManager = lazy(() => import('./pages/SubscriberManager'));
-const SignAgreement = lazy(() => import('./pages/digital-forms/SignAgreement'));
-const UpgradePlanPage = lazy(() => import('./pages/UpgradePlanPage'));
-const PublicHandoverPage = lazy(() => import('./pages/PublicHandoverPage'));
-const VehicleRevenueReport = lazy(() => import('./pages/VehicleRevenueReport'));
-const HelpPage = lazy(() => import('./pages/HelpPage'));
+// Resilient lazy import with automatic retry on network/server reload
+const lazyWithRetry = <T extends React.ComponentType<any>>(
+  componentImport: () => Promise<{ default: T }>
+) =>
+  lazy(async () => {
+    try {
+      return await componentImport();
+    } catch (error) {
+      console.warn('Dynamic module import failed, retrying...', error);
+      // Wait 400ms and retry import once
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      try {
+        return await componentImport();
+      } catch (retryError) {
+        console.error('Dynamic module import retry failed:', retryError);
+        // If it's a module load error, force a clean cache reload once
+        const sessionKey = 'module-import-retry-key';
+        const hasRefreshed = sessionStorage.getItem(sessionKey);
+        if (!hasRefreshed) {
+          sessionStorage.setItem(sessionKey, 'true');
+          window.location.reload();
+        }
+        throw retryError;
+      }
+    }
+  });
+
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class RouteErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('Route error caught by ErrorBoundary:', error, errorInfo);
+  }
+
+  handleReload = () => {
+    sessionStorage.removeItem('module-import-retry-key');
+    window.location.reload();
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white p-6">
+          <div className="max-w-md w-full bg-slate-800 border border-slate-700 rounded-2xl p-6 text-center space-y-4 shadow-xl">
+            <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+              ⚠️
+            </div>
+            <h2 className="text-lg font-bold text-slate-100">Page Load Interrupted</h2>
+            <p className="text-xs text-slate-400">
+              The application received updated server assets. Click below to refresh and load the latest version.
+            </p>
+            <button
+              onClick={this.handleReload}
+              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-blue-600/20"
+            >
+              Refresh Application
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const AdminDashboard = lazyWithRetry(() => import('./pages/AdminDashboard'));
+const AgentDashboard = lazyWithRetry(() => import('./pages/AgentDashboard'));
+const CalendarPage = lazyWithRetry(() => import('./pages/CalendarPage'));
+const StaffManagementPage = lazyWithRetry(() => import('./pages/StaffManagementPage'));
+const DigitalFormPage = lazyWithRetry(() => import('./pages/DigitalFormPage'));
+const CustomersPage = lazyWithRetry(() => import('./pages/CustomersPage'));
+const FleetGuardianPage = lazyWithRetry(() => import('./pages/FleetGuardianPage'));
+const AuditPayoutManagement = lazyWithRetry(() => import('./pages/AuditPayoutManagement'));
+const SubscriberManager = lazyWithRetry(() => import('./pages/SubscriberManager'));
+const SignAgreement = lazyWithRetry(() => import('./pages/digital-forms/SignAgreement'));
+const UpgradePlanPage = lazyWithRetry(() => import('./pages/UpgradePlanPage'));
+const PublicHandoverPage = lazyWithRetry(() => import('./pages/PublicHandoverPage'));
+const VehicleRevenueReport = lazyWithRetry(() => import('./pages/VehicleRevenueReport'));
+const HelpPage = lazyWithRetry(() => import('./pages/HelpPage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -84,7 +165,9 @@ const App: React.FC = () => {
       <AuthProvider>
         <Toaster position="bottom-right" />
         <Router>
-          <AppRoutes />
+          <RouteErrorBoundary>
+            <AppRoutes />
+          </RouteErrorBoundary>
           <SupabaseErrorBanner />
         </Router>
       </AuthProvider>
