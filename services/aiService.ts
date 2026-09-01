@@ -33,8 +33,14 @@ export async function prepareMeterImageBase64(
     }
 
     const processDataUrl = (dataUrl: string) => {
+      if (!dataUrl || !dataUrl.startsWith('data:')) {
+        const clean = dataUrl?.includes(',') ? dataUrl.split(',')[1] : (dataUrl || '');
+        resolve({ base64: clean, mimeType: 'image/jpeg' });
+        return;
+      }
+
       const img = new Image();
-      img.crossOrigin = 'anonymous';
+      // Notice: Never set crossOrigin on data: URLs because WebKit/iOS Safari treats canvas as tainted
       img.onload = () => {
         try {
           const canvas = document.createElement('canvas');
@@ -172,10 +178,13 @@ export async function identifyDashboardMeters(
 
     // --- TIER 3: Direct Gemini SDK Client fallback ---
     if (!apiSuccess) {
-      const clientApiKey = (import.meta as any).env?.VITE_GEMINI_PAID_API_KEY ||
+      const clientApiKey = (typeof process !== 'undefined' && ((process.env as any)?.GEMINI_API_KEY || (process.env as any)?.API_KEY || (process.env as any)?.VITE_GEMINI_API_KEY || (process.env as any)?.VITE_API_KEY)) ||
+                           (import.meta as any).env?.VITE_GEMINI_PAID_API_KEY ||
                            (import.meta as any).env?.VITE_GEMINI_API_KEY ||
+                           (import.meta as any).env?.VITE_API_KEY ||
                            (import.meta as any).env?.GEMINI_PAID_API_KEY ||
-                           (import.meta as any).env?.GEMINI_API_KEY || '';
+                           (import.meta as any).env?.GEMINI_API_KEY ||
+                           (import.meta as any).env?.API_KEY || '';
 
       if (clientApiKey) {
         try {
