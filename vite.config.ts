@@ -112,42 +112,45 @@ export default defineConfig(({ mode }) => {
           const { GoogleGenAI } = await import('@google/genai');
           const ai = new GoogleGenAI({ apiKey: geminiKey });
 
-          const prompt = `You are an expert vehicle inspection AI specializing in reading automobile instrument clusters, speedometers, odometers, and fuel gauges.
-Carefully inspect this vehicle meter / dashboard photo. Note that the photo might have ambient reflections, amber/orange/monochrome LCD backlights, or handwritten markings (e.g. car plate initials like JYC, BSN written in chalk or digital markup) which you should ignore.
+          const prompt = `You are an expert automobile inspection AI specializing in vehicle instrument clusters, speedometers, odometers, and fuel gauges for Malaysian and Asian car models (e.g. Proton Saga/Persona/Iriz/X50/X70, Perodua Myvi/Bezza/Axia/Alza/Ativa/Aruz, Toyota Vios/Yaris/Innova, Honda City/Civic, Nissan Almera/Serena, etc.).
 
-Extract these two values:
+Analyze this instrument cluster / meter photo carefully. Note that LCD screens may be amber/orange/blue/white backlit or monochrome, and may have glare, reflections, or handwritten markings (e.g. plate initials like JYC, BSN) which should be ignored.
 
-1. FUEL LEVEL (Left Vertical Bar Gauge or Analog Needle):
-- For digital LCD clusters (e.g. Proton Saga/Persona, Perodua Myvi/Bezza/Axia, Toyota, Honda):
-  * Look for the vertical fuel level bar gauge on the left side between 'E' (bottom) and 'F' (top).
-  * Count the total number of illuminated / dark lit bar blocks starting from the bottom 'E' bar:
-    - 8 bars (up to 'F' / all bars lit) => "Full Tank"
+Extract the following two values:
+
+1. FUEL LEVEL:
+- For LCD segment bar displays (horizontal or vertical bar blocks between E and F):
+  * Horizontal bar (e.g. Proton Saga "E ■■■■ F"): count how many dark/lit segments are filled from 'E' towards 'F'.
+  * Vertical bar: count how many blocks are lit from bottom 'E' towards top 'F'.
+  * Mapping:
+    - 8 bars (all blocks lit / full to 'F') => "Full Tank"
     - 7 bars => "7 Bar"
-    - 6 bars (3/4) => "6 Bar"
+    - 6 bars (approx 3/4) => "6 Bar"
     - 5 bars => "5 Bar"
-    - 4 bars (half) => "4 Bar"
+    - 4 bars (halfway) => "4 Bar"
     - 3 bars => "3 Bar"
-    - 2 bars (1/4) => "2 Bar"
+    - 2 bars (approx 1/4) => "2 Bar"
     - 1 bar (near 'E') => "1 Bar"
 - For analog needle gauges:
   * Needle at 'F' => "Full Tank"
   * Needle at 3/4 => "6 Bar"
-  * Needle at 1/2 => "4 Bar"
+  * Needle at 1/2 (Half) => "4 Bar"
   * Needle at 1/4 => "2 Bar"
-  * Needle at 'E' => "1 Bar"
-- Choose strictly the closest value: "1 Bar", "2 Bar", "3 Bar", "4 Bar", "5 Bar", "6 Bar", "7 Bar", "Full Tank".
+  * Needle at 'E' (Empty / Reserve) => "1 Bar"
+- Choose strictly one of: ["1 Bar", "2 Bar", "3 Bar", "4 Bar", "5 Bar", "6 Bar", "7 Bar", "Full Tank"].
 
 2. ODOMETER MILEAGE (KM):
-- Look for the digital number next to "ODO", "km", or the main odometer display (e.g. "15952 km", "15028 km", "114006 km", "45200").
-- Disregard the clock (e.g. "5:40", "3:23") and gear indicator (e.g. "P", "D").
-- Extract ONLY the integer odometer reading (e.g. 114006).
+- Find the cumulative odometer total mileage reading (e.g. "114006", "15028", "45200", "78912", "15952").
+- Look for the integer digits labeled with "ODO", "TOTAL", or next to "km".
+- Disregard trip meters (e.g. TRIP A, TRIP B), clock time (e.g. "5:40"), speed (e.g. "0 km/h"), gear position (e.g. "P", "D"), and outside temperature (e.g. "32°C").
+- Extract ONLY the integer odometer number (e.g. 114006).
 
-Output strictly valid JSON:
+Output strictly valid JSON with no markdown formatting or markdown code blocks:
 {
   "mileage": <integer number or null>,
   "fuel_level": <"Full Tank" | "7 Bar" | "6 Bar" | "5 Bar" | "4 Bar" | "3 Bar" | "2 Bar" | "1 Bar" | null>,
   "confidence": <number 0.0 to 1.0>,
-  "notes": "<short explanation>"
+  "notes": "<brief description of what was seen on the meter>"
 }`;
 
           let response;
@@ -189,14 +192,44 @@ Output strictly valid JSON:
           }
 
           const responseText = response.text || '{}';
-          const result = JSON.parse(responseText);
+          let result: any = {};
+          try {
+            result = JSON.parse(responseText);
+          } catch (parseErr) {
+            console.error('Failed to parse Gemini response JSON:', responseText);
+          }
+
+          let parsedMileage: number | null = null;
+          if (result.mileage != null) {
+            if (typeof result.mileage === 'number') {
+              parsedMileage = Math.round(result.mileage);
+            } else {
+              const numStr = String(result.mileage).replace(/,/g, '').replace(/\D/g, '');
+              if (numStr) {
+                parsedMileage = parseInt(numStr, 10);
+              }
+            }
+          }
+
+          let parsedFuel = result.fuel_level || null;
+          if (parsedFuel) {
+            const flLower = String(parsedFuel).toLowerCase();
+            if (flLower.includes('full') || flLower.includes('8') || flLower === 'f') parsedFuel = 'Full Tank';
+            else if (flLower.includes('7')) parsedFuel = '7 Bar';
+            else if (flLower.includes('6') || flLower.includes('3/4')) parsedFuel = '6 Bar';
+            else if (flLower.includes('5')) parsedFuel = '5 Bar';
+            else if (flLower.includes('4') || flLower.includes('half') || flLower.includes('1/2')) parsedFuel = '4 Bar';
+            else if (flLower.includes('3')) parsedFuel = '3 Bar';
+            else if (flLower.includes('2') || flLower.includes('1/4')) parsedFuel = '2 Bar';
+            else if (flLower.includes('1') || flLower.includes('low') || flLower.includes('empty') || flLower === 'e') parsedFuel = '1 Bar';
+          }
 
           res.statusCode = 200;
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({
             success: true,
-            mileage: typeof result.mileage === 'number' ? Math.round(result.mileage) : (result.mileage ? parseInt(String(result.mileage).replace(/\D/g, ''), 10) : null),
-            fuel_level: result.fuel_level || null,
+            mileage: parsedMileage,
+            fuel_level: parsedFuel,
             confidence: result.confidence ?? 0.9,
             notes: result.notes || '',
           }));
@@ -229,8 +262,10 @@ Output strictly valid JSON:
       'process.env.SUPABASE_URL': JSON.stringify(supabaseUrl || ''),
       'process.env.API_KEY': JSON.stringify(apiKey || ''),
       'process.env.GEMINI_API_KEY': JSON.stringify(apiKey || ''),
+      'process.env.GEMINI_PAID_API_KEY': JSON.stringify(apiKey || ''),
       'process.env.VITE_GEMINI_API_KEY': JSON.stringify(apiKey || ''),
       'process.env.VITE_API_KEY': JSON.stringify(apiKey || ''),
+      'process.env.VITE_GEMINI_PAID_API_KEY': JSON.stringify(apiKey || ''),
     },
     server: {
       port: 3000,

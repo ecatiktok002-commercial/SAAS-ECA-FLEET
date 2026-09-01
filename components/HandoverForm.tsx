@@ -136,7 +136,7 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
     setIsScanningDashboard(true);
     setAiDetectionStatus({
       success: true,
-      message: 'Scanning Left Fuel Bar & Bottom Odometer...'
+      message: 'Scanning Instrument Cluster (Mileage & Fuel Level)...'
     });
 
     try {
@@ -160,13 +160,13 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
       } else {
         setAiDetectionStatus({
           success: false,
-          message: result.error || 'Could not auto-read meters clearly. Please input manually.'
+          message: result.error || 'Could not auto-read meters clearly. Please input values manually.'
         });
       }
     } catch (err: any) {
       setAiDetectionStatus({
         success: false,
-        message: 'Could not auto-read meters. Please input manually.'
+        message: 'Could not auto-read meters. Please input values manually.'
       });
     } finally {
       setIsScanningDashboard(false);
@@ -533,7 +533,7 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
                     )}
                   </h3>
                   <p className="text-[10px] text-slate-400">
-                    Left bar = Fuel level • Bottom display = Integer Mileage (XXXXXX km)
+                    Odometer reading (km) & fuel level gauge
                   </p>
                 </div>
               </div>
@@ -611,7 +611,7 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5 tracking-wider flex items-center gap-1">
                       <Fuel className="w-3 h-3 text-slate-400" />
-                      Fuel Level (Left Gauge)
+                      Fuel Level
                     </label>
                     <select 
                       value={fuelLevel}
