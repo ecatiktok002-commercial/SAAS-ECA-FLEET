@@ -132,7 +132,7 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
     }
   };
 
-  const runDashboardAiIdentification = async (file: File) => {
+  const runDashboardAiIdentification = async (fileOrUrl: File | string) => {
     setIsScanningDashboard(true);
     setAiDetectionStatus({
       success: true,
@@ -140,7 +140,7 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
     });
 
     try {
-      const result = await identifyDashboardMeters(file);
+      const result = await identifyDashboardMeters(fileOrUrl);
       if (result.success && (result.mileage != null || result.fuelLevel)) {
         if (result.mileage != null) {
           setMileage(String(result.mileage));
@@ -514,10 +514,23 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
                 <div>
                   <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                     3. Dashboard & Meters
-                    <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[9px] font-semibold flex items-center gap-1">
-                      <Sparkles className="w-2.5 h-2.5" />
-                      Auto-Identify
-                    </span>
+                    {(photos['Dashboard'] || photoPreviews['Dashboard']) ? (
+                      <button
+                        type="button"
+                        onClick={() => runDashboardAiIdentification(photos['Dashboard'] || photoPreviews['Dashboard'])}
+                        disabled={isScanningDashboard}
+                        className="px-2 py-0.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 text-[9px] font-bold flex items-center gap-1 transition-all active:scale-95 disabled:opacity-50"
+                        title="Click to re-scan dashboard photo"
+                      >
+                        <Sparkles className={`w-2.5 h-2.5 ${isScanningDashboard ? 'animate-spin' : ''}`} />
+                        {isScanningDashboard ? 'Scanning...' : 'Re-Scan AI'}
+                      </button>
+                    ) : (
+                      <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[9px] font-semibold flex items-center gap-1">
+                        <Sparkles className="w-2.5 h-2.5" />
+                        Auto-Identify
+                      </span>
+                    )}
                   </h3>
                   <p className="text-[10px] text-slate-400">
                     Left bar = Fuel level • Bottom display = Integer Mileage (XXXXXX km)
@@ -527,21 +540,32 @@ const HandoverForm: React.FC<HandoverFormProps> = ({
 
               {/* AI Detection Banner */}
               {aiDetectionStatus && (
-                <div className={`mb-3 p-2.5 rounded-lg text-[11px] font-medium flex items-center gap-2 border transition-all ${
+                <div className={`mb-3 p-2.5 rounded-lg text-[11px] font-medium flex items-center justify-between gap-2 border transition-all ${
                   isScanningDashboard 
                     ? 'bg-blue-50/70 border-blue-200 text-blue-700 animate-pulse'
                     : aiDetectionStatus.success 
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
                     : 'bg-amber-50 border-amber-200 text-amber-800'
                 }`}>
-                  {isScanningDashboard ? (
-                    <Sparkles className="w-4 h-4 text-blue-500 shrink-0 animate-spin" />
-                  ) : aiDetectionStatus.success ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  ) : (
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <div className="flex items-center gap-2">
+                    {isScanningDashboard ? (
+                      <Sparkles className="w-4 h-4 text-blue-500 shrink-0 animate-spin" />
+                    ) : aiDetectionStatus.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    )}
+                    <span className="leading-tight">{aiDetectionStatus.message}</span>
+                  </div>
+                  {!aiDetectionStatus.success && !isScanningDashboard && (photos['Dashboard'] || photoPreviews['Dashboard']) && (
+                    <button
+                      type="button"
+                      onClick={() => runDashboardAiIdentification(photos['Dashboard'] || photoPreviews['Dashboard'])}
+                      className="text-[10px] underline font-bold text-amber-900 hover:text-amber-950 shrink-0 ml-2"
+                    >
+                      Retry
+                    </button>
                   )}
-                  <span className="leading-tight">{aiDetectionStatus.message}</span>
                 </div>
               )}
               

@@ -23,24 +23,33 @@ export async function prepareMeterImageBase64(
   quality = 0.85
 ): Promise<{ base64: string; mimeType: string }> {
   return new Promise((resolve) => {
-    // If not in a browser canvas environment, fallback
-    if (typeof window === 'undefined' || typeof document === 'undefined') {
+    let resolved = false;
+    const safeResolve = (res: { base64: string; mimeType: string }) => {
+      if (!resolved) {
+        resolved = true;
+        resolve(res);
+      }
+    };
+
+    // Safety timeout: 3 seconds max for image processing
+    const timer = setTimeout(() => {
       if (typeof imageSource === 'string') {
         const clean = imageSource.includes(',') ? imageSource.split(',')[1] : imageSource;
-        resolve({ base64: clean, mimeType: 'image/jpeg' });
-        return;
+        safeResolve({ base64: clean, mimeType: 'image/jpeg' });
+      } else {
+        safeResolve({ base64: '', mimeType: 'image/jpeg' });
       }
-    }
+    }, 3000);
 
     const processDataUrl = (dataUrl: string) => {
       if (!dataUrl || !dataUrl.startsWith('data:')) {
+        clearTimeout(timer);
         const clean = dataUrl?.includes(',') ? dataUrl.split(',')[1] : (dataUrl || '');
-        resolve({ base64: clean, mimeType: 'image/jpeg' });
+        safeResolve({ base64: clean, mimeType: 'image/jpeg' });
         return;
       }
 
       const img = new Image();
-      // Notice: Never set crossOrigin on data: URLs because WebKit/iOS Safari treats canvas as tainted
       img.onload = () => {
         try {
           const canvas = document.createElement('canvas');
@@ -68,20 +77,22 @@ export async function prepareMeterImageBase64(
             ctx.drawImage(img, 0, 0, width, height);
             const compressedUrl = canvas.toDataURL('image/jpeg', quality);
             const base64Data = compressedUrl.split(',')[1];
-            resolve({ base64: base64Data, mimeType: 'image/jpeg' });
+            clearTimeout(timer);
+            safeResolve({ base64: base64Data, mimeType: 'image/jpeg' });
             return;
           }
         } catch (canvasErr) {
           console.warn('[prepareMeterImageBase64] Canvas compression fallback:', canvasErr);
         }
-        // Fallback to original data URL
+        clearTimeout(timer);
         const rawBase64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
-        resolve({ base64: rawBase64, mimeType: 'image/jpeg' });
+        safeResolve({ base64: rawBase64, mimeType: 'image/jpeg' });
       };
 
       img.onerror = () => {
+        clearTimeout(timer);
         const rawBase64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
-        resolve({ base64: rawBase64, mimeType: 'image/jpeg' });
+        safeResolve({ base64: rawBase64, mimeType: 'image/jpeg' });
       };
 
       img.src = dataUrl;
@@ -94,15 +105,12 @@ export async function prepareMeterImageBase64(
         processDataUrl(result);
       };
       reader.onerror = () => {
-        resolve({ base64: '', mimeType: 'image/jpeg' });
+        clearTimeout(timer);
+        safeResolve({ base64: '', mimeType: 'image/jpeg' });
       };
       reader.readAsDataURL(imageSource);
     } else {
-      if (imageSource.startsWith('data:')) {
-        processDataUrl(imageSource);
-      } else {
-        processDataUrl(`data:image/jpeg;base64,${imageSource}`);
-      }
+      processDataUrl(imageSource);
     }
   });
 }
