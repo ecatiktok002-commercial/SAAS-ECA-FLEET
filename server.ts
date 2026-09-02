@@ -135,7 +135,8 @@ Output strictly valid JSON with no markdown formatting or markdown code blocks:
       const responseText = response.text || '{}';
       let result: any = {};
       try {
-        result = JSON.parse(responseText);
+        const cleanText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        result = JSON.parse(cleanText);
       } catch (parseErr) {
         console.error('[/api/identify-dashboard] Failed to parse Gemini response JSON:', responseText);
       }

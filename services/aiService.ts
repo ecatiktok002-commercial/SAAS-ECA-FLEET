@@ -282,7 +282,8 @@ Output strictly valid JSON with no markdown formatting or markdown code blocks:
             });
           }
 
-          const parsedResult = JSON.parse(response.text || '{}');
+          const cleanText = (response.text || '{}').replace(/```json/gi, '').replace(/```/g, '').trim();
+          const parsedResult = JSON.parse(cleanText);
           data = {
             success: true,
             mileage: parsedResult.mileage,

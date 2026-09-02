@@ -208,7 +208,8 @@ serve(async (req) => {
         }
       });
 
-      const parsed = JSON.parse(response.text || '{}');
+      const cleanText = (response.text || '{}').replace(/```json/gi, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleanText);
       return new Response(
         JSON.stringify({
           success: true,
