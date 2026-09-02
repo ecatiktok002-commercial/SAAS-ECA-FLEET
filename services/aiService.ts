@@ -56,6 +56,15 @@ export async function prepareMeterImageBase64(
           let width = img.naturalWidth || img.width;
           let height = img.naturalHeight || img.height;
 
+          // If the image is already small enough, avoid re-compressing it via Canvas
+          // to prevent generational quality loss (especially for already highly compressed 60kb JPEGs)
+          if (width <= maxWidth && height <= maxHeight && dataUrl.startsWith('data:image/jpeg')) {
+            const rawBase64 = dataUrl.split(',')[1];
+            clearTimeout(timer);
+            safeResolve({ base64: rawBase64, mimeType: 'image/jpeg' });
+            return;
+          }
+
           if (width > height) {
             if (width > maxWidth) {
               height = Math.round((height * maxWidth) / width);
@@ -264,8 +273,23 @@ Output strictly valid JSON with no markdown formatting or markdown code blocks:
               },
             });
           } catch (modelErr) {
-            console.error('[/api/identify-dashboard] Gemini 2.5 flash error:', modelErr);
-            throw modelErr;
+            console.warn('[/api/identify-dashboard] Gemini 2.5 flash error, falling back to gemini-1.5-flash:', modelErr);
+            response = await ai.models.generateContent({
+              model: 'gemini-1.5-flash',
+              contents: [
+                {
+                  inlineData: {
+                    data: cleanBase64,
+                    mimeType: mimeType,
+                  },
+                },
+                prompt,
+              ],
+              config: {
+                responseMimeType: 'application/json',
+                temperature: 0,
+              },
+            });
           }
 
           const cleanText = (response.text || '{}').replace(/```json/gi, '').replace(/```/g, '').trim();

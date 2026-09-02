@@ -199,14 +199,26 @@ serve(async (req) => {
         }
       `;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: [dashboardPrompt, imagePart],
-        config: {
-          responseMimeType: 'application/json',
-          temperature: 0,
-        }
-      });
+      let response;
+      try {
+        response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: [dashboardPrompt, imagePart],
+          config: {
+            responseMimeType: 'application/json',
+            temperature: 0,
+          }
+        });
+      } catch (firstErr) {
+        response = await ai.models.generateContent({
+          model: 'gemini-1.5-flash',
+          contents: [dashboardPrompt, imagePart],
+          config: {
+            responseMimeType: 'application/json',
+            temperature: 0,
+          }
+        });
+      }
 
       const cleanText = (response.text || '{}').replace(/```json/gi, '').replace(/```/g, '').trim();
       const parsed = JSON.parse(cleanText);
@@ -246,13 +258,24 @@ serve(async (req) => {
       5. DO NOT include any other text, markdown formatting, JSON, or explanation. ONLY the YYYY-MM-DD string or "Cash".
     `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [prompt, imagePart],
-      config: {
-        temperature: 0,
-      }
-    });
+    let response;
+    try {
+      response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [prompt, imagePart],
+        config: {
+          temperature: 0,
+        }
+      });
+    } catch (firstErr) {
+      response = await ai.models.generateContent({
+        model: 'gemini-1.5-flash',
+        contents: [prompt, imagePart],
+        config: {
+          temperature: 0,
+        }
+      });
+    }
 
     const dateOrCash = response.text?.trim() || "Cash";
 
