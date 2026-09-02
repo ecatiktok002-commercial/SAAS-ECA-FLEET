@@ -18,9 +18,9 @@ export interface DashboardMeterReading {
  */
 export async function prepareMeterImageBase64(
   imageSource: File | string,
-  maxWidth = 800,
-  maxHeight = 800,
-  quality = 0.6
+  maxWidth = 1600,
+  maxHeight = 1600,
+  quality = 0.85
 ): Promise<{ base64: string; mimeType: string }> {
   return new Promise((resolve) => {
     let resolved = false;
@@ -264,22 +264,8 @@ Output strictly valid JSON with no markdown formatting or markdown code blocks:
               },
             });
           } catch (modelErr) {
-            response = await ai.models.generateContent({
-              model: 'gemini-2.0-flash',
-              contents: [
-                {
-                  inlineData: {
-                    data: cleanBase64,
-                    mimeType: mimeType,
-                  },
-                },
-                prompt,
-              ],
-              config: {
-                responseMimeType: 'application/json',
-                temperature: 0,
-              },
-            });
+            console.error('[/api/identify-dashboard] Gemini 2.5 flash error:', modelErr);
+            throw modelErr;
           }
 
           const cleanText = (response.text || '{}').replace(/```json/gi, '').replace(/```/g, '').trim();

@@ -113,23 +113,8 @@ Output strictly valid JSON with no markdown formatting or markdown code blocks:
           },
         });
       } catch (firstErr: any) {
-        console.warn('[/api/identify-dashboard] Gemini 2.5 flash error, falling back to gemini-2.0-flash:', firstErr.message);
-        response = await ai.models.generateContent({
-          model: 'gemini-2.0-flash',
-          contents: [
-            {
-              inlineData: {
-                data: cleanBase64,
-                mimeType: mimeType,
-              },
-            },
-            prompt,
-          ],
-          config: {
-            responseMimeType: 'application/json',
-            temperature: 0,
-          },
-        });
+        console.warn('[/api/identify-dashboard] Gemini 2.5 flash error:', firstErr.message);
+        throw firstErr;
       }
 
       const responseText = response.text || '{}';
