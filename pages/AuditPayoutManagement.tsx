@@ -188,14 +188,14 @@ useEffect(() => {
       refreshData();
       
       // Update selectedAgentBookings to remove it
-      setSelectedAgentBookings(prev => {
+      setSelectedAgentBookings((prev: any) => {
         if (!prev) return prev;
-        const newRecords = prev.records.filter(r => r.form_id !== record.form_id);
+        const newRecords = prev.records.filter((r: any) => r.form_id !== record.form_id);
         if (newRecords.length === 0) return null; // close modal if empty
         
         // Recalculate totals
         const newBookings = newRecords.length;
-        const newRevenue = newRecords.reduce((sum, r) => sum + (Number(r.form_price) || 0), 0);
+        const newRevenue = newRecords.reduce((sum: number, r: any) => sum + (Number(r.form_price) || 0), 0);
         return {
           ...prev,
           total_bookings: newBookings,
