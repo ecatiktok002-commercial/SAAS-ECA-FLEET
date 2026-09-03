@@ -398,7 +398,7 @@ const AdminDashboard: React.FC = () => {
     try {
       if (!subscriberId) return;
       setIsConfirmingReturn(true);
-      await apiService.updateBookingStatus(id, subscriberId, 'completed');
+      await apiService.updateBookingStatus(id, subscriberId, 'completed', true);
       setConfirmReturnId(null);
       await queryClient.refetchQueries({ queryKey: ['adminDashboard'] });
       toast.success('Vehicle marked as returned');

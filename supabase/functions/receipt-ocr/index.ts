@@ -195,8 +195,7 @@ serve(async (req) => {
         {
           "mileage": <integer number or null>,
           "fuel_level": <"Full Tank" | "7 Bar" | "6 Bar" | "5 Bar" | "4 Bar" | "3 Bar" | "2 Bar" | "1 Bar" | null>,
-          "confidence": <number 0.0 to 1.0>,
-          "notes": "<brief description of what was seen on the meter>"
+          "confidence,": <number 0.0 to 1.0>
         }
       `;
 
@@ -229,7 +228,6 @@ serve(async (req) => {
           mileage: parsed.mileage,
           fuel_level: parsed.fuel_level,
           confidence: parsed.confidence,
-          notes: parsed.notes,
           subscriberId: subscriberId,
           remainingQuota: rateCheck.remaining,
         }),

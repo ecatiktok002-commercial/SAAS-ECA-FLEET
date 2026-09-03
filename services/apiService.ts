@@ -1084,14 +1084,14 @@ export const apiService = {
     });
   },
 
-  async updateBookingStatus(id: string, subscriberId: string, status: 'pending' | 'active' | 'completed' | 'cancelled'): Promise<void> {
+  async updateBookingStatus(id: string, subscriberId: string, status: 'pending' | 'active' | 'completed' | 'cancelled', forceComplete: boolean = false): Promise<void> {
     const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
       let finalBookingStatus = status;
       let agreementsToUpdate: string[] = [];
 
       // If they are trying to complete the booking, we must check the agreements
-      if (status === 'completed') {
+      if (status === 'completed' && !forceComplete) {
         const { data: agreements } = await supabase
           .from('agreements')
           .select('id, payment_receipt, status')

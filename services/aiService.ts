@@ -18,9 +18,9 @@ export interface DashboardMeterReading {
  */
 export async function prepareMeterImageBase64(
   imageSource: File | string,
-  maxWidth = 1600,
-  maxHeight = 1600,
-  quality = 0.85
+  maxWidth = 800,
+  maxHeight = 800,
+  quality = 0.70
 ): Promise<{ base64: string; mimeType: string }> {
   return new Promise((resolve) => {
     let resolved = false;
@@ -251,8 +251,7 @@ Output strictly valid JSON with no markdown formatting or markdown code blocks:
 {
   "mileage": <integer number or null>,
   "fuel_level": <"Full Tank" | "7 Bar" | "6 Bar" | "5 Bar" | "4 Bar" | "3 Bar" | "2 Bar" | "1 Bar" | null>,
-  "confidence": <number 0.0 to 1.0>,
-  "notes": "<brief description of what was seen on the meter>"
+  "confidence": <number 0.0 to 1.0>
 }`;
 
           let response;
@@ -299,8 +298,7 @@ Output strictly valid JSON with no markdown formatting or markdown code blocks:
             success: true,
             mileage: parsedResult.mileage,
             fuel_level: parsedResult.fuel_level,
-            confidence: parsedResult.confidence,
-            notes: parsedResult.notes,
+            confidence: parsedResult.confidence
           };
           apiSuccess = true;
         } catch (directAiErr: any) {

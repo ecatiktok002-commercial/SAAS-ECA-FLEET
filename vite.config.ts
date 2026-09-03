@@ -150,8 +150,7 @@ Output strictly valid JSON with no markdown formatting or markdown code blocks:
 {
   "mileage": <integer number or null>,
   "fuel_level": <"Full Tank" | "7 Bar" | "6 Bar" | "5 Bar" | "4 Bar" | "3 Bar" | "2 Bar" | "1 Bar" | null>,
-  "confidence": <number 0.0 to 1.0>,
-  "notes": "<brief description of what was seen on the meter>"
+  "confidence": <number 0.0 to 1.0>
 }`;
 
           let response;
@@ -239,8 +238,7 @@ Output strictly valid JSON with no markdown formatting or markdown code blocks:
             success: true,
             mileage: parsedMileage,
             fuel_level: parsedFuel,
-            confidence: result.confidence ?? 0.9,
-            notes: result.notes || '',
+            confidence: result.confidence ?? 0.9
           }));
         } catch (err: any) {
           console.error('Error analyzing dashboard photo:', err);
