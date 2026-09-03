@@ -1,64 +1,41 @@
 const fs = require('fs');
 
-function fixFuelLogic(content) {
-  // We want to replace the brittle if/else block with a robust regex-based extraction.
-  // Instead of simple .includes() which has collision bugs (like "100%" matching "1"),
-  // we'll explicitly look for exact matches or percentages first.
-  
-  return content.replace(/if \(flLower\.includes\('full'\).*?parsedFuel = '1 Bar';/gs, `
-        if (flLower.includes('full') || flLower.includes('100%') || flLower.includes('8/8') || flLower === 'f' || flLower === '8') parsedFuel = 'Full Tank';
-        else if (flLower.includes('75%') || flLower.includes('3/4') || flLower.includes('6/8')) parsedFuel = '6 Bar';
-        else if (flLower.includes('50%') || flLower.includes('1/2') || flLower.includes('half') || flLower.includes('4/8')) parsedFuel = '4 Bar';
-        else if (flLower.includes('25%') || flLower.includes('1/4') || flLower.includes('2/8')) parsedFuel = '2 Bar';
-        else if (flLower.match(/\\b8\\b/) || flLower.includes('8 bar')) parsedFuel = 'Full Tank';
-        else if (flLower.match(/\\b7\\b/) || flLower.includes('7 bar')) parsedFuel = '7 Bar';
-        else if (flLower.match(/\\b6\\b/) || flLower.includes('6 bar')) parsedFuel = '6 Bar';
-        else if (flLower.match(/\\b5\\b/) || flLower.includes('5 bar')) parsedFuel = '5 Bar';
-        else if (flLower.match(/\\b4\\b/) || flLower.includes('4 bar')) parsedFuel = '4 Bar';
-        else if (flLower.match(/\\b3\\b/) || flLower.includes('3 bar')) parsedFuel = '3 Bar';
-        else if (flLower.match(/\\b2\\b/) || flLower.includes('2 bar')) parsedFuel = '2 Bar';
-        else if (flLower.match(/\\b1\\b/) || flLower.includes('1 bar') || flLower.includes('low') || flLower.includes('empty') || flLower === 'e' || flLower.includes('0%')) parsedFuel = '1 Bar';
-        else parsedFuel = result.fuel_level; // keep original if no match
-`);
+function fixPrompt(content) {
+  const newFuelPrompt = `1. FUEL LEVEL:
+- For LCD segment bar displays (horizontal or vertical bar blocks between E and F):
+  * CRITICAL: You must differentiate between SOLID/FILLED blocks and HOLLOW/EMPTY outlines.
+  * ONLY count the number of SOLID, FILLED dark blocks starting from 'E' towards 'F'. Do NOT count the empty hollow outlines.
+  * For example, if a vertical gauge has 8 blocks total, but only the bottom 6 are solid black and the top 2 are hollow outlines, output "6 Bar".
+  * Mapping:
+    - 8 solid bars (all blocks filled) => "Full Tank"
+    - 7 solid bars => "7 Bar"
+    - 6 solid bars (approx 3/4) => "6 Bar"
+    - 5 solid bars => "5 Bar"
+    - 4 solid bars (halfway) => "4 Bar"
+    - 3 solid bars => "3 Bar"
+    - 2 solid bars (approx 1/4) => "2 Bar"
+    - 1 solid bar (near 'E') => "1 Bar"`;
+
+  const regex = /1\. FUEL LEVEL:[\s\S]*?- 1 bar \(near 'E'\) => "1 Bar"/g;
+  return content.replace(regex, newFuelPrompt);
 }
 
-function fixAiServiceFuelLogic(content) {
-  return content.replace(/if \(flLower\.includes\('full'\).*?fuelLevel = '1 Bar';\n\s*\}/gs, `
-      if (flLower.includes('full') || flLower.includes('100%') || flLower.includes('8/8') || flLower === 'f' || flLower === '8') {
-        fuelLevel = 'Full Tank';
-      } else if (flLower.includes('75%') || flLower.includes('3/4') || flLower.includes('6/8')) {
-        fuelLevel = '6 Bar';
-      } else if (flLower.includes('50%') || flLower.includes('1/2') || flLower.includes('half') || flLower.includes('4/8')) {
-        fuelLevel = '4 Bar';
-      } else if (flLower.includes('25%') || flLower.includes('1/4') || flLower.includes('2/8')) {
-        fuelLevel = '2 Bar';
-      } else if (flLower.match(/\\b8\\b/) || flLower.includes('8 bar')) {
-        fuelLevel = 'Full Tank';
-      } else if (flLower.match(/\\b7\\b/) || flLower.includes('7 bar')) {
-        fuelLevel = '7 Bar';
-      } else if (flLower.match(/\\b6\\b/) || flLower.includes('6 bar')) {
-        fuelLevel = '6 Bar';
-      } else if (flLower.match(/\\b5\\b/) || flLower.includes('5 bar')) {
-        fuelLevel = '5 Bar';
-      } else if (flLower.match(/\\b4\\b/) || flLower.includes('4 bar')) {
-        fuelLevel = '4 Bar';
-      } else if (flLower.match(/\\b3\\b/) || flLower.includes('3 bar')) {
-        fuelLevel = '3 Bar';
-      } else if (flLower.match(/\\b2\\b/) || flLower.includes('2 bar')) {
-        fuelLevel = '2 Bar';
-      } else if (flLower.match(/\\b1\\b/) || flLower.includes('1 bar') || flLower.includes('low') || flLower.includes('empty') || flLower === 'e' || flLower.includes('0%')) {
-        fuelLevel = '1 Bar';
-      }
-`);
-}
+const files = [
+  'server.ts', 
+  'vite.config.ts', 
+  'supabase/functions/receipt-ocr/index.ts', 
+  'services/aiService.ts'
+];
 
-let serverTs = fs.readFileSync('server.ts', 'utf8');
-fs.writeFileSync('server.ts', fixFuelLogic(serverTs));
-
-let viteTs = fs.readFileSync('vite.config.ts', 'utf8');
-fs.writeFileSync('vite.config.ts', fixFuelLogic(viteTs));
-
-let aiTs = fs.readFileSync('services/aiService.ts', 'utf8');
-fs.writeFileSync('services/aiService.ts', fixAiServiceFuelLogic(aiTs));
-
-console.log("Fixed!");
+files.forEach(file => {
+  if (fs.existsSync(file)) {
+    let content = fs.readFileSync(file, 'utf8');
+    const newContent = fixPrompt(content);
+    if (content !== newContent) {
+      fs.writeFileSync(file, newContent);
+      console.log(`Updated ${file}`);
+    } else {
+      console.log(`No changes made to ${file}`);
+    }
+  }
+});
