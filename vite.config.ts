@@ -156,7 +156,7 @@ Output strictly valid JSON with no markdown formatting or markdown code blocks:
           let response;
           try {
             response = await ai.models.generateContent({
-              model: 'gemini-3.6-flash',
+              model: 'gemini-2.5-flash',
               contents: [
                 {
                   inlineData: {
@@ -172,9 +172,9 @@ Output strictly valid JSON with no markdown formatting or markdown code blocks:
               },
             });
           } catch (firstErr: any) {
-            console.warn('Gemini 3.6 flash error, trying gemini-3.6-flash:', firstErr.message);
+            console.warn('Gemini 3.6 flash error, trying gemini-2.5-flash:', firstErr.message);
             response = await ai.models.generateContent({
-              model: 'gemini-3.6-flash',
+              model: 'gemini-2.5-flash',
               contents: [
                 {
                   inlineData: {
