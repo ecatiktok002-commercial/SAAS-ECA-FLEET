@@ -7,7 +7,7 @@ import { getNowMYT, utcToMyt, formatInMYT, getAgreementPickupDateTime, getMYTDat
 import { 
   Users, Car, CalendarCheck, DollarSign, FileText, AlertTriangle, 
   TrendingUp, TrendingDown, Clock, ArrowRight, Plus, Zap, AlertCircle, CheckCircle2,
-  Wallet, BarChart3, ListTodo, X
+  Wallet, BarChart3, ListTodo, X, Sparkles
 } from 'lucide-react';
 import { Link, Navigate } from 'react-router-dom';
 import { Agreement, Booking, Car as CarType, MarketingEvent, Member } from '../types';
@@ -152,8 +152,10 @@ const AdminDashboard: React.FC = () => {
     let startDayThisWeek = 1;
     let endDayThisWeek = 7;
     let thisWeekCycleLabel = `Week 1 (Day 1 - 7)`;
+    
     let startOfLastWeekStr = '';
     let endOfLastWeekStr = '';
+    let endOfLastWeekApplesStr = '';
 
     if (currentDayOfMonth >= 1 && currentDayOfMonth <= 7) {
       startDayThisWeek = 1;
@@ -171,6 +173,10 @@ const AdminDashboard: React.FC = () => {
       const prevMonthStr = prevMonth.toString().padStart(2, '0');
       startOfLastWeekStr = `${prevYear}-${prevMonthStr}-24`;
       endOfLastWeekStr = `${prevYear}-${prevMonthStr}-${prevMonthDays.toString().padStart(2, '0')}`;
+      
+      const dayOffset = currentDayOfMonth - startDayThisWeek;
+      const applesEndDay = 24 + dayOffset;
+      endOfLastWeekApplesStr = `${prevYear}-${prevMonthStr}-${applesEndDay.toString().padStart(2, '0')}`;
     } else if (currentDayOfMonth >= 8 && currentDayOfMonth <= 15) {
       startDayThisWeek = 8;
       endDayThisWeek = 15;
@@ -178,6 +184,10 @@ const AdminDashboard: React.FC = () => {
 
       startOfLastWeekStr = `${currentMytYear}-${currentMonthStr}-01`;
       endOfLastWeekStr = `${currentMytYear}-${currentMonthStr}-07`;
+      
+      const dayOffset = currentDayOfMonth - startDayThisWeek;
+      const applesEndDay = 1 + dayOffset;
+      endOfLastWeekApplesStr = `${currentMytYear}-${currentMonthStr}-${applesEndDay.toString().padStart(2, '0')}`;
     } else if (currentDayOfMonth >= 16 && currentDayOfMonth <= 23) {
       startDayThisWeek = 16;
       endDayThisWeek = 23;
@@ -185,6 +195,10 @@ const AdminDashboard: React.FC = () => {
 
       startOfLastWeekStr = `${currentMytYear}-${currentMonthStr}-08`;
       endOfLastWeekStr = `${currentMytYear}-${currentMonthStr}-15`;
+      
+      const dayOffset = currentDayOfMonth - startDayThisWeek;
+      const applesEndDay = 8 + dayOffset;
+      endOfLastWeekApplesStr = `${currentMytYear}-${currentMonthStr}-${applesEndDay.toString().padStart(2, '0')}`;
     } else {
       startDayThisWeek = 24;
       endDayThisWeek = monthDays;
@@ -192,10 +206,28 @@ const AdminDashboard: React.FC = () => {
 
       startOfLastWeekStr = `${currentMytYear}-${currentMonthStr}-16`;
       endOfLastWeekStr = `${currentMytYear}-${currentMonthStr}-23`;
+      
+      const dayOffset = currentDayOfMonth - startDayThisWeek;
+      const applesEndDay = 16 + dayOffset;
+      endOfLastWeekApplesStr = `${currentMytYear}-${currentMonthStr}-${applesEndDay.toString().padStart(2, '0')}`;
     }
 
     const startOfWeekStr = `${currentMytYear}-${currentMonthStr}-${startDayThisWeek.toString().padStart(2, '0')}`;
     const endOfWeekStr = `${currentMytYear}-${currentMonthStr}-${endDayThisWeek.toString().padStart(2, '0')}`;
+
+    // Last Month Apples-to-Apples Dates
+    let prevYearLastMonth = currentMytYear;
+    let prevMonthLastMonth = currentMytMonth - 1;
+    if (prevMonthLastMonth <= 0) {
+        prevMonthLastMonth = 12;
+        prevYearLastMonth -= 1;
+    }
+    const prevMonthLastMonthStr = prevMonthLastMonth.toString().padStart(2, '0');
+    const startOfLastMonthStr = `${prevYearLastMonth}-${prevMonthLastMonthStr}-01`;
+    const prevMonthDaysApples = new Date(prevYearLastMonth, prevMonthLastMonth, 0).getDate();
+    const applesToApplesLastMonthDay = Math.min(currentDayOfMonth, prevMonthDaysApples);
+    const endOfLastMonthApplesStr = `${prevYearLastMonth}-${prevMonthLastMonthStr}-${applesToApplesLastMonthDay.toString().padStart(2, '0')}`;
+
 
     // Past 6 months sales tracking
     const past6MonthsSales = Array.from({ length: 6 }).map((_, i) => {
@@ -229,7 +261,9 @@ const AdminDashboard: React.FC = () => {
     let salesToday = 0;
     let salesThisWeek = 0;
     let salesLastWeek = 0;
+    let salesLastWeekApples = 0;
     let salesThisMonth = 0;
+    let salesLastMonthApples = 0;
     
     completedAgreements.forEach(a => {
       // Sales are attributed by Pickup Date (start_date) in MYT
@@ -238,7 +272,9 @@ const AdminDashboard: React.FC = () => {
       if (matchDateStr === todayStr) salesToday += price;
       if (matchDateStr >= startOfWeekStr && matchDateStr <= endOfWeekStr) salesThisWeek += price;
       if (matchDateStr >= startOfLastWeekStr && matchDateStr <= endOfLastWeekStr) salesLastWeek += price;
+      if (matchDateStr >= startOfLastWeekStr && matchDateStr <= endOfLastWeekApplesStr) salesLastWeekApples += price;
       if (matchDateStr >= startOfMonthStr && matchDateStr <= endOfMonthStr) salesThisMonth += price;
+      if (matchDateStr >= startOfLastMonthStr && matchDateStr <= endOfLastMonthApplesStr) salesLastMonthApples += price;
 
       // Populate past 6 months
       for (const monthData of past6MonthsSales) {
@@ -348,8 +384,10 @@ const AdminDashboard: React.FC = () => {
         salesToday,
         salesThisWeek,
         salesLastWeek,
+        salesLastWeekApples,
         salesThisMonth,
         salesLastMonth,
+        salesLastMonthApples,
         past6MonthsSales,
         thisWeekCycleLabel,
         idleVehicles: Math.max(0, idleVehicles),
@@ -481,10 +519,10 @@ const AdminDashboard: React.FC = () => {
             <h3 className="text-slate-500 text-sm font-medium mb-2">Sales This Week</h3>
             <p className="text-3xl font-bold text-slate-900">{currencyFormatter.format(stats.salesThisWeek)}</p>
             {stats.salesThisWeek > 0 ? (
-              stats.salesLastWeek > 0 ? (
-                <div className={`flex items-center text-xs font-medium mt-2 ${stats.salesThisWeek >= stats.salesLastWeek ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {stats.salesThisWeek >= stats.salesLastWeek ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-                  {stats.salesThisWeek >= stats.salesLastWeek ? '↑ +' : '↓ '}{Math.abs(Number((((stats.salesThisWeek - stats.salesLastWeek) / stats.salesLastWeek) * 100).toFixed(1)))}% vs last week
+              stats.salesLastWeekApples > 0 ? (
+                <div title="Apples-to-apples comparison (Same period last week)" className={`flex items-center text-xs font-medium mt-2 cursor-help ${stats.salesThisWeek >= stats.salesLastWeekApples ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {stats.salesThisWeek >= stats.salesLastWeekApples ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                  {stats.salesThisWeek >= stats.salesLastWeekApples ? '↑ +' : '↓ '}{Math.abs(Number((((stats.salesThisWeek - stats.salesLastWeekApples) / stats.salesLastWeekApples) * 100).toFixed(1)))}% vs last week
                 </div>
               ) : (
                 <div className="flex items-center text-emerald-600 text-xs font-medium mt-2">
@@ -499,10 +537,10 @@ const AdminDashboard: React.FC = () => {
             <h3 className="text-slate-500 text-sm font-medium mb-2">Sales This Month</h3>
             <p className="text-3xl font-bold text-slate-900">{currencyFormatter.format(stats.salesThisMonth)}</p>
             {stats.salesThisMonth > 0 ? (
-              stats.salesLastMonth > 0 ? (
-                <div className={`flex items-center text-xs font-medium mt-2 ${stats.salesThisMonth >= stats.salesLastMonth ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {stats.salesThisMonth >= stats.salesLastMonth ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-                  {stats.salesThisMonth >= stats.salesLastMonth ? '↑ +' : '↓ '}{Math.abs(Number((((stats.salesThisMonth - stats.salesLastMonth) / stats.salesLastMonth) * 100).toFixed(1)))}% vs last month
+              stats.salesLastMonthApples > 0 ? (
+                <div title="Apples-to-apples comparison (Same period last month)" className={`flex items-center text-xs font-medium mt-2 cursor-help ${stats.salesThisMonth >= stats.salesLastMonthApples ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {stats.salesThisMonth >= stats.salesLastMonthApples ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                  {stats.salesThisMonth >= stats.salesLastMonthApples ? '↑ +' : '↓ '}{Math.abs(Number((((stats.salesThisMonth - stats.salesLastMonthApples) / stats.salesLastMonthApples) * 100).toFixed(1)))}% vs last month
                 </div>
               ) : (
                 <div className="flex items-center text-emerald-600 text-xs font-medium mt-2">

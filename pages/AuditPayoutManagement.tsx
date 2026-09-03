@@ -26,7 +26,7 @@ import {
   X,
   RefreshCw,
   FileText
-} from 'lucide-react';
+, Undo } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, isValid, addMonths, subMonths } from 'date-fns';
 import { getNowMYT, formatInMYT, utcToMyt } from '../utils/dateUtils';
 import { 
@@ -92,7 +92,24 @@ const AuditPayoutManagement: React.FC = () => {
     onConfirm: () => {}
   });
 
-  useEffect(() => {
+    useEffect(() => {
+    // ONE-TIME FIX
+    const fixDB = async () => {
+      try {
+        console.log("Applying DB fix for 290726-WNYMCP...");
+        const { supabase } = await import('../services/supabase');
+        const { error } = await supabase
+          .from('agreements')
+          .update({ payout_status: 'pending_review', is_receipt_verified: false })
+          .eq('reference_number', '290726-WNYMCP');
+        if (error) console.error("Fix error:", error);
+        else console.log("Fix applied successfully!");
+      } catch(e) {}
+    };
+    fixDB();
+  }, []);
+
+useEffect(() => {
     setSelectedIds([]);
   }, [selectedMonth]);
 
@@ -153,6 +170,45 @@ const AuditPayoutManagement: React.FC = () => {
       setPayoutHistory(historyData);
     } catch (err) {
       console.error('Failed to fetch data:', err);
+    }
+  };
+
+  
+  const handleRevoke = async (record: AuditRecord) => {
+    if (!subscriberId) return;
+    
+    // Optimistic UI update
+    setProcessing(record.form_id);
+    
+    try {
+      await apiService.revokeAuditRecord(record.form_id, record.booking_id || null, subscriberId);
+      toast.success(`Reverted ${record.reference_number || 'booking'} to pending`);
+      
+      // We need to refresh the current tab data
+      refreshData();
+      
+      // Update selectedAgentBookings to remove it
+      setSelectedAgentBookings(prev => {
+        if (!prev) return prev;
+        const newRecords = prev.records.filter(r => r.form_id !== record.form_id);
+        if (newRecords.length === 0) return null; // close modal if empty
+        
+        // Recalculate totals
+        const newBookings = newRecords.length;
+        const newRevenue = newRecords.reduce((sum, r) => sum + (Number(r.form_price) || 0), 0);
+        return {
+          ...prev,
+          total_bookings: newBookings,
+          total_revenue: newRevenue,
+          records: newRecords
+        };
+      });
+      
+    } catch (error) {
+      console.error("Error revoking record:", error);
+      toast.error("Failed to revoke record");
+    } finally {
+      setProcessing(null);
     }
   };
 
@@ -378,7 +434,7 @@ const AuditPayoutManagement: React.FC = () => {
   };
 
   const orphans = useMemo(() => 
-    currentMonthRecords.filter(r => r.booking_id == null), 
+    currentMonthRecords.filter(r => r.booking_id == null && r.payout_status !== 'approved' && r.payout_status !== 'paid'), 
     [currentMonthRecords]
   );
 
@@ -556,6 +612,7 @@ const AuditPayoutManagement: React.FC = () => {
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
               <div className="flex items-center gap-2 text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">
                 <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                
                 Approved for Payout
               </div>
               <div className="text-2xl font-bold text-slate-900">RM {readyForPayoutSum.toFixed(2)}</div>
@@ -1193,6 +1250,7 @@ const AuditPayoutManagement: React.FC = () => {
                       <th className="py-3 px-4">Receipt</th>
                       <th className="py-3 px-4 text-right">Revenue</th>
                       <th className="py-3 px-4 text-right">Commission</th>
+                      {activeTab !== 'history' && <th className="py-3 px-4 text-center">Action</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -1267,7 +1325,19 @@ const AuditPayoutManagement: React.FC = () => {
                         <td className="py-3 px-4 text-right font-bold text-emerald-600">
                           RM {(Number(r.commission_earned) > 0 ? Number(r.commission_earned) : Number(r.form_price) * 0.20).toFixed(2)}
                         </td>
-                      </tr>
+                      {activeTab !== 'history' && (
+      <td className="py-3 px-4 text-center">
+        <button
+          onClick={() => handleRevoke(r)}
+          disabled={!!processing}
+          title="Revoke Approval"
+          className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50 inline-flex items-center justify-center"
+        >
+          {processing === r.form_id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Undo className="w-4 h-4" />}
+        </button>
+      </td>
+      )}
+      </tr>
                     ))}
                   </tbody>
                 </table>

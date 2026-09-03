@@ -95,6 +95,7 @@ const AgentDashboard: React.FC = () => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 30000);
+  
     return () => clearInterval(timer);
   }, []);
 
@@ -254,6 +255,25 @@ const AgentDashboard: React.FC = () => {
     const startOfWeekStr = `${currentMytYear}-${currentMonthStr}-${startDayThisWeek.toString().padStart(2, '0')}`;
     const endOfWeekStr = `${currentMytYear}-${currentMonthStr}-${endDayThisWeek.toString().padStart(2, '0')}`;
 
+    // Calculate Month-To-Date (MTD) and Week-To-Date (WTD) bounds
+    let prevMonthYearForMtd = currentMytYear;
+    let prevMonthMonthForMtd = currentMytMonth - 1;
+    if (prevMonthMonthForMtd <= 0) {
+      prevMonthMonthForMtd = 12;
+      prevMonthYearForMtd -= 1;
+    }
+    const prevMonthDays2 = new Date(prevMonthYearForMtd, prevMonthMonthForMtd, 0).getDate();
+    const cappedDayMonth = Math.min(currentDayOfMonth, prevMonthDays2);
+    const startOfLastMonthMtdStr = `${prevMonthYearForMtd}-${prevMonthMonthForMtd.toString().padStart(2, '0')}-01`;
+    const endOfLastMonthMtdStr = `${prevMonthYearForMtd}-${prevMonthMonthForMtd.toString().padStart(2, '0')}-${cappedDayMonth.toString().padStart(2, '0')}`;
+
+    const dayOfCycle = currentDayOfMonth - startDayThisWeek + 1;
+    const startDayLastWeek = parseInt(startOfLastWeekStr.substring(8), 10);
+    const endDayLastWeekLimit = parseInt(endOfLastWeekStr.substring(8), 10);
+    const endDayLastWeekToDate = Math.min(startDayLastWeek + dayOfCycle - 1, endDayLastWeekLimit);
+    const endOfLastWeekToDateStr = startOfLastWeekStr.substring(0, 8) + endDayLastWeekToDate.toString().padStart(2, '0');
+
+
     // Past 6 months sales tracking
     const past6MonthsSales = Array.from({ length: 6 }).map((_, i) => {
       let targetYear = currentMytYear;
@@ -329,7 +349,9 @@ const AgentDashboard: React.FC = () => {
     let salesToday = 0;
     let salesThisWeek = 0;
     let salesLastWeek = 0;
+    let salesLastWeekToDate = 0;
     let salesThisMonth = 0;
+    let salesLastMonthToDate = 0;
     
     completedAgreements.forEach(a => {
       // Sales are attributed by Pickup Date (start_date) in MYT
@@ -338,7 +360,9 @@ const AgentDashboard: React.FC = () => {
       if (matchDateStr === todayStr) salesToday += price;
       if (matchDateStr >= startOfWeekStr && matchDateStr <= endOfWeekStr) salesThisWeek += price;
       if (matchDateStr >= startOfLastWeekStr && matchDateStr <= endOfLastWeekStr) salesLastWeek += price;
+      if (matchDateStr >= startOfLastWeekStr && matchDateStr <= endOfLastWeekToDateStr) salesLastWeekToDate += price;
       if (matchDateStr >= startOfMonthStr && matchDateStr <= endOfMonthStr) salesThisMonth += price;
+      if (matchDateStr >= startOfLastMonthMtdStr && matchDateStr <= endOfLastMonthMtdStr) salesLastMonthToDate += price;
 
       // Populate past 6 months
       for (const monthData of past6MonthsSales) {
@@ -651,6 +675,8 @@ const AgentDashboard: React.FC = () => {
         salesLastWeek,
         salesThisMonth,
         salesLastMonth,
+        salesLastMonthToDate,
+        salesLastWeekToDate,
         past6MonthsSales,
         thisWeekCycleLabel,
         idleVehicles: Math.max(0, idleVehicles),
@@ -788,6 +814,81 @@ const AgentDashboard: React.FC = () => {
     }
   };
 
+  const actionQueueTasks = useMemo(() => {
+    if (!dashboardData) return [];
+    const queue: any[] = [];
+    
+    // Priority 1: Overdue Returns
+    dashboardData.overdueReturns.forEach((item: any) => {
+      queue.push({
+        id: `overdue-${item.id}`,
+        priority: 1,
+        color: 'rose',
+        icon: Clock,
+        title: `Action Required: Vehicle ${item.carPlate} is overdue for return!`,
+        subtitle: `Customer: ${item.customerName} - ${formatTimeDiff(item.returnTime).toUpperCase()} LATE`,
+        actionText: 'Ping Customer',
+        onClick: () => {
+          window.open(`https://wa.me/?text=Hello ${item.customerName}, your vehicle ${item.carPlate} is overdue for return. Please contact us immediately.`, '_blank');
+        },
+        secondaryActionText: 'Mark Returned',
+        secondaryOnClick: () => {
+          setConfirmReturnId(item.id);
+        }
+      });
+    });
+
+    // Priority 2: Pending Deliveries (Pickups)
+    dashboardData.pendingDeliveries.forEach((item: any) => {
+      queue.push({
+        id: `pickup-${item.id}`,
+        priority: 2,
+        color: 'blue',
+        icon: ArrowRight,
+        title: `Vehicle ${item.carPlate} arriving for pickup`,
+        subtitle: `Customer: ${item.customerName} - Scheduled: ${formatInMYT(item.pickupTime.getTime(), 'h:mm a')}`,
+        actionText: 'Start Handover',
+        onClick: () => {
+          navigate(`/handover/${item.id}`);
+        }
+      });
+    });
+
+    // Priority 3: Payment Receipt Needed
+    dashboardData.unpaidForms.forEach((form: any) => {
+      queue.push({
+        id: `unpaid-${form.id}`,
+        priority: 3,
+        color: 'violet',
+        icon: Receipt,
+        title: `Verify Payment Receipt for Customer ${form.customer_name || 'Unknown'}`,
+        subtitle: `Form #${form.reference_number || 'N/A'} - Total: ${currencyFormatter.format(Number(form.total_price) || 0)}`,
+        actionText: 'View Receipt',
+        onClick: () => {
+          navigate('/forms');
+        }
+      });
+    });
+
+    // Priority 4: Signature Pending
+    dashboardData.unsignedForms.forEach((form: any) => {
+      queue.push({
+        id: `unsigned-${form.id}`,
+        priority: 4,
+        color: 'amber',
+        icon: FileSignature,
+        title: `Signature Pending for Customer ${form.customer_name || 'Unknown'}`,
+        subtitle: `Form #${form.reference_number || 'N/A'} - Total: ${currencyFormatter.format(Number(form.total_price) || 0)}`,
+        actionText: 'Ping Customer',
+        onClick: () => {
+          window.open(`https://wa.me/?text=Hello ${form.customer_name}, please sign your rental agreement: ${window.location.origin}/forms/sign/${form.id}`, '_blank');
+        }
+      });
+    });
+
+    return queue.sort((a: any, b: any) => a.priority - b.priority);
+  }, [dashboardData, navigate, currencyFormatter]);
+
   if (loading) {
     return (
       <div className="p-8 max-w-7xl mx-auto flex items-center justify-center h-64">
@@ -847,6 +948,8 @@ const AgentDashboard: React.FC = () => {
 
   const defaultStaffName = currentStaff?.name || userName || userUid || (userId ? `Staff (${userId.slice(0, 6)})` : 'Staff');
   const displayStaffName = customAgentName.trim() || defaultStaffName;
+
+
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
@@ -963,383 +1066,101 @@ const AgentDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Enhanced Daily Mission Log & Action Center */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-8">
-          <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100/70 text-blue-700 rounded-xl">
-                <ListTodo className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="font-bold text-slate-900 uppercase tracking-tight text-base">Daily Mission Log</h2>
-                  {totalMissionsCount > 0 && (
-                    <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-500 text-white shadow-xs">
-                      {totalMissionsCount} Pending Action{totalMissionsCount > 1 ? 's' : ''}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-500 mt-0.5">Prioritized actions for unsigned forms, pending payments, and vehicle operations.</p>
-              </div>
+        
+        {/* ACTION-QUEUE UX (Zero Cognitive Load) */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-indigo-600" /> Smart Action-Queue
+              </h2>
+              <p className="text-slate-500 text-sm mt-0.5">Your intelligent assistant. Tasks are sorted by priority automatically.</p>
             </div>
-
-            {/* Filter Tabs */}
-            <div className="flex items-center gap-1.5 bg-slate-200/70 p-1 rounded-xl self-start sm:self-auto text-xs font-semibold">
-              <button
-                onClick={() => setMissionFilter('all')}
-                className={`px-3 py-1.5 rounded-lg transition-all ${missionFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-              >
-                All Missions ({totalMissionsCount})
-              </button>
-              <button
-                onClick={() => setMissionFilter('forms')}
-                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${missionFilter === 'forms' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-              >
-                <span>Forms Action</span>
-                {totalUrgentFormsCount > 0 && (
-                  <span className="px-1.5 py-0.2 bg-amber-100 text-amber-800 rounded-md text-[10px] font-bold">
-                    {totalUrgentFormsCount}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={() => setMissionFilter('vehicles')}
-                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${missionFilter === 'vehicles' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-              >
-                <span>Vehicle Ops</span>
-                {totalVehicleOpsCount > 0 && (
-                  <span className="px-1.5 py-0.2 bg-blue-100 text-blue-800 rounded-md text-[10px] font-bold">
-                    {totalVehicleOpsCount}
-                  </span>
-                )}
-              </button>
+            <div className="bg-slate-900 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-sm">
+              {actionQueueTasks.length} Task{actionQueueTasks.length !== 1 && 's'} Pending
             </div>
           </div>
+          
+          <div className="space-y-3">
+            {actionQueueTasks.length === 0 ? (
+              <div className="bg-white rounded-xl border border-slate-200 p-8 text-center shadow-sm">
+                <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900">All caught up!</h3>
+                <p className="text-slate-500 mt-1">There are no pending actions in your queue.</p>
+              </div>
+            ) : (
+              actionQueueTasks.map((task, index) => {
+                const Icon = task.icon;
+                const isTopTask = index === 0;
+                
+                // Colors based on priority
+                const colorMap: any = {
+                  rose: 'bg-rose-50 border-rose-200 text-rose-900',
+                  blue: 'bg-blue-50 border-blue-200 text-blue-900',
+                  violet: 'bg-violet-50 border-violet-200 text-violet-900',
+                  amber: 'bg-amber-50 border-amber-200 text-amber-900'
+                };
+                
+                const iconBgMap: any = {
+                  rose: 'bg-rose-100 text-rose-600',
+                  blue: 'bg-blue-100 text-blue-600',
+                  violet: 'bg-violet-100 text-violet-600',
+                  amber: 'bg-amber-100 text-amber-600'
+                };
 
-          <div className="divide-y divide-slate-100">
-            {(() => {
-              // 1. Digital Forms needing signature
-              const unsignedItems = unsignedForms.map(form => ({
-                id: `unsigned-${form.id}`,
-                category: 'forms' as const,
-                type: 'unsigned' as const,
-                title: form.customer_name || 'Customer Agreement',
-                subtitle: form.car_plate_number ? `${form.car_plate_number} · ${form.car_model || 'Vehicle'}` : (form.car_model || 'Rental Agreement'),
-                price: Number(form.total_price) || 0,
-                form,
-                date: new Date(form.created_at || Date.now())
-              }));
+                const buttonMap: any = {
+                  rose: 'bg-rose-600 hover:bg-rose-700 text-white',
+                  blue: 'bg-blue-600 hover:bg-blue-700 text-white',
+                  violet: 'bg-violet-600 hover:bg-violet-700 text-white',
+                  amber: 'bg-amber-600 hover:bg-amber-700 text-white'
+                };
 
-              // 2. Digital Forms needing payment receipt (excluding those that are already in unsignedItems to avoid visual redundancy)
-              const unpaidOnlyForms = unpaidForms.filter(f => !unsignedForms.some(u => u.id === f.id));
-              const unpaidItems = unpaidOnlyForms.map(form => ({
-                id: `unpaid-${form.id}`,
-                category: 'forms' as const,
-                type: 'unpaid' as const,
-                title: form.customer_name || 'Customer Agreement',
-                subtitle: form.car_plate_number ? `${form.car_plate_number} · ${form.car_model || 'Vehicle'}` : (form.car_model || 'Rental Agreement'),
-                price: Number(form.total_price) || 0,
-                form,
-                date: new Date(form.created_at || Date.now())
-              }));
-
-              // 3. Vehicle Deliveries and Overdue Returns
-              const deliveryItems = pendingDeliveries.map(p => ({
-                id: `pickup-${p.id}`,
-                category: 'vehicles' as const,
-                type: 'pickup' as const,
-                title: p.carPlate,
-                subtitle: p.customerName,
-                time: p.pickupTime,
-                bookingId: p.id
-              }));
-
-              const returnItems = overdueReturns.map(r => ({
-                id: `return-${r.id}`,
-                category: 'vehicles' as const,
-                type: 'return' as const,
-                title: r.carPlate,
-                subtitle: r.customerName,
-                time: r.returnTime,
-                bookingId: r.id
-              }));
-
-              let visibleItems: any[] = [];
-              if (missionFilter === 'all') {
-                visibleItems = [...unsignedItems, ...unpaidItems, ...returnItems, ...deliveryItems];
-              } else if (missionFilter === 'forms') {
-                visibleItems = [...unsignedItems, ...unpaidItems];
-              } else if (missionFilter === 'vehicles') {
-                visibleItems = [...returnItems, ...deliveryItems];
-              }
-
-              if (visibleItems.length === 0) {
                 return (
-                  <div className="p-8 text-center flex flex-col items-center justify-center bg-slate-50/40">
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3">
-                      <CheckCircle2 className="w-6 h-6" />
+                  <div 
+                    key={task.id} 
+                    className={`rounded-2xl border ${isTopTask ? 'shadow-md border-indigo-200 bg-white ring-1 ring-indigo-100 scale-100' : 'shadow-sm bg-white/60 border-slate-200 scale-[0.99] opacity-80'} transition-all overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 gap-4`}
+                  >
+                    <div className="flex items-start sm:items-center gap-4">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${iconBgMap[task.color]}`}>
+                        <Icon className="w-6 h-6" />
+                      </div>
+                      <div>
+                        {isTopTask && (
+                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-800 mb-1">
+                            Focus Priority
+                          </span>
+                        )}
+                        <h3 className={`font-bold ${isTopTask ? 'text-lg text-slate-900' : 'text-base text-slate-700'}`}>{task.title}</h3>
+                        <p className={`text-sm mt-0.5 ${isTopTask ? 'text-slate-600' : 'text-slate-500'}`}>{task.subtitle}</p>
+                      </div>
                     </div>
-                    <h4 className="text-base font-bold text-slate-900">All Missions Cleared! 🎯</h4>
-                    <p className="text-xs text-slate-500 mt-1 max-w-sm">
-                      {missionFilter === 'forms' 
-                        ? 'All digital agreements are fully signed and paid.' 
-                        : missionFilter === 'vehicles' 
-                        ? 'No pending vehicle handovers or overdue returns right now.' 
-                        : 'All agreements are signed & paid, and all vehicle handovers are on schedule.'}
-                    </p>
-                    <div className="mt-4 flex items-center gap-2">
+                    
+                    <div className="flex items-center gap-2 mt-2 sm:mt-0 shrink-0 self-start sm:self-auto">
+                      {task.secondaryActionText && (
+                        <button
+                          onClick={task.secondaryOnClick}
+                          className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition-colors shadow-xs cursor-pointer"
+                        >
+                          {task.secondaryActionText}
+                        </button>
+                      )}
                       <button
-                        onClick={() => navigate('/forms/create')}
-                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-xs"
+                        onClick={task.onClick}
+                        className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-colors shadow-sm cursor-pointer ${buttonMap[task.color]}`}
                       >
-                        <FileText className="w-3.5 h-3.5" /> + Create New Agreement
-                      </button>
-                      <button
-                        onClick={() => navigate('/forms')}
-                        className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
-                      >
-                        View All Agreements
+                        {task.actionText}
                       </button>
                     </div>
                   </div>
                 );
-              }
-
-              return visibleItems.map((item) => {
-                if (item.type === 'unsigned') {
-                  const form = item.form as Agreement;
-                  return (
-                    <div key={item.id} className="p-4 sm:p-5 hover:bg-amber-50/40 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="flex items-start sm:items-center gap-3.5">
-                        <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
-                          <FileSignature className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800">
-                              Signature Pending
-                            </span>
-                            {form.reference_number && (
-                              <span className="text-slate-400 text-xs font-mono">
-                                #{form.reference_number}
-                              </span>
-                            )}
-                          </div>
-                          <h4 className="font-bold text-slate-900 text-sm mt-0.5">{item.title}</h4>
-                          <p className="text-xs text-slate-500">
-                            {item.subtitle} · <span className="font-semibold text-slate-700">{currencyFormatter.format(item.price)}</span>
-                            {form.customer_phone && <span className="text-slate-400 ml-1.5">({form.customer_phone})</span>}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Quick Action Buttons for Agent */}
-                      <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
-                        <button
-                          onClick={() => handleCopySignLink(form.id, form.customer_name)}
-                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-2xs"
-                          title="Copy customer e-signing link"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>Copy Sign Link</span>
-                        </button>
-
-                        <button
-                          onClick={() => handleWhatsAppReminder(form, 'sign')}
-                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-2xs"
-                          title="Send e-sign reminder via WhatsApp"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" />
-                          <span>WhatsApp Reminder</span>
-                        </button>
-
-                        <button
-                          onClick={() => navigate(`/forms/edit/${form.id}`)}
-                          className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                          title="Edit Agreement Details"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                }
-
-                if (item.type === 'unpaid') {
-                  const form = item.form as Agreement;
-                  return (
-                    <div key={item.id} className="p-4 sm:p-5 hover:bg-violet-50/40 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="flex items-start sm:items-center gap-3.5">
-                        <div className="w-10 h-10 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
-                          <Receipt className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-violet-100 text-violet-800">
-                              Payment Receipt Needed
-                            </span>
-                            {form.status === 'signed' && (
-                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 text-blue-700">
-                                Signed by Customer
-                              </span>
-                            )}
-                            {form.reference_number && (
-                              <span className="text-slate-400 text-xs font-mono">
-                                #{form.reference_number}
-                              </span>
-                            )}
-                          </div>
-                          <h4 className="font-bold text-slate-900 text-sm mt-0.5">{item.title}</h4>
-                          <p className="text-xs text-slate-500">
-                            {item.subtitle} · Due: <span className="font-bold text-violet-700">{currencyFormatter.format(item.price)}</span>
-                            {form.customer_phone && <span className="text-slate-400 ml-1.5">({form.customer_phone})</span>}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Quick Action Buttons for Agent */}
-                      <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
-                        <button
-                          onClick={() => handleWhatsAppReminder(form, 'payment')}
-                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-2xs"
-                          title="Request payment receipt via WhatsApp"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" />
-                          <span>Request Payment</span>
-                        </button>
-
-                        <button
-                          onClick={() => navigate(`/forms/edit/${form.id}`)}
-                          className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-2xs"
-                          title="Upload bank transfer / payment receipt"
-                        >
-                          <Upload className="w-3.5 h-3.5" />
-                          <span>Upload Receipt</span>
-                        </button>
-
-                        <button
-                          onClick={() => handleCopySignLink(form.id, form.customer_name)}
-                          className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                          title="Copy link"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                }
-
-                // Vehicle Ops: pickup or return
-                if (item.type === 'return') {
-                  const isConfirming = confirmReturnId === item.bookingId;
-                  return (
-                    <div 
-                      key={item.id} 
-                      className="p-4 sm:p-5 hover:bg-rose-50/40 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4"
-                    >
-                      <div className="flex items-center gap-3.5">
-                        <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-                          <Clock className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-800">
-                              Overdue Return
-                            </span>
-                            <span className="font-mono text-xs font-bold text-slate-700">{item.title}</span>
-                          </div>
-                          <h4 className="font-bold text-slate-900 text-sm mt-0.5">{item.subtitle}</h4>
-                          <p className="text-xs font-bold text-rose-600">
-                            {formatTimeDiff(item.time).toUpperCase()} LATE
-                          </p>
-                        </div>
-                      </div>
-
-                      {isConfirming ? (
-                        <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-rose-200 shadow-xs">
-                          <span className="text-xs font-semibold text-slate-700 mr-2">Confirm Return?</span>
-                          <button
-                            onClick={() => handleConfirmReturn(item.bookingId)}
-                            disabled={isConfirmingReturn}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-xs font-bold hover:bg-emerald-600 transition-colors disabled:opacity-50"
-                          >
-                            <Check className="w-3.5 h-3.5" /> Yes
-                          </button>
-                          <button
-                            onClick={() => setConfirmReturnId(null)}
-                            disabled={isConfirmingReturn}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-300 transition-colors disabled:opacity-50"
-                          >
-                            <X className="w-3.5 h-3.5" /> No
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setConfirmReturnId(item.bookingId)}
-                          className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shadow-2xs self-start md:self-auto"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Mark Returned
-                        </button>
-                      )}
-                    </div>
-                  );
-                }
-
-                if (item.type === 'pickup') {
-                  return (
-                    <div key={item.id} className="p-4 sm:p-5 hover:bg-blue-50/40 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="flex items-center gap-3.5">
-                        <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-                          <ArrowRight className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-800">
-                              Vehicle Pickup Today
-                            </span>
-                            <span className="font-mono text-xs font-bold text-slate-700">{item.title}</span>
-                          </div>
-                          <h4 className="font-bold text-slate-900 text-sm mt-0.5">{item.subtitle}</h4>
-                          <p className="text-xs font-bold text-blue-600">
-                            OUT IN {formatTimeDiff(item.time).toUpperCase()}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="text-xs text-slate-500 font-medium self-start md:self-auto">
-                        Ready at {formatInMYT(item.time.getTime(), 'h:mm a')}
-                      </div>
-                    </div>
-                  );
-                }
-
-                return null;
-              });
-            })()}
+              })
+            )}
           </div>
         </div>
 
-        {currentStaff && (
-          <AgentGamificationWidget 
-            salesThisMonth={stats.salesThisMonth}
-            commissionTierOverride={currentStaff.commission_tier_override || 'auto'}
-            events={events}
-            bookings={bookings}
-            userId={userId || ''}
-          />
-        )}
-
-        {/* Full Size Available To Sell Opportunity Section */}
-        <AvailableToSellCard
-          availableCars={availableCarsList}
-          groupedOpportunities={groupedOpportunities}
-          totalPotentialRevenue={totalAvailablePotentialRevenue}
-          currencyFormatter={currencyFormatter}
-          isLiveSyncing={isFetching}
-          onRefresh={() => queryClient.invalidateQueries({ queryKey: ['agentDashboard', subscriberId] })}
-        />
-
-        {/* Financial & Commission Hub: My Pocket */}
+{/* Financial & Commission Hub: My Pocket */}
         <div className="w-full">
           <div className="bg-gradient-to-br from-emerald-600 via-teal-700 to-slate-900 p-6 sm:p-7 rounded-2xl border border-emerald-500/20 shadow-sm text-white relative overflow-hidden">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -1442,21 +1263,21 @@ const AgentDashboard: React.FC = () => {
                 <p className="text-emerald-200/90 text-xs font-bold uppercase tracking-widest mb-1.5">THIS WEEK SALES</p>
                 <p className="text-2xl font-black text-white">{currencyFormatter.format(stats.salesThisWeek)}</p>
                 {stats.salesThisWeek > 0 ? (
-                  stats.salesLastWeek > 0 ? (
+                  stats.salesLastWeekToDate > 0 ? (
                     <div className="flex items-center text-[11px] font-bold mt-1 text-white/90">
-                      {stats.salesThisWeek >= stats.salesLastWeek ? (
+                      {stats.salesThisWeek >= stats.salesLastWeekToDate ? (
                         <TrendingUp className="w-3.5 h-3.5 mr-1 text-emerald-300" />
                       ) : (
                         <TrendingDown className="w-3.5 h-3.5 mr-1 text-rose-300" />
                       )}
                       <span>
-                        {stats.salesThisWeek >= stats.salesLastWeek ? '↑ +' : '↓ '}{Math.abs(Number((((stats.salesThisWeek - stats.salesLastWeek) / stats.salesLastWeek) * 100).toFixed(1)))}% vs last week
+                        {stats.salesThisWeek >= stats.salesLastWeekToDate ? '↑ +' : '↓ '}{Math.abs(Number((((stats.salesThisWeek - stats.salesLastWeekToDate) / stats.salesLastWeekToDate) * 100).toFixed(1)))}% vs last week (WTD)
                       </span>
                     </div>
                   ) : (
                     <div className="flex items-center text-[11px] font-bold mt-1 text-emerald-300">
                       <TrendingUp className="w-3.5 h-3.5 mr-1" />
-                      <span>↑ +100% vs last week</span>
+                      <span>↑ +100% vs last week (WTD)</span>
                     </div>
                   )
                 ) : (
@@ -1468,21 +1289,21 @@ const AgentDashboard: React.FC = () => {
                 <p className="text-emerald-200/90 text-xs font-bold uppercase tracking-widest mb-1.5">THIS MONTH SALES</p>
                 <p className="text-2xl font-black text-white">{currencyFormatter.format(stats.salesThisMonth)}</p>
                 {stats.salesThisMonth > 0 ? (
-                  stats.salesLastMonth > 0 ? (
+                  stats.salesLastMonthToDate > 0 ? (
                     <div className="flex items-center text-[11px] font-bold mt-1 text-white/90">
-                      {stats.salesThisMonth >= stats.salesLastMonth ? (
+                      {stats.salesThisMonth >= stats.salesLastMonthToDate ? (
                         <TrendingUp className="w-3.5 h-3.5 mr-1 text-emerald-300" />
                       ) : (
                         <TrendingDown className="w-3.5 h-3.5 mr-1 text-rose-300" />
                       )}
                       <span>
-                        {stats.salesThisMonth >= stats.salesLastMonth ? '↑ +' : '↓ '}{Math.abs(Number((((stats.salesThisMonth - stats.salesLastMonth) / stats.salesLastMonth) * 100).toFixed(1)))}% vs last month
+                        {stats.salesThisMonth >= stats.salesLastMonthToDate ? '↑ +' : '↓ '}{Math.abs(Number((((stats.salesThisMonth - stats.salesLastMonthToDate) / stats.salesLastMonthToDate) * 100).toFixed(1)))}% vs last month (MTD)
                       </span>
                     </div>
                   ) : (
                     <div className="flex items-center text-[11px] font-bold mt-1 text-emerald-300">
                       <TrendingUp className="w-3.5 h-3.5 mr-1" />
-                      <span>↑ +100% vs last month</span>
+                      <span>↑ +100% vs last month (MTD)</span>
                     </div>
                   )
                 ) : (
