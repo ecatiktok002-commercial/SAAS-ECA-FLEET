@@ -399,6 +399,16 @@ const mapCarToDB = (car: any) => {
     pickupDatetime = mytToUtc(`${booking.start_date}T00:00:00`).toISOString();
   }
 
+  let computedEndDate = booking.end_date;
+  if (!computedEndDate && booking.start_date && booking.duration_days !== undefined) {
+    computedEndDate = formatInMYT(addDays(parseISO(booking.start_date), Number(booking.duration_days)), 'yyyy-MM-dd');
+  }
+
+  let computedReturnTime = booking.return_time;
+  if (!computedReturnTime && booking.pickup_time) {
+    computedReturnTime = booking.pickup_time;
+  }
+
   const dbBooking: any = {
     car_id: booking.car_id,
     member_id: booking.member_id,
@@ -409,8 +419,8 @@ const mapCarToDB = (car: any) => {
     duration_days: booking.duration_days,
     start_date: booking.start_date,
     pickup_time: booking.pickup_time,
-    end_date: booking.end_date,
-    return_time: booking.return_time,
+    end_date: computedEndDate,
+    return_time: computedReturnTime,
     actual_end_time: booking.actual_end_time,
     end_time: booking.end_time,
     status: booking.status,
