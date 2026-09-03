@@ -257,7 +257,7 @@ Output strictly valid JSON with no markdown formatting or markdown code blocks:
           let response;
           try {
             response = await ai.models.generateContent({
-              model: 'gemini-2.5-flash',
+              model: 'gemini-3.6-flash',
               contents: [
                 {
                   inlineData: {
@@ -273,9 +273,9 @@ Output strictly valid JSON with no markdown formatting or markdown code blocks:
               },
             });
           } catch (modelErr) {
-            console.warn('[/api/identify-dashboard] Gemini 2.5 flash error, falling back to gemini-1.5-flash:', modelErr);
+            console.warn('[/api/identify-dashboard] Gemini 3.6 flash error, falling back to gemini-3.6-flash:', modelErr);
             response = await ai.models.generateContent({
-              model: 'gemini-1.5-flash',
+              model: 'gemini-3.6-flash',
               contents: [
                 {
                   inlineData: {
@@ -321,23 +321,33 @@ Output strictly valid JSON with no markdown formatting or markdown code blocks:
     let fuelLevel = data.fuel_level;
     if (fuelLevel) {
       const flLower = String(fuelLevel).toLowerCase().trim();
-      if (flLower.includes('full') || flLower.includes('8') || flLower === 'f' || flLower.includes('100%')) {
+      
+      if (flLower.includes('full') || flLower.includes('100%') || flLower.includes('8/8') || flLower === 'f' || flLower === '8') {
         fuelLevel = 'Full Tank';
-      } else if (flLower.includes('7')) {
-        fuelLevel = '7 Bar';
-      } else if (flLower.includes('6') || flLower.includes('3/4') || flLower.includes('75%')) {
+      } else if (flLower.includes('75%') || flLower.includes('3/4') || flLower.includes('6/8')) {
         fuelLevel = '6 Bar';
-      } else if (flLower.includes('5')) {
-        fuelLevel = '5 Bar';
-      } else if (flLower.includes('4') || flLower.includes('half') || flLower.includes('1/2') || flLower.includes('50%')) {
+      } else if (flLower.includes('50%') || flLower.includes('1/2') || flLower.includes('half') || flLower.includes('4/8')) {
         fuelLevel = '4 Bar';
-      } else if (flLower.includes('3') || flLower.includes('3/8')) {
-        fuelLevel = '3 Bar';
-      } else if (flLower.includes('2') || flLower.includes('1/4') || flLower.includes('25%')) {
+      } else if (flLower.includes('25%') || flLower.includes('1/4') || flLower.includes('2/8')) {
         fuelLevel = '2 Bar';
-      } else if (flLower.includes('1') || flLower.includes('low') || flLower.includes('empty') || flLower.includes('reserve') || flLower === 'e') {
+      } else if (flLower.match(/\b8\b/) || flLower.includes('8 bar')) {
+        fuelLevel = 'Full Tank';
+      } else if (flLower.match(/\b7\b/) || flLower.includes('7 bar')) {
+        fuelLevel = '7 Bar';
+      } else if (flLower.match(/\b6\b/) || flLower.includes('6 bar')) {
+        fuelLevel = '6 Bar';
+      } else if (flLower.match(/\b5\b/) || flLower.includes('5 bar')) {
+        fuelLevel = '5 Bar';
+      } else if (flLower.match(/\b4\b/) || flLower.includes('4 bar')) {
+        fuelLevel = '4 Bar';
+      } else if (flLower.match(/\b3\b/) || flLower.includes('3 bar')) {
+        fuelLevel = '3 Bar';
+      } else if (flLower.match(/\b2\b/) || flLower.includes('2 bar')) {
+        fuelLevel = '2 Bar';
+      } else if (flLower.match(/\b1\b/) || flLower.includes('1 bar') || flLower.includes('low') || flLower.includes('empty') || flLower === 'e' || flLower.includes('0%')) {
         fuelLevel = '1 Bar';
       }
+
     }
 
     let mileageNum: number | null = null;

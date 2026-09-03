@@ -1087,9 +1087,43 @@ export const apiService = {
   async updateBookingStatus(id: string, subscriberId: string, status: 'pending' | 'active' | 'completed' | 'cancelled'): Promise<void> {
     const targetSubscriberId = await getTenantId();
     return withRetry(async () => {
+      let finalBookingStatus = status;
+      let agreementsToUpdate: string[] = [];
+
+      // If they are trying to complete the booking, we must check the agreements
+      if (status === 'completed') {
+        const { data: agreements } = await supabase
+          .from('agreements')
+          .select('id, payment_receipt, status')
+          .eq('booking_id', id)
+          .eq('subscriber_id', targetSubscriberId);
+
+        let allHaveReceipts = true;
+
+        if (agreements && agreements.length > 0) {
+          for (const agreement of agreements) {
+            const hasReceipt = !!agreement.payment_receipt && agreement.payment_receipt !== '[]' && agreement.payment_receipt !== 'null';
+            if (!hasReceipt) {
+              allHaveReceipts = false;
+            } else if (agreement.status !== 'completed') {
+              agreementsToUpdate.push(agreement.id);
+            }
+          }
+        } else {
+          // If there are no agreements linked at all, we might decide to keep it active
+          // since there's no receipt.
+          allHaveReceipts = false;
+        }
+
+        // The core rule requested: keep the status as "Active" if payment receipt is missing
+        if (!allHaveReceipts) {
+          finalBookingStatus = 'active';
+        }
+      }
+
       const { error } = await supabase
         .from('bookings')
-        .update({ status })
+        .update({ status: finalBookingStatus })
         .eq('id', id)
         .eq('subscriber_id', targetSubscriberId);
       
@@ -1098,27 +1132,12 @@ export const apiService = {
         throw new Error('Failed to update booking status');
       }
 
-      // If completed, also update linked agreement status to 'completed'
-      // but only if it has a valid payment receipt and is not already 'completed'
-      if (status === 'completed') {
-        const { data: agreements } = await supabase
+      // Only update the agreement to 'completed' IF there is a valid payment receipt attached
+      for (const agreementId of agreementsToUpdate) {
+        await supabase
           .from('agreements')
-          .select('id, payment_receipt')
-          .eq('booking_id', id)
-          .eq('subscriber_id', targetSubscriberId)
-          .neq('status', 'completed');
-
-        if (agreements && agreements.length > 0) {
-          for (const agreement of agreements) {
-            const hasReceipt = !!agreement.payment_receipt && agreement.payment_receipt !== '[]' && agreement.payment_receipt !== 'null';
-            if (hasReceipt) {
-              await supabase
-                .from('agreements')
-                .update({ status: 'completed' })
-                .eq('id', agreement.id);
-            }
-          }
-        }
+          .update({ status: 'completed' })
+          .eq('id', agreementId);
       }
     });
   },

@@ -156,7 +156,7 @@ Output strictly valid JSON with no markdown formatting or markdown code blocks:
           let response;
           try {
             response = await ai.models.generateContent({
-              model: 'gemini-2.5-flash',
+              model: 'gemini-3.6-flash',
               contents: [
                 {
                   inlineData: {
@@ -172,9 +172,9 @@ Output strictly valid JSON with no markdown formatting or markdown code blocks:
               },
             });
           } catch (firstErr: any) {
-            console.warn('Gemini 2.5 flash error, trying gemini-2.0-flash:', firstErr.message);
+            console.warn('Gemini 3.6 flash error, trying gemini-3.6-flash:', firstErr.message);
             response = await ai.models.generateContent({
-              model: 'gemini-2.0-flash',
+              model: 'gemini-3.6-flash',
               contents: [
                 {
                   inlineData: {
@@ -215,14 +215,21 @@ Output strictly valid JSON with no markdown formatting or markdown code blocks:
           let parsedFuel = result.fuel_level || null;
           if (parsedFuel) {
             const flLower = String(parsedFuel).toLowerCase();
-            if (flLower.includes('full') || flLower.includes('8') || flLower === 'f') parsedFuel = 'Full Tank';
-            else if (flLower.includes('7')) parsedFuel = '7 Bar';
-            else if (flLower.includes('6') || flLower.includes('3/4')) parsedFuel = '6 Bar';
-            else if (flLower.includes('5')) parsedFuel = '5 Bar';
-            else if (flLower.includes('4') || flLower.includes('half') || flLower.includes('1/2')) parsedFuel = '4 Bar';
-            else if (flLower.includes('3')) parsedFuel = '3 Bar';
-            else if (flLower.includes('2') || flLower.includes('1/4')) parsedFuel = '2 Bar';
-            else if (flLower.includes('1') || flLower.includes('low') || flLower.includes('empty') || flLower === 'e') parsedFuel = '1 Bar';
+            
+        if (flLower.includes('full') || flLower.includes('100%') || flLower.includes('8/8') || flLower === 'f' || flLower === '8') parsedFuel = 'Full Tank';
+        else if (flLower.includes('75%') || flLower.includes('3/4') || flLower.includes('6/8')) parsedFuel = '6 Bar';
+        else if (flLower.includes('50%') || flLower.includes('1/2') || flLower.includes('half') || flLower.includes('4/8')) parsedFuel = '4 Bar';
+        else if (flLower.includes('25%') || flLower.includes('1/4') || flLower.includes('2/8')) parsedFuel = '2 Bar';
+        else if (flLower.match(/\b8\b/) || flLower.includes('8 bar')) parsedFuel = 'Full Tank';
+        else if (flLower.match(/\b7\b/) || flLower.includes('7 bar')) parsedFuel = '7 Bar';
+        else if (flLower.match(/\b6\b/) || flLower.includes('6 bar')) parsedFuel = '6 Bar';
+        else if (flLower.match(/\b5\b/) || flLower.includes('5 bar')) parsedFuel = '5 Bar';
+        else if (flLower.match(/\b4\b/) || flLower.includes('4 bar')) parsedFuel = '4 Bar';
+        else if (flLower.match(/\b3\b/) || flLower.includes('3 bar')) parsedFuel = '3 Bar';
+        else if (flLower.match(/\b2\b/) || flLower.includes('2 bar')) parsedFuel = '2 Bar';
+        else if (flLower.match(/\b1\b/) || flLower.includes('1 bar') || flLower.includes('low') || flLower.includes('empty') || flLower === 'e' || flLower.includes('0%')) parsedFuel = '1 Bar';
+        else parsedFuel = result.fuel_level; // keep original if no match
+
           }
 
           res.statusCode = 200;
