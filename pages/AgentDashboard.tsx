@@ -1336,9 +1336,9 @@ const AgentDashboard: React.FC = () => {
         </div>
 
         {/* Analytics & Logistics Row (Balanced Grid - Collapses when Logistic Credits is empty) */}
-        <div className={logisticCredits && logisticCredits.length > 0 ? "grid grid-cols-1 lg:grid-cols-3 gap-6" : "grid grid-cols-1 gap-6"}>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Weekly Earnings Performance Chart */}
-          <div className={`${logisticCredits && logisticCredits.length > 0 ? 'lg:col-span-2' : 'col-span-1'} bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between`}>
+          <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
@@ -1395,41 +1395,144 @@ const AgentDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Logistic Credits Log (Collapsed when empty) */}
-          {logisticCredits && logisticCredits.length > 0 && (
-            <div className="lg:col-span-1 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-                      <Car className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-slate-900 text-sm uppercase tracking-tight">Logistic Credits</h3>
-                      <p className="text-xs text-slate-500">Fleet handover & return bonuses</p>
-                    </div>
-                  </div>
-                  <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg text-xs font-black">
-                    {currencyFormatter.format(logisticCredits.reduce((sum, r) => sum + (r.logistic_credit || 0), 0))}
-                  </span>
+          {/* Right Column: Commission Structure + Optional Logistic Credits Log */}
+          <div className="lg:col-span-1 flex flex-col gap-6">
+            
+            {/* Commission Structure */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="p-2 bg-purple-50 text-purple-600 rounded-xl">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm uppercase tracking-tight">Commission Structure</h3>
+                  <p className="text-xs text-slate-500">Your earning rates</p>
                 </div>
               </div>
-
-              <div className="h-56 overflow-y-auto pr-1 space-y-2 mt-2">
-                {logisticCredits.map(record => (
-                  <div key={record.id} className="p-3 bg-slate-50 hover:bg-slate-100/70 transition-colors rounded-xl border border-slate-100 flex items-center justify-between">
-                    <div>
-                      <div className="text-xs font-bold text-slate-900">{record.cars?.plate || 'Vehicle Delivery'}</div>
-                      <div className="text-[10px] text-slate-500">{formatInMYT(new Date(record.created_at).getTime(), 'dd MMM yyyy, HH:mm')}</div>
+              
+              <div className="flex-1 flex flex-col justify-center">
+                {currentStaff?.commission_tier_override && currentStaff.commission_tier_override !== 'auto' ? (
+                  <div className="p-5 bg-purple-50 rounded-xl border border-purple-100 flex flex-col items-center justify-center text-center space-y-2.5">
+                    <span className="text-[10px] font-black text-purple-600 uppercase tracking-wider bg-white px-2.5 py-1 rounded-md shadow-sm border border-purple-100">Fixed Rate</span>
+                    <span className="text-3xl font-black text-purple-900">
+                      {currentStaff.commission_tier_override === 'premium' ? '20%' : currentStaff.commission_tier_override === 'prestige' ? '25%' : '30%'}
+                    </span>
+                    <p className="text-[11px] text-purple-700/80 font-medium">You are on a fixed commission tier regardless of total sales.</p>
+                  </div>
+                ) : currentStaff?.commission_rate && Number(currentStaff.commission_rate) > 0 ? (
+                  <div className="p-5 bg-emerald-50 rounded-xl border border-emerald-100 flex flex-col items-center justify-center text-center space-y-2.5">
+                    <span className="text-[10px] font-black text-emerald-600 uppercase tracking-wider bg-white px-2.5 py-1 rounded-md shadow-sm border border-emerald-100">Custom Rate</span>
+                    <span className="text-3xl font-black text-emerald-900">{currentStaff.commission_rate}%</span>
+                    <p className="text-[11px] text-emerald-700/80 font-medium">You have a custom flat commission rate.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Monthly Progress Tracker */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
+                      {/* Decorative progress background */}
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
+                      
+                      <div className="flex justify-between items-end mb-3 relative z-10">
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Current Tier</p>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl font-black text-slate-900">Tier {stats.salesThisMonth > 8000 ? 3 : stats.salesThisMonth > 5000 ? 2 : 1}</span>
+                            <span className="bg-indigo-600 text-white px-2 py-0.5 rounded-md text-[10px] font-black shadow-sm">
+                              {stats.salesThisMonth > 8000 ? '30%' : stats.salesThisMonth > 5000 ? '25%' : '20%'} RATE
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Monthly Sales</p>
+                          <p className="text-sm font-bold text-slate-900">{currencyFormatter.format(stats.salesThisMonth || 0)}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="relative z-10">
+                        <div className="flex justify-between text-[10px] font-bold text-slate-400 mb-1.5">
+                          <span>Progress to Next Tier</span>
+                          <span>{stats.salesThisMonth > 8000 ? 'Maxed Out' : `${Math.round(stats.salesThisMonth > 5000 ? ((stats.salesThisMonth - 5000) / 3000) * 100 : ((stats.salesThisMonth || 0) / 5000) * 100)}%`}</span>
+                        </div>
+                        <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden mb-2.5">
+                          <div 
+                            className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-700 ease-out" 
+                            style={{ width: `${Math.min(100, Math.max(0, stats.salesThisMonth > 5000 ? ((stats.salesThisMonth - 5000) / 3000) * 100 : ((stats.salesThisMonth || 0) / 5000) * 100))}%` }}
+                          />
+                        </div>
+                        
+                        <p className="text-[10px] text-slate-500 font-medium text-center">
+                          {stats.salesThisMonth > 8000 
+                            ? '✨ Max tier reached for this month! Great job.' 
+                            : <>Unlock <span className="font-bold text-indigo-600">Tier {stats.salesThisMonth > 5000 ? 3 : 2} ({stats.salesThisMonth > 5000 ? '30%' : '25%'})</span> with {currencyFormatter.format((stats.salesThisMonth > 5000 ? 8000 : 5000) - (stats.salesThisMonth || 0))} more in sales</>}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-xs font-black text-blue-600 bg-blue-50/80 px-2 py-1 rounded-md">
-                      +{currencyFormatter.format(record.logistic_credit)}
+
+                    {/* Reference List */}
+                    <div className="space-y-2">
+                      <div className={`flex items-center justify-between p-3 rounded-lg border ${(!stats.salesThisMonth || stats.salesThisMonth <= 5000) ? 'bg-indigo-50/50 border-indigo-200 shadow-sm' : 'bg-slate-50 border-slate-100 opacity-50 hover:opacity-100'} transition-all`}>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Tier 1</span>
+                          <span className={`text-xs font-bold ${(!stats.salesThisMonth || stats.salesThisMonth <= 5000) ? 'text-indigo-900' : 'text-slate-600'}`}>RM 0 - RM 5,000</span>
+                        </div>
+                        <span className={`text-sm font-black ${(!stats.salesThisMonth || stats.salesThisMonth <= 5000) ? 'text-indigo-700' : 'text-slate-600'}`}>20%</span>
+                      </div>
+                      <div className={`flex items-center justify-between p-3 rounded-lg border ${(stats.salesThisMonth > 5000 && stats.salesThisMonth <= 8000) ? 'bg-indigo-50/50 border-indigo-200 shadow-sm' : 'bg-slate-50 border-slate-100 opacity-50 hover:opacity-100'} transition-all`}>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Tier 2</span>
+                          <span className={`text-xs font-bold ${(stats.salesThisMonth > 5000 && stats.salesThisMonth <= 8000) ? 'text-indigo-900' : 'text-slate-600'}`}>RM 5,001 - RM 8,000</span>
+                        </div>
+                        <span className={`text-sm font-black ${(stats.salesThisMonth > 5000 && stats.salesThisMonth <= 8000) ? 'text-indigo-700' : 'text-slate-600'}`}>25%</span>
+                      </div>
+                      <div className={`flex items-center justify-between p-3 rounded-lg border ${(stats.salesThisMonth > 8000) ? 'bg-indigo-50/50 border-indigo-200 shadow-sm' : 'bg-slate-50 border-slate-100 opacity-50 hover:opacity-100'} transition-all`}>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Tier 3</span>
+                          <span className={`text-xs font-bold ${(stats.salesThisMonth > 8000) ? 'text-indigo-900' : 'text-slate-600'}`}>Above RM 8,000</span>
+                        </div>
+                        <span className={`text-sm font-black ${(stats.salesThisMonth > 8000) ? 'text-indigo-700' : 'text-slate-600'}`}>30%</span>
+                      </div>
                     </div>
                   </div>
-                ))}
+                )}
               </div>
             </div>
-          )}
+
+            {/* Logistic Credits Log (Collapsed when empty) */}
+            {logisticCredits && logisticCredits.length > 0 && (
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-full">
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                        <Car className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-sm uppercase tracking-tight">Logistic Credits</h3>
+                        <p className="text-xs text-slate-500">Fleet handover & return bonuses</p>
+                      </div>
+                    </div>
+                    <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg text-xs font-black">
+                      {currencyFormatter.format(logisticCredits.reduce((sum, r) => sum + (r.logistic_credit || 0), 0))}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="max-h-40 overflow-y-auto pr-1 space-y-2 mt-2">
+                  {logisticCredits.map(record => (
+                    <div key={record.id} className="p-3 bg-slate-50 hover:bg-slate-100/70 transition-colors rounded-xl border border-slate-100 flex items-center justify-between">
+                      <div>
+                        <div className="text-xs font-bold text-slate-900">{record.cars?.plate || 'Vehicle Delivery'}</div>
+                        <div className="text-[10px] text-slate-500">{formatInMYT(new Date(record.created_at).getTime(), 'dd MMM yyyy, HH:mm')}</div>
+                      </div>
+                      <div className="text-xs font-black text-blue-600 bg-blue-50/80 px-2 py-1 rounded-md">
+                        +{currencyFormatter.format(record.logistic_credit)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Pending Payout Breakdown Modal */}
