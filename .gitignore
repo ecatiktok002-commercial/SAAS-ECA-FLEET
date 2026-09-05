@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.vercel/
+.env
+.env.*
+!.env.example
+.migration/
+MIGRATION-HANDOVER.md
+*.log
+*.tsbuildinfo
+supabase/.temp/
+output.txt
+count.txt

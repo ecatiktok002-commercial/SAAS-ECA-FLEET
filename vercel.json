@@ -1,4 +1,8 @@
 {
+  "framework": "vite",
+  "buildCommand": "npm exec vite build",
+  "installCommand": "npm ci --ignore-scripts --no-audit --no-fund",
+  "outputDirectory": "dist",
   "rewrites": [
     {
       "source": "/(.*)",
