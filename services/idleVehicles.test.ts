@@ -19,16 +19,23 @@ test('returns the actual available fleet, not active count minus unrelated booki
 test('availability changes at pickup and return boundaries in Malaysia time', () => {
   const cars = [car('CAR')];
   const bookings = [booking('CAR', { duration_days: 0, return_time: '14:00' })];
-  assert.equal(getIdleVehiclesNow(cars, bookings, at('09:59')).length, 1);
+  assert.equal(getIdleVehiclesNow(cars, bookings, at('09:59')).length, 0);
   assert.equal(getIdleVehiclesNow(cars, bookings, at('10:00')).length, 0);
   assert.equal(getIdleVehiclesNow(cars, bookings, at('13:59')).length, 0);
   assert.equal(getIdleVehiclesNow(cars, bookings, at('14:00')).length, 1);
 });
 
-test('cancelled and future bookings do not block availability now', () => {
-  const cars = [car('CANCELLED'), car('FUTURE')];
-  const bookings = [booking('CANCELLED', { status: 'cancelled' }), booking('FUTURE', { pickup_time: '18:00' })];
-  assert.equal(getIdleVehiclesNow(cars, bookings, at('12:00')).length, 2);
+test('excludes later pickups today but allows tomorrow and cancelled bookings', () => {
+  const cars = [car('CANCELLED'), car('TODAY'), car('TOMORROW')];
+  const bookings = [booking('CANCELLED', { status: 'cancelled' }), booking('TODAY', { pickup_time: '18:00' }), booking('TOMORROW', { start_date: '2026-09-06', pickup_time: '00:00' })];
+  assert.deepEqual(getIdleVehiclesNow(cars, bookings, at('12:00')).map(c => c.id), ['CANCELLED', 'TOMORROW']);
+});
+
+test('same-day cutoff follows Malaysia midnight, not the UTC date', () => {
+  const cars = [car('CAR')];
+  const bookings = [booking('CAR', { start_date: '2026-09-06', pickup_time: '09:00' })];
+  assert.equal(getIdleVehiclesNow(cars, bookings, new Date('2026-09-05T15:59:59Z').getTime()).length, 1);
+  assert.equal(getIdleVehiclesNow(cars, bookings, new Date('2026-09-05T16:00:00Z').getTime()).length, 0);
 });
 
 test('uses an adjusted end time and still blocks overlapping rentals', () => {

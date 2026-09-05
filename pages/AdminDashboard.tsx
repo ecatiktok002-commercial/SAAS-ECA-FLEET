@@ -567,6 +567,7 @@ const AdminDashboard: React.FC = () => {
                 <p className="text-3xl font-bold text-slate-900">{stats.idleVehicles}</p>
               </div>
               <p className="text-xs text-slate-500 mt-1">Available now · {formatInMYT(now, 'HH:mm')} MYT</p>
+              <p className="text-xs text-slate-500 mt-1">No remaining pickups today</p>
             </div>
             {stats.idleCars.length > 0 ? (
               <div className="mt-4 space-y-1">
