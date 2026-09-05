@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/apiService';
 import { parseBookingDate, getBookingEndTime } from '../services/bookingService';
+import { getIdleVehiclesNow } from '../services/idleVehicles';
 import { getNowMYT, utcToMyt, formatInMYT, getAgreementPickupDateTime, getMYTDateString } from '../utils/dateUtils';
 import { 
   Users, Car, CalendarCheck, DollarSign, FileText, AlertTriangle, 
@@ -41,6 +42,20 @@ const AdminDashboard: React.FC = () => {
   
   const [confirmReturnId, setConfirmReturnId] = useState<string | null>(null);
   const [isConfirmingReturn, setIsConfirmingReturn] = useState(false);
+  const [showAllIdleVehicles, setShowAllIdleVehicles] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const refreshClock = () => setNow(new Date());
+    const timer = window.setInterval(refreshClock, 15000);
+    window.addEventListener('focus', refreshClock);
+    document.addEventListener('visibilitychange', refreshClock);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refreshClock);
+      document.removeEventListener('visibilitychange', refreshClock);
+    };
+  }, []);
 
   const [showEventModal, setShowEventModal] = useState(false);
   const [newEvent, setNewEvent] = useState({ 
@@ -57,8 +72,7 @@ const AdminDashboard: React.FC = () => {
     currency: 'MYR',
   });
 
-  const { startDateStr, endDateStr, now } = useMemo(() => {
-    const now = new Date();
+  const { startDateStr, endDateStr } = useMemo(() => {
     
     // Fetch data for the last 6 months to support the 6-month sales history + future for bookings
     const startDateObj = new Date();
@@ -70,7 +84,6 @@ const AdminDashboard: React.FC = () => {
     endDateObj.setMonth(endDateObj.getMonth() + 6);
     
     return {
-      now,
       startDateStr: startDateObj.toISOString(),
       endDateStr: endDateObj.toISOString()
     };
@@ -287,28 +300,8 @@ const AdminDashboard: React.FC = () => {
 
     const salesLastMonth = past6MonthsSales[1]?.sales || 0;
 
-    // 2. Idle Vehicles
-    const activeCars = cars.filter(c => c.status === 'active');
-    const nowTime = now.getTime();
-    const carsOnRentToday = bookings.filter(b => {
-      if (b.status === 'cancelled') return false;
-      const startMs = parseBookingDate(b.start_date, b.pickup_time);
-      const endMs = getBookingEndTime(b);
-      return startMs <= nowTime && endMs >= nowTime;
-    }).map(b => b.car_id);
-    
-    const uniqueCarsOnRent = new Set(carsOnRentToday);
-    const idleVehicles = activeCars.length - uniqueCarsOnRent.size;
-
-    // Calculate service alerts
-    const serviceAlerts = cars
-      .filter(c => c.next_service_mileage && c.next_service_mileage > 0)
-      .map(c => ({
-        plate: c.plateNumber || c.plate,
-        dueIn: (c.next_service_mileage || 0) - (c.current_mileage || 0)
-      }))
-      .filter(alert => alert.dueIn <= 500) // Show if within 500km or overdue
-      .sort((a, b) => a.dueIn - b.dueIn);
+    // Keep the displayed count and plates tied to the same current availability.
+    const idleCars = getIdleVehiclesNow(cars, bookings, now.getTime());
 
     // 3. Pending Deliveries (Today, Current Time < Pickup Time)
     const pending: PendingDelivery[] = [];
@@ -390,8 +383,8 @@ const AdminDashboard: React.FC = () => {
         salesLastMonthApples,
         past6MonthsSales,
         thisWeekCycleLabel,
-        idleVehicles: Math.max(0, idleVehicles),
-        serviceAlerts
+        idleVehicles: idleCars.length,
+        idleCars
       },
       pendingDeliveries: pending.slice(0, 5),
       overdueReturns: overdue.slice(0, 5),
@@ -573,21 +566,24 @@ const AdminDashboard: React.FC = () => {
               <div className="flex items-baseline gap-2">
                 <p className="text-3xl font-bold text-slate-900">{stats.idleVehicles}</p>
               </div>
+              <p className="text-xs text-slate-500 mt-1">Available now · {formatInMYT(now, 'HH:mm')} MYT</p>
             </div>
-            {stats.serviceAlerts.length > 0 && (
+            {stats.idleCars.length > 0 ? (
               <div className="mt-4 space-y-1">
-                {stats.serviceAlerts.slice(0, 3).map((alert: any, idx: number) => (
-                  <div key={idx} className="bg-rose-50 text-rose-700 px-2.5 py-1.5 rounded-lg text-xs font-bold animate-pulse flex justify-between items-center">
-                    <span>{alert.plate}</span>
-                    <span>{alert.dueIn <= 0 ? 'OVERDUE' : `due in ${alert.dueIn} km`}</span>
+                {(showAllIdleVehicles ? stats.idleCars : stats.idleCars.slice(0, 3)).map((car: CarType) => (
+                  <div key={car.id} className="bg-emerald-50 text-emerald-800 px-2.5 py-1.5 rounded-lg text-xs font-semibold flex justify-between items-center gap-2">
+                    <span className="break-all">{car.plate || car.plateNumber || car.name}</span>
+                    <span className="shrink-0">AVAILABLE</span>
                   </div>
                 ))}
-                {stats.serviceAlerts.length > 3 && (
-                  <div className="text-[10px] text-slate-400 text-center font-medium mt-1">
-                    +{stats.serviceAlerts.length - 3} more alerts
-                  </div>
+                {stats.idleCars.length > 3 && (
+                  <button type="button" onClick={() => setShowAllIdleVehicles(value => !value)} aria-expanded={showAllIdleVehicles} className="min-h-11 w-full text-xs text-blue-600 text-center font-medium mt-1 hover:text-blue-800">
+                    {showAllIdleVehicles ? 'Show fewer vehicles' : `Show all ${stats.idleCars.length} available vehicles`}
+                  </button>
                 )}
               </div>
+            ) : (
+              <p className="mt-4 text-xs text-slate-500">No vehicles available right now.</p>
             )}
           </div>
         </div>
